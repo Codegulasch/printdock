@@ -21,6 +21,7 @@ const BI = {
   fan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M12 10c0-4 1-7 4-7s3 4-1 6M14 12c4 0 7 1 7 4s-4 3-6-1M12 14c0 4-1 7-4 7s-3-4 1-6M10 12c-4 0-7-1-7-4s4-3 6 1"/></svg>',
   bulb: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>',
   drop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/></svg>',
+  spool: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v6M12 15v6"/></svg>',
 };
 
 /** Druckerbild nach Bauform – Strichzeichnung, passt sich dem Farbschema an. */
@@ -118,9 +119,9 @@ function cardHTML(p) {
 
   // --- Plaketten
   const badges = [];
-  badges.push(s.online ? `<span class="pb ok">${BI.link}${t('Verbunden')}</span>` : `<span class="pb off">${BI.link}${t('Offline')}</span>`);
+  badges.push(`<button class="pb ${s.online ? 'ok' : 'off'}" data-act="editPrinter" data-id="${p.id}" title="${esc(t('Verbindung einstellen'))}">${BI.link}${s.online ? t('Verbunden') : t('Offline')}</button>`);
   if (s.wifi != null) badges.push(`<span class="pb ${s.wifi < -75 ? 'warn' : ''}" title="${t('WLAN-Signal')}">${BI.wifi}${s.wifi} dBm</span>`);
-  if (s.online) badges.push(s.hms?.length ? `<span class="pb bad" title="${esc(s.hms.map((h) => h.code).join(', '))}">${BI.alert}${s.hms.length > 1 ? t('{n} Meldungen', { n: s.hms.length }) : t('1 Meldung')}</span>` : `<span class="pb ok">${BI.alert}OK</span>`);
+  if (s.online && (s.hms || p.driver === 'bambu')) badges.push(s.hms?.length ? `<button class="pb bad" data-bact="hms" data-id="${p.id}" title="${esc(t('Meldungen anzeigen'))}">${BI.alert}${s.hms.length > 1 ? t('{n} Meldungen', { n: s.hms.length }) : t('1 Meldung')}</button>` : `<span class="pb ok">${BI.alert}OK</span>`);
   if (tasks.length) badges.push(`<button class="pb ${due ? 'bad' : soon ? 'warn' : 'ok'}" data-view="maint" title="${t('Wartung')}">${BI.wrench}${due ? t('{n} fällig', { n: due }) : soon ? t('bald fällig') : 'OK'}</button>`);
   if (queued.length && on('queue')) badges.push(`<button class="pb acc" data-view="queue" title="${t('Eingeplante Drucke')}">${BI.layers}${queued.length}</button>`);
   if (p.demo) badges.push(`<span class="pb info">${t('Demo')}</span>`);
@@ -202,32 +203,71 @@ function cardHTML(p) {
     <div class="pbody"><div class="status"><div class="pic">${pic}</div><div style="min-width:0"><div class="st-line"><i class="led ${sc}"></i>${esc(label)}</div>${info}</div></div>${fault}${nextRow}</div>
     ${temps}
     ${ctrls}
-    ${on('filament') && typeof filamentSectionHTML === 'function' ? filamentSectionHTML(p) : ''}
+    ${filamentSectionHTML(p)}
   </article>`;
 }
 
-/** Filament-Bereich: AMS/ACE-Einheiten bzw. Werkzeuge mit Spulen. */
+/**
+ * Filament-Bereich: AMS/ACE-Einheiten bzw. Werkzeuge.
+ * Mit Filamentverwaltung: zugeordnete Spulen; Plätze ohne Spule zeigen, was der Drucker meldet.
+ * Ohne Filamentverwaltung: nur die Belegung, wie der Drucker sie meldet.
+ */
 function filamentSectionHTML(p) {
-  const fp = (S.fil?.printers || []).find((x) => x.id === p.id);
-  if (!fp?.slots?.length) return '';
+  const managed = on('filament');
   const s = p.status || {};
+  const fp = managed ? (S.fil?.printers || []).find((x) => x.id === p.id) : null;
+  const slots = managed ? fp?.slots || [] : s.filament || [];
+  if (!slots.length || (!managed && !slots.some((x) => x.material))) return '';
+  const activeSlot = fp?.activeSlot ?? s.activeSlot;
   const units = s.filamentUnits || [];
   const groups = {};
-  for (const sl of fp.slots) (groups[sl.unit || t('Spulen')] ||= []).push(sl);
+  for (const sl of slots) (groups[sl.unit || 'Spulen'] ||= []).push(sl);
   const tile = (sl) => {
-    const sp = sl.spoolId ? fil().spools.find((x) => x.id === sl.spoolId) : null;
+    const sp = managed && sl.spoolId ? fil().spools.find((x) => x.id === sl.spoolId) : null;
     const color = sp?.color || sl.color;
-    const amount = sp ? `${Math.round(sp.remaining)} g` : sl.remainPct != null ? `${sl.remainPct} %` : sl.material ? t('nicht zugeordnet') : t('leer');
-    return `<button class="fs ${fp.activeSlot === sl.key ? 'act' : ''} ${sl.mismatch ? 'bad' : ''} ${sp?.low ? 'low' : ''}" data-fact="pickSpool" data-printer="${p.id}" data-key="${esc(sl.key)}" title="${esc(t(sl.label))}${sp ? ` – ${esc(sp.nr)} ${esc(sp.colorName || '')}` : ''}">
-      <span class="dot ${color ? '' : 'empty'}" style="${color ? `background:${esc(color)}` : ''}"></span>
-      <b>${esc(sp?.material || sl.material || '–')}</b><small>${esc(amount)}</small><small>${esc(t(sl.label).replace(/^.*· /, '#'))}</small></button>`;
+    const sub = sl.brand && sl.brand !== sl.material ? sl.brand : sl.vendor || '';
+    const amount = sp ? `${Math.round(sp.remaining)} g` : sl.remainPct != null ? `${sl.remainPct} %` : sl.material ? sub || t('vom Drucker') : t('leer');
+    const cls = `fs ${activeSlot === sl.key ? 'act' : ''} ${sl.mismatch ? 'bad' : ''} ${sp?.low ? 'low' : ''} ${sl.unmatched ? 'new' : ''}`;
+    const title = `${t(sl.label)}${sp ? ` – ${sp.nr} ${t(sp.colorName || '')}` : sl.material ? ` – ${sl.material}${sub ? ` ${sub}` : ''}${sl.unmatched ? ` · ${t('noch keine Spule angelegt')}` : ''}` : ''}`;
+    const inner = `<span class="dot ${color ? '' : 'nocolor'}" style="${color ? `background:${esc(color)}` : ''}"></span>
+      <b>${esc(sp?.material || sl.material || '–')}</b><small>${esc(amount)}</small><small>${esc(t(sl.label).replace(/^.*· /, '#'))}</small>`;
+    return managed
+      ? `<button class="${cls}" data-fact="pickSpool" data-printer="${p.id}" data-key="${esc(sl.key)}" title="${esc(title)}">${inner}</button>`
+      : `<div class="${cls} ro" title="${esc(title)}">${inner}</div>`;
   };
-  return `<div class="sect">${t('FILAMENT')}<span class="r"><button class="x" data-view="slots" style="font-size:12.5px">${t('Belegung')}</button></span></div><div class="pbody"><div class="fil-units">
-    ${Object.entries(groups).map(([name, slots]) => {
+  const unmatched = slots.filter((x) => x.unmatched);
+  const prompt = managed && unmatched.length
+    ? `<div class="newspool"><span>${BI.spool}</span><div><b>${unmatched.length === 1 ? t('Neue Spule erkannt') : t('{n} neue Spulen erkannt', { n: unmatched.length })}</b>
+        <small>${esc(unmatched.map((x) => `${t(x.label)}: ${x.material}`).join(' · '))}</small></div>
+        <button class="b b-sm b-go" data-fact="newSpools" data-printer="${p.id}">${t('Anlegen')}</button><button class="x" data-fact="ignoreSlots" data-printer="${p.id}" title="${esc(t('Nicht als Spule verwalten'))}">${t('Ignorieren')}</button></div>`
+    : '';
+  return `<div class="sect">${t('FILAMENT')}<span class="r">${managed ? `<button class="x" data-view="slots" style="font-size:12.5px">${t('Belegung')}</button>` : ''}</span></div><div class="pbody">${prompt}<div class="fil-units">
+    ${Object.entries(groups).map(([name, list]) => {
       const u = units.find((x) => x.name === name);
       const meta = u ? [u.humidityPct != null ? `${BI.drop.replace('<svg', '<svg width="12" height="12" style="vertical-align:-1px"')} ${u.humidityPct} %` : u.humidity != null ? t('Feuchte-Stufe {n}', { n: u.humidity }) : '', u.temp != null ? `${Math.round(u.temp)} °C` : ''].filter(Boolean).join(' · ') : '';
-      return `<div class="fu"><div class="fu-h">${esc(t(name))}<span>${meta}</span></div><div class="fu-slots">${slots.map(tile).join('')}</div></div>`;
+      return `<div class="fu"><div class="fu-h">${esc(t(name))}<span>${meta}</span></div><div class="fu-slots">${list.map(tile).join('')}</div></div>`;
     }).join('')}</div></div>`;
+}
+
+/** HMS-Meldungen (Bambu) mit Klartext, Wiki-Link und „als Wartung eintragen“. */
+async function hmsDialog(p) {
+  const d = openDialog(`<div class="dlg"><h2>${esc(p.name)} · ${t('Meldungen')}</h2><div data-hms><p class="meta">${t('Lade …')}</p></div>
+    <div class="dlg-actions"><button class="b" data-close>${t('Schließen')}</button></div></div>`, { wide: true });
+  let list = [];
+  try { list = await api(`printers/${p.id}/hms`); } catch (err) { $('[data-hms]', d).innerHTML = `<p class="form-error">${esc(err.message)}</p>`; return; }
+  $('[data-hms]', d).innerHTML = list.length ? `<div class="list">${list.map((h, i) => `<div class="row hms-row">
+      <div class="c-main"><b class="code">${esc(h.code)}</b><div>${h.text ? esc(h.text) : `<span class="meta">${t('Kein Klartext verfügbar – Details im Bambu-Wiki.')}</span>`}</div></div>
+      <div class="acts"><a class="b b-sm" href="${esc(h.url)}" target="_blank" rel="noopener">${ICON.open}${t('Bambu-Wiki')}</a>
+        ${on('maintenance') ? `<button class="b b-sm" data-hms-task="${i}">${ICON.wrench}${t('Als Wartung eintragen')}</button>` : ''}</div></div>`).join('')}</div>
+      <p class="meta" style="margin:10px 0 0">${t('Meldungen verschwinden, sobald der Drucker sie nicht mehr meldet – meist nach dem Bestätigen am Drucker oder in Bambu Handy.')}</p>`
+    : `<p>${t('Keine Meldungen.')}</p>`;
+  d.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-hms-task]');
+    if (!b) return;
+    const h = list[Number(b.dataset.hmsTask)];
+    d.close();
+    taskDialog(null, { printerId: p.id, title: (h.text || `HMS ${h.code}`).slice(0, 80), note: `HMS ${h.code}` });
+  });
 }
 
 // ================================================================ Ansicht
@@ -284,6 +324,7 @@ document.addEventListener('click', async (e) => {
     S.boardFilter = el.dataset.k;
     return render();
   }
+  if (bact === 'hms') return hmsDialog(p);
   if (bact === 'light') {
     el.disabled = true;
     await run(() => api(`printers/${id}/command`, { method: 'POST', body: { cmd: 'light', on: el.dataset.on === '1' } }));

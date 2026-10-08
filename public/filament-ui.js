@@ -80,7 +80,7 @@ function vSpools() {
   const active = F.spools.filter((s) => !s.archived);
   const cards = list.map((s) => `<article class="card spool ${s.low ? 'is-low' : ''}">
       <div class="sp-top">${spoolRing(s.color, pctOf(s))}<div style="min-width:0">
-        <h3><span class="meta num">${esc(s.nr)}</span> ${esc(s.material)}${s.colorName ? ` · ${esc(s.colorName)}` : ''}</h3>
+        <h3><span class="meta num">${esc(s.nr)}</span> ${esc(s.material)}${s.colorName ? ` · ${esc(t(s.colorName))}` : ''}</h3>
         <div class="meta">${esc(s.brand || t('Hersteller unbekannt'))}${s.diameter !== 1.75 ? ` · ${s.diameter} mm` : ''}${s.rfid ? ' · RFID' : ''}</div></div></div>
       <div class="sp-amt"><b class="num">${fnum(s.remaining, 0)} g</b><span class="meta">${t('von {g} g', { g: fnum(s.netWeight, 0) })}</span>${s.low && !s.archived ? `<span class="pill pause">${t('knapp')}</span>` : ''}</div>
       <div class="bar ${s.remaining <= low ? 'warn' : ''}"><i style="width:${pctOf(s)}%"></i></div>
@@ -171,7 +171,7 @@ function loadDialog(spool) {
   })).join('');
   if (!opts) return toast(t('Erst einen Drucker anlegen'), true);
   const d = openDialog(`<form class="dlg" method="dialog"><h2>${t('{nr} einlegen', { nr: esc(spool.nr) })}</h2>
-    <p style="margin:0">${esc(spool.material)} ${esc(spool.colorName || '')} · ${fnum(spool.remaining, 0)} g</p>
+    <p style="margin:0">${esc(spool.material)} ${esc(t(spool.colorName || ''))} · ${fnum(spool.remaining, 0)} g</p>
     <label>${t('Drucker und Platz')}<select name="target">${opts}</select></label>
     <p class="hint" style="margin:0">${t('Eine Spule, die dort schon liegt, kommt zurück ins Lager.')}</p>
     <div class="dlg-actions"><button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-go">${t('Einlegen')}</button></div></form>`);
@@ -197,15 +197,68 @@ function pickSpoolDialog(printerId, key) {
     .sort((a, b) => b.score - a.score || a.s.remaining - b.s.remaining);
   const d = openDialog(`<div class="dlg"><h2>${esc(p.name)} · ${esc(t(sl.label))}</h2>
     ${sl.material || sl.color ? `<p style="margin:0" class="meta">${t('Drucker meldet:')} <span class="swatch" style="background:${esc(sl.color || 'transparent')}"></span>${esc(sl.material || '–')}${sl.remainPct != null ? ` · ${sl.remainPct} %` : ''}${sl.uid ? ` · ${t('RFID-Spule')}` : ''}</p>` : ''}
-    ${cur ? `<div class="card" style="display:flex;gap:12px;align-items:center">${spoolRing(cur.color, pctOf(cur), 44)}<div style="flex:1"><b>${esc(cur.nr)} ${esc(cur.material)} ${esc(cur.colorName || '')}</b><div class="meta">${fnum(cur.remaining, 0)} g</div></div>
+    ${cur ? `<div class="card" style="display:flex;gap:12px;align-items:center">${spoolRing(cur.color, pctOf(cur), 44)}<div style="flex:1"><b>${esc(cur.nr)} ${esc(cur.material)} ${esc(t(cur.colorName || ''))}</b><div class="meta">${fnum(cur.remaining, 0)} g</div></div>
       <button class="b b-sm" data-fact="assign" data-printer="${esc(printerId)}" data-key="${esc(key)}" data-spool="">${t('Herausnehmen')}</button></div>` : `<p style="margin:0">${t('Keine Spule zugeordnet.')}</p>`}
-    ${sl.uid && !cur ? `<button class="b b-go" data-fact="fromSlot" data-printer="${esc(printerId)}" data-key="${esc(key)}">${ICON.plus}${t('Diese RFID-Spule anlegen')}</button>` : ''}
+    ${sl.material && !cur ? `<button class="b b-go" data-fact="fromSlot" data-printer="${esc(printerId)}" data-key="${esc(key)}">${ICON.plus}${sl.uid ? t('Diese RFID-Spule anlegen') : t('Spule aus Druckerangaben anlegen')}</button>` : ''}
     <div class="list pick-list">${cands.length ? cands.map(({ s }) => `<button class="pick" data-fact="assign" data-printer="${esc(printerId)}" data-key="${esc(key)}" data-spool="${s.id}">
-        ${spoolRing(s.color, pctOf(s), 36)}<span style="flex:1;min-width:0"><b>${esc(s.nr)} ${esc(s.material)}</b> ${esc(s.colorName || '')}<span class="meta" style="display:block">${esc(s.brand || '')} · ${s.slot ? spoolPlace(s) : esc(s.location || t('Lager'))}</span></span>
+        ${spoolRing(s.color, pctOf(s), 36)}<span style="flex:1;min-width:0"><b>${esc(s.nr)} ${esc(s.material)}</b> ${esc(t(s.colorName || ''))}<span class="meta" style="display:block">${esc(s.brand || '')} · ${s.slot ? spoolPlace(s) : esc(s.location || t('Lager'))}</span></span>
         <b class="num">${fnum(s.remaining, 0)} g</b></button>`).join('') : `<div class="empty" style="padding:16px">${t('Keine weiteren Spulen.')} <button class="b b-sm" data-fact="editSpoolHere" data-printer="${esc(printerId)}" data-key="${esc(key)}">${t('Neue Spule anlegen')}</button></div>`}</div>
     <div class="dlg-actions"><button class="b" data-close>${t('Schließen')}</button></div></div>`);
   d.dataset.pick = '1';
 }
+
+/**
+ * Gemeldete Belegung ohne Spule → Spulen anlegen. Je Platz: anlegen, ignorieren oder später.
+ * printerId = null: alle Drucker.
+ */
+function newSpoolsDialog(printerId = null) {
+  const F = fil();
+  const rows = F.printers.filter((p) => !printerId || p.id === printerId)
+    .flatMap((p) => p.slots.filter((sl) => sl.unmatched).map((sl) => ({ p, sl })));
+  if (!rows.length) return toast(t('Alle gemeldeten Spulen sind zugeordnet'));
+  const d = openDialog(`<form class="dlg" method="dialog"><h2>${t('Neue Spulen anlegen')}</h2>
+    <p style="margin:0">${t('Diese Plätze melden Filament, zu dem es im Lager keine passende Spule gibt. Angelegte Spulen werden gleich zugeordnet und nach jedem Druck abgebucht.')}</p>
+    <div class="list ns-list">${rows.map(({ p, sl }, i) => `<div class="row ns-row" data-i="${i}">
+      <span class="swatch big" style="background:${esc(sl.color || 'transparent')}"></span>
+      <div class="c-main"><b>${esc(sl.material)}</b> ${esc(sl.brand && sl.brand !== sl.material ? sl.brand : sl.vendor || '')}<div class="meta">${esc(p.name)} · ${esc(t(sl.label))}${sl.remainPct != null ? ` · ${sl.remainPct} %` : ''}</div></div>
+      <label class="fl">${t('Netto (g)')}<input class="in" type="number" min="1" name="net" value="${esc(sl.weight || 1000)}"></label>
+      <label class="fl">${t('Rest (g)')}<input class="in" type="number" min="0" name="rest" placeholder="${esc(sl.remainPct != null ? Math.round(((sl.weight || 1000) * sl.remainPct) / 100) : t('voll'))}"></label>
+      <select class="in" name="what"><option value="create">${t('Anlegen')}</option><option value="ignore">${t('Ignorieren')}</option><option value="later">${t('Später')}</option></select>
+    </div>`).join('')}</div>
+    <p class="hint" style="margin:0">${t('„Ignorieren“: für diesen Platz nicht mehr nachfragen, bis dort eine andere Spule liegt.')}</p>
+    <p class="form-error" hidden></p>
+    <div class="dlg-actions"><button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-go">${ICON.plus}${t('Übernehmen')}</button></div></form>`, { wide: true });
+  $('form', d).addEventListener('submit', async (e) => {
+    e.preventDefault();
+    let created = 0;
+    try {
+      for (const el of $$('.ns-row', d)) {
+        const { p, sl } = rows[Number(el.dataset.i)];
+        const what = $('[name=what]', el).value;
+        if (what === 'create') {
+          await api('filament/from-slot', { method: 'POST', body: { printerId: p.id, key: sl.key, netWeight: $('[name=net]', el).value, remaining: $('[name=rest]', el).value } });
+          created += 1;
+        } else if (what === 'ignore') await api('filament/ignore', { method: 'POST', body: { printerId: p.id, key: sl.key } });
+      }
+      d.close();
+      if (created) toast(created === 1 ? t('1 Spule angelegt') : t('{n} Spulen angelegt', { n: created }));
+      reload('filament', 'summary');
+    } catch (err) {
+      formError(d, err.message);
+    }
+  });
+}
+
+/** Neue, nicht zugeordnete Spulen einmal je Sitzung von selbst anbieten. */
+S.seenUnmatched = new Set();
+function offerNewSpools() {
+  if (!on('filament') || S.view !== 'board' || $('dialog[open]') || $('#overlay')) return;
+  const fresh = fil().printers.flatMap((p) => p.slots.filter((x) => x.unmatched).map((x) => `${p.id}:${x.key}:${x.material}:${x.color}`)).filter((k) => !S.seenUnmatched.has(k));
+  if (!fresh.length) return;
+  fresh.forEach((k) => S.seenUnmatched.add(k));
+  newSpoolsDialog(null);
+}
+setInterval(offerNewSpools, 4000);
 
 // ================================================================ Belegung
 
@@ -215,11 +268,11 @@ function vSlots() {
   const cards = F.printers.map((p) => {
     const boxes = p.slots.map((sl) => {
       const sp = sl.spoolId ? spoolById(sl.spoolId) : null;
-      return `<button class="slotbox ${p.activeSlot === sl.key ? 'act' : ''} ${sl.mismatch ? 'bad' : ''}" data-fact="pickSpool" data-printer="${p.id}" data-key="${esc(sl.key)}">
+      return `<button class="slotbox ${p.activeSlot === sl.key ? 'act' : ''} ${sl.mismatch ? 'bad' : ''} ${sl.unmatched ? 'new' : ''}" data-fact="pickSpool" data-printer="${p.id}" data-key="${esc(sl.key)}">
         <div class="sb-h"><b>${esc(t(sl.label))}</b>${p.activeSlot === sl.key ? `<span class="pill run">${t('aktiv')}</span>` : ''}</div>
         <div class="sb-m">${spoolRing(sp?.color || sl.color, sp ? pctOf(sp) : sl.remainPct ?? 0, 58)}
-          <div style="min-width:0">${sp ? `<b>${esc(sp.nr)} ${esc(sp.material)}</b><div class="meta">${esc(sp.colorName || '')} ${esc(sp.brand || '')}</div><div class="vl num">${fnum(sp.remaining, 0)} g</div>`
-            : sl.material ? `<b>${esc(sl.material)}</b><div class="meta">${t('nicht zugeordnet – antippen')}</div>` : `<span class="meta">${t('leer')}</span>`}</div></div>
+          <div style="min-width:0">${sp ? `<b>${esc(sp.nr)} ${esc(sp.material)}</b><div class="meta">${esc(t(sp.colorName || ''))} ${esc(sp.brand || '')}</div><div class="vl num">${fnum(sp.remaining, 0)} g</div>`
+            : sl.material ? `<b>${esc(sl.material)}</b><div class="meta">${esc(sl.brand && sl.brand !== sl.material ? sl.brand : sl.vendor || '')}</div><div class="meta">${sl.unmatched ? t('noch keine Spule angelegt') : t('nicht zugeordnet – antippen')}</div>` : `<span class="meta">${t('leer')}</span>`}</div></div>
         ${sl.material && sl.live !== undefined ? `<div class="meta sb-live">${sl.live ? t('Drucker meldet') : t('Zuletzt gemeldet')}: ${esc(sl.material)}${sl.remainPct != null ? ` · ${sl.remainPct} %` : ''}${sl.uid ? ' · RFID' : ''}</div>` : ''}
         ${sl.mismatch ? `<div class="sb-warn">${t('Material passt nicht zur Spule')}</div>` : ''}
       </button>`;
@@ -227,7 +280,9 @@ function vSlots() {
     return `<article class="card mcard"><div class="mhead"><h3>${esc(p.name)}</h3><span>${p.online ? t('online') : t('offline')}</span><span>${t('{n} Plätze', { n: p.slots.length })}</span></div>
       <div class="slotgrid">${boxes}</div></article>`;
   }).join('');
+  const unmatched = F.printers.flatMap((p) => p.slots.filter((x) => x.unmatched));
   return `${stripHTML()}<div class="bar-row"><h2>${t('Belegung')}</h2><span class="meta">${t('Platz antippen = Spule einlegen oder wechseln')}</span></div>
+    ${unmatched.length ? `<div class="newspool big"><span>${BI.spool}</span><div><b>${unmatched.length === 1 ? t('Neue Spule erkannt') : t('{n} neue Spulen erkannt', { n: unmatched.length })}</b><small>${t('Die Drucker melden Filament, zu dem es noch keine Spule im Lager gibt.')}</small></div><button class="b b-sm b-go" data-fact="newSpools">${t('Spulen anlegen')}</button></div>` : ''}
     <div style="display:grid;gap:14px">${cards}</div>
     <p class="meta">${t('Bambu-AMS meldet Material, Farbe und – bei Bambu-Spulen – RFID und Restmenge. RFID-Spulen ordnet PrintDock automatisch zu.')}
     ${t('Bei Snapmaker U1 und Anycubic mit ACE die Spulen hier von Hand zuordnen; die Plätze lassen sich beim Drucker benennen (z. B. „ACE 1, ACE 2, …“).')}</p>`;
@@ -309,6 +364,13 @@ document.addEventListener('click', async (e) => {
       if (s) toast(t('{nr} angelegt und zugeordnet', { nr: s.nr }));
       closeDlg();
       return reload('filament', 'summary');
+    }
+    case 'newSpools': return newSpoolsDialog(el.dataset.printer || null);
+    case 'ignoreSlots': {
+      const fp = fil().printers.find((x) => x.id === el.dataset.printer);
+      for (const sl of fp?.slots.filter((x) => x.unmatched) || []) await run(() => api('filament/ignore', { method: 'POST', body: { printerId: fp.id, key: sl.key } }));
+      toast(t('Wird nicht mehr nachgefragt, bis eine andere Spule eingelegt wird'));
+      return reload('filament');
     }
     case 'editSpoolHere':
       closeDlg();

@@ -819,15 +819,15 @@ function vMaint() {
     <p class="meta">${t('Betriebsstunden und Drucke werden aus dem Verlauf gezählt. Stunden vor PrintDock lassen sich beim Drucker unter „Betriebsstunden bisher“ eintragen.')}</p>`;
 }
 
-function taskDialog(x = null) {
+function taskDialog(x = null, pre = {}) {
   const m = S.maint;
   const d = openDialog(`<form class="dlg" method="dialog"><h2>${x ? t('Wartungsaufgabe bearbeiten') : t('Wartungsaufgabe')}</h2>
-    <label>${t('Drucker')}<select name="printerId" ${x ? 'disabled' : ''}>${S.printers.map((p) => `<option value="${p.id}" ${p.id === x?.printerId ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
-    <label>${t('Bezeichnung')}<input name="title" required value="${esc(x ? t(x.title) : '')}" list="mtpl" placeholder="${esc(t('z. B. Düse reinigen'))}"></label>
+    <label>${t('Drucker')}<select name="printerId" ${x ? 'disabled' : ''}>${S.printers.map((p) => `<option value="${p.id}" ${p.id === (x?.printerId || pre.printerId) ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
+    <label>${t('Bezeichnung')}<input name="title" required value="${esc(x ? t(x.title) : pre.title || '')}" list="mtpl" placeholder="${esc(t('z. B. Düse reinigen'))}"></label>
     <datalist id="mtpl">${m.templates.map((y) => `<option value="${esc(t(y.title))}">`).join('')}</datalist>
     <div class="two"><label>${t('Alle')}<input name="every" type="number" min="1" step="any" required value="${esc(x?.every ?? '')}"></label>
       <label>${t('Einheit')}<select name="unit">${Object.entries(m.units).map(([k, l]) => `<option value="${k}" ${k === (x?.unit || 'h') ? 'selected' : ''}>${esc(t(l))}</option>`).join('')}</select></label></div>
-    <label>${t('Hinweis')}<input name="note" value="${esc(x?.note ? t(x.note) : '')}" placeholder="${esc(t('optional, z. B. welches Fett'))}"></label>
+    <label>${t('Hinweis')}<input name="note" value="${esc(x?.note ? t(x.note) : pre.note || '')}" placeholder="${esc(t('optional, z. B. welches Fett'))}"></label>
     <p class="form-error" hidden></p>
     <div class="dlg-actions">${x ? `<button class="b b-fault left" type="button" data-del>${t('Löschen')}</button>` : ''}<button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-done">${t('Speichern')}</button></div></form>`);
   const form = $('form', d);
@@ -931,6 +931,7 @@ function printerDialog(p = null) {
       <p class="hint" style="margin-top:-4px">${t('Verbindung einrichten unter Einstellungen → Home Assistant. Leer lassen, wenn der Drucker nicht geschaltet werden soll.')}</p>
     </fieldset>
     <p class="form-error" hidden></p>
+    ${p ? `<p class="hint" style="margin:0">${t('Zeigt etwas nicht richtig an (Filament, Lüfter, Licht)? Diagnose-Daten herunterladen und mitschicken – sie enthalten, was der Drucker meldet, aber keine Zugangsdaten.')} <a href="api/printers/${esc(p.id)}/diagnostics" download>${t('Diagnose-Daten')}</a></p>` : ''}
     <div class="dlg-actions">${p ? `<button class="b b-fault left" type="button" data-del>${t('Entfernen')}</button>` : ''}<button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-done">${t('Speichern')}</button></div></form>`);
   const form = $('form', d);
   const renderFields = (values = {}) => {

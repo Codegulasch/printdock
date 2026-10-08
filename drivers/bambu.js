@@ -116,6 +116,10 @@ class BambuDriver extends BaseDriver {
     );
   }
 
+  async diagnostics() {
+    return { raw: this.raw || null };
+  }
+
   publishStatus() {
     const p = this.raw;
     let state = STATE_MAP[p.gcode_state] || 'idle';

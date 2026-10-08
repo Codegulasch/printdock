@@ -115,6 +115,11 @@ class BaseDriver extends EventEmitter {
     this.emit('status', this.status);
   }
 
+  /** Rohdaten für die Fehlersuche (Einstellungen → Drucker → Diagnose). */
+  async diagnostics() {
+    return {};
+  }
+
   setOffline(message) {
     this.status = { ...EMPTY_STATUS, message: message || null };
     this.emit('status', this.status);

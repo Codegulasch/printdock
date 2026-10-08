@@ -217,7 +217,7 @@ button.pb{border:0;cursor:pointer}
 .fs.bad{border-color:var(--fault)}
 .fs.low{background:var(--warn-bg)}
 .fs .dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--line);position:relative}
-.fs .dot.empty{background:repeating-linear-gradient(45deg,transparent 0 4px,var(--line) 4px 5px)}
+.fs .dot.nocolor{background:repeating-linear-gradient(45deg,transparent 0 4px,var(--line) 4px 5px)}
 .fs b{font-size:12.5px;line-height:1.1}
 .fs small{font-size:11.5px;color:var(--muted);line-height:1.1;white-space:nowrap}
 .pfoot{display:flex;gap:8px;padding:12px 18px 16px;border-top:1px solid var(--line);margin-top:auto;flex-wrap:wrap}
@@ -503,6 +503,26 @@ body.has-overlay{overflow:hidden}
 .plate-check input{margin-top:3px!important}
 .plate-check .ico{vertical-align:-3px;margin-right:4px}
 .side-btns{display:flex;gap:6px}
+
+/* ---------- Filament: neue Spulen, nur gemeldet */
+.fs.new{border:1px dashed var(--accent)}
+.fs.ro{cursor:default}
+.fs.ro:hover{border-color:transparent}
+.slotbox.new{border-style:dashed;border-color:var(--accent)}
+.newspool{display:flex;align-items:center;gap:10px;background:var(--accent-bg);border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);border-radius:10px;padding:8px 10px;margin-bottom:8px}
+.newspool>span{color:var(--accent);display:flex}
+.newspool>span svg{width:22px;height:22px}
+.newspool>div{flex:1;min-width:0}
+.newspool b{display:block;font-size:14px}
+.newspool small{display:block;color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.newspool.big{margin-bottom:14px;padding:12px 14px}
+.swatch.big{width:26px;height:26px;margin:0}
+.ns-row{grid-template-columns:30px minmax(160px,1fr) 100px 100px 130px}
+.ns-row .fl{font-size:12px;font-weight:600;color:var(--muted)}
+.ns-row .in{width:100%}
+.ns-list{max-height:55vh;overflow:auto}
+.hms-row{grid-template-columns:1fr auto}
+.hms-row .code{font-family:ui-monospace,Consolas,monospace;font-size:14px}
 </style>
 </head>
 <body>

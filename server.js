@@ -16,6 +16,7 @@ const demoData = require('./lib/demo-data');
 const { HomeAssistant } = require('./lib/homeassistant');
 const app = require('./lib/app');
 const stats = require('./lib/stats');
+const hms = require('./lib/hms');
 let ha = null; // wird nach Produktion/Filament angelegt
 
 const PORT = Number(process.env.PORT) || 3080;
@@ -481,7 +482,12 @@ async function handleApi(req, res, url) {
     }
     if (id === 'from-slot' && req.method === 'POST') {
       const b = await readBody(req);
-      return sendJson(res, 201, filament.fromSlot(b.printerId, b.key));
+      return sendJson(res, 201, filament.fromSlot(b.printerId, b.key, b));
+    }
+    if (id === 'ignore' && req.method === 'POST') {
+      const b = await readBody(req);
+      filament.ignoreSlot(b.printerId, b.key);
+      return sendJson(res, 200, { ok: true });
     }
     if (id === 'settings' && req.method === 'PUT') return sendJson(res, 200, filament.saveSettings(await readBody(req)));
     if (id === 'check' && req.method === 'GET') {
@@ -655,6 +661,20 @@ async function handleApi(req, res, url) {
     if (action === 'power' && req.method === 'POST') {
       await ha.setPower(id, Boolean((await readBody(req)).on));
       return sendJson(res, 200, { ok: true });
+    }
+
+    if (action === 'hms' && req.method === 'GET') {
+      const st = runtime.get(id)?.driver.status;
+      return sendJson(res, 200, await hms.describe(st?.hms || [], existing.settings?.model || '', app.lang));
+    }
+
+    if (action === 'diagnostics' && req.method === 'GET') {
+      const rt = runtime.get(id);
+      if (!rt) throw httpError(409, 'Drucker nicht aktiv');
+      const data = { printdock: require('./package.json').version, driver: existing.driver, model: existing.settings?.model || null, at: new Date().toISOString(), status: rt.driver.status };
+      try { Object.assign(data, await rt.driver.diagnostics()); } catch (err) { data.error = err.message; }
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="printdock-${existing.driver}-${id.slice(0, 8)}.json"` });
+      return res.end(JSON.stringify(data, null, 2));
     }
 
     if (action === 'plate-clear' && req.method === 'POST') {
