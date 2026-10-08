@@ -1,0 +1,7 @@
+node_modules/
+data/
+tailscale/
+.env
+*.tmp
+# wird von "npm run ha-addon" bzw. der GitHub-Action erzeugt
+ha-addon/app/

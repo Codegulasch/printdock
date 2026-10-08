@@ -1,0 +1,7 @@
+node_modules
+data
+ha-addon
+docs
+.git
+.github
+*.md
