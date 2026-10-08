@@ -965,6 +965,10 @@
     'Grün': 'Green',
     'Hellgrün': 'Light green',
     'Oliv': 'Olive',
+    'ffmpeg nicht gefunden – nötig für diese Kamera. Windows: „winget install Gyan.FFmpeg“, dann PrintDock neu starten.': 'ffmpeg not found – required for this camera. Windows: “winget install Gyan.FFmpeg”, then restart PrintDock.',
+    'Licht: Name des output_pin/LED (leer = automatisch erkennen)': 'Light: name of output_pin/LED (empty = detect automatically)',
+    'Kamerastream: {v0}': 'Camera stream: {v0}',
+    'Kamerastream beendet': 'Camera stream ended',
     // ------------------------------------------------------------ Server allgemein
     'Anfrage zu groß': 'Request too large',
     'Ungültiges JSON': 'Invalid JSON',

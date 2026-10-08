@@ -39,7 +39,7 @@ class MoonrakerDriver extends BaseDriver {
       { key: 'port', label: 'Port', default: 7125, type: 'number' },
       { key: 'apiKey', label: 'API-Key (nur falls Moonraker-Autorisierung aktiv)', secret: true },
       { key: 'cameraUrl', label: 'Kamera-Snapshot-URL (leer = automatisch aus Moonraker)' },
-      { key: 'lightPin', label: 'Licht: Klipper output_pin bzw. LED-Name (optional, z. B. caselight)' },
+      { key: 'lightPin', label: 'Licht: Name des output_pin/LED (leer = automatisch erkennen)' },
     ],
   };
 
@@ -90,12 +90,34 @@ class MoonrakerDriver extends BaseDriver {
     // Happy Hare / Rinkhals-MMU (mmu), ACE-Klipper-Fork (ace_instance_N)
     this.filObjs = ['print_task_config', 'filament_detect', 'filament_hub', 'mmu', 'ace'].filter((o) => objs.includes(o));
     this.filObjs.push(...objs.filter((o) => /^ace_instance_\d+$/.test(o)));
-    this.lightObj = this.config.lightPin
-      ? objs.find((o) => o === `output_pin ${this.config.lightPin}` || o === `led ${this.config.lightPin}` || o === `neopixel ${this.config.lightPin}`) || null
-      : null;
+    // Licht: fest eingestellt, sonst automatisch (Name mit light/led/lamp/caselight …)
+    const lightTypes = /^(output_pin|led|neopixel|dotstar|pca9533|pca9632) /;
+    const lights = objs.filter((o) => lightTypes.test(o) && !/beeper|buzzer|status|toolhead_led|sb_leds|logo|nozzle|fan/i.test(o));
+    const want = String(this.config.lightPin || '').trim();
+    this.lightObj = want
+      ? objs.find((o) => lightTypes.test(o) && o.split(' ').slice(1).join(' ') === want) || null
+      : lights.find((o) => /light|lamp|caselight|chamber|cavity|case|box|illum/i.test(o)) || lights.find((o) => /led/i.test(o)) || null;
+    this.powerLight = null;
+    if (!this.lightObj) {
+      // Moonraker-Schaltgerät (z. B. Creality, Rinkhals): /machine/device_power
+      try {
+        const pw = await fetchJson(`${this.base}/machine/device_power/devices`, { headers: this.headers });
+        const dev = (pw?.result?.devices || []).find((d) => (want ? d.device === want : /light|lamp|led/i.test(d.device)));
+        if (dev) this.powerLight = { device: dev.device, on: dev.status === 'on' };
+      } catch { /* kein device_power */ }
+    }
+    this.pollCount = 0;
+    this.macroLight = null;
     try {
       const cfg = await fetchJson(`${this.base}/printer/objects/query?configfile=settings`, { headers: this.headers });
-      this.nozzleDiameter = Number(cfg?.result?.status?.configfile?.settings?.extruder?.nozzle_diameter) || null;
+      const settings = cfg?.result?.status?.configfile?.settings || {};
+      this.nozzleDiameter = Number(settings.extruder?.nozzle_diameter) || null;
+      // Licht über Makros, z. B. LIGHT_ON/LIGHT_OFF, CASE_LIGHT_ON/…, LED_ON/LED_OFF
+      if (!this.lightObj && !this.powerLight) {
+        const macros = Object.keys(settings).filter((k) => k.startsWith('gcode_macro ')).map((k) => k.slice(12).toUpperCase());
+        const base = macros.map((m) => m.match(/^(.*(?:LIGHT|LED|LAMP).*?)_?ON$/)?.[1]).find((b) => b && (macros.includes(`${b}_OFF`) || macros.includes(`${b}OFF`)));
+        if (base) this.macroLight = { on: macros.includes(`${base}_ON`) ? `${base}_ON` : `${base}ON`, off: macros.includes(`${base}_OFF`) ? `${base}_OFF` : `${base}OFF`, state: null };
+      }
     } catch {
       this.nozzleDiameter = null;
     }
@@ -119,6 +141,12 @@ class MoonrakerDriver extends BaseDriver {
     if (this.hasBed) query.push('heater_bed');
     if (this.chamberObj) query.push(this.chamberObj);
     const qs = query.map(encodeURIComponent).join('&');
+    if (this.powerLight && this.pollCount++ % 5 === 0) {
+      try {
+        const st = await fetchJson(`${this.base}/machine/device_power/device?device=${encodeURIComponent(this.powerLight.device)}`, { headers: this.headers });
+        this.powerLight.on = st?.result?.[this.powerLight.device] === 'on';
+      } catch { /* egal */ }
+    }
     const data = await fetchJson(`${this.base}/printer/objects/query?${qs}`, { headers: this.headers });
     const s = data?.result?.status || {};
 
@@ -163,9 +191,9 @@ class MoonrakerDriver extends BaseDriver {
       filamentUsedMm: ps.filament_used != null ? Math.round(ps.filament_used) : null,
       fans: (this.fanObjs || []).filter((o) => s[o]).map((o) => ({ name: fanName(o), pct: Math.round((s[o].speed || 0) * 100) })),
       speed: s.gcode_move?.speed_factor != null ? { level: null, pct: Math.round(s.gcode_move.speed_factor * 100) } : null,
-      light: this.lightObj ? Boolean(s[this.lightObj]?.value ?? (s[this.lightObj]?.color_data?.[0]?.some((v) => v > 0))) : null,
+      light: this.lightObj ? Boolean(s[this.lightObj]?.value ?? (s[this.lightObj]?.color_data?.[0]?.some((v) => v > 0))) : this.powerLight ? this.powerLight.on : this.macroLight ? Boolean(this.macroLight.state) : null,
       nozzleDiameter: this.nozzleDiameter,
-      capabilities: ['speed', ...(this.lightObj ? ['light'] : [])],
+      capabilities: ['speed', ...(this.lightObj || this.powerLight || this.macroLight ? ['light'] : [])],
       ...this.readFilament(s),
     });
   }
@@ -265,7 +293,14 @@ class MoonrakerDriver extends BaseDriver {
     const q = await fetchJson(`${this.base}/printer/objects/query?${pick.map(encodeURIComponent).join('&')}`, { headers: this.headers });
     let info = null;
     try { info = (await fetchJson(`${this.base}/printer/info`, { headers: this.headers }))?.result || null; } catch { /* optional */ }
-    return { objects: objs, query: q?.result?.status || {}, printerInfo: info };
+    let power = null;
+    try { power = (await fetchJson(`${this.base}/machine/device_power/devices`, { headers: this.headers }))?.result || null; } catch { /* optional */ }
+    let macros = null;
+    try {
+      const cfg = await fetchJson(`${this.base}/printer/objects/query?configfile=settings`, { headers: this.headers });
+      macros = Object.keys(cfg?.result?.status?.configfile?.settings || {}).filter((k) => /^gcode_macro /.test(k)).map((k) => k.slice(12));
+    } catch { /* optional */ }
+    return { objects: objs, query: q?.result?.status || {}, printerInfo: info, devicePower: power, macros, detected: { light: this.lightObj || this.powerLight?.device || (this.macroLight ? `${this.macroLight.on}/${this.macroLight.off}` : null), filament: this.filObjs || [], fans: this.fanObjs || [] } };
   }
 
   async cameraSource() {
@@ -293,9 +328,20 @@ class MoonrakerDriver extends BaseDriver {
   async command(cmd, args = {}) {
     if (cmd === 'speed') return this.gcode(`M220 S${SPEED_LEVELS[args.level]?.pct || Number(args.pct) || 100}`);
     if (cmd === 'light') {
+      if (this.powerLight) {
+        await fetchJson(`${this.base}/machine/device_power/device?device=${encodeURIComponent(this.powerLight.device)}&action=${args.on ? 'on' : 'off'}`, { method: 'POST', headers: this.headers });
+        this.powerLight.on = Boolean(args.on);
+        return;
+      }
+      if (this.macroLight) {
+        await this.gcode(args.on ? this.macroLight.on : this.macroLight.off);
+        this.macroLight.state = Boolean(args.on);
+        return;
+      }
       if (!this.lightObj) throw new Error('Kein Licht konfiguriert');
-      const name = this.config.lightPin;
-      return this.gcode(this.lightObj.startsWith('output_pin') ? `SET_PIN PIN=${name} VALUE=${args.on ? 1 : 0}` : `SET_LED LED=${name} WHITE=${args.on ? 1 : 0}`);
+      const name = this.lightObj.split(' ').slice(1).join(' ');
+      const v = args.on ? 1 : 0;
+      return this.gcode(this.lightObj.startsWith('output_pin') ? `SET_PIN PIN=${name} VALUE=${v}` : `SET_LED LED=${name} RED=${v} GREEN=${v} BLUE=${v} WHITE=${v} SYNC=0 TRANSMIT=1`);
     }
     const path = { pause: 'pause', resume: 'resume', cancel: 'cancel' }[cmd];
     if (!path) return super.command(cmd);

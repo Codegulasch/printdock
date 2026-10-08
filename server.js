@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { drivers, byId } = require('./drivers');
-const { CameraManager, serveSnapshot, serveMjpeg } = require('./camera');
+const { CameraManager, serveSnapshot, serveMjpeg, ffmpegPath, ffmpegAvailable } = require('./camera');
 const { Notifier, CHANNELS, EVENTS, detectEvents } = require('./notify');
 const files = require('./lib/files');
 const slicer = require('./lib/slicer');
@@ -671,7 +671,7 @@ async function handleApi(req, res, url) {
     if (action === 'diagnostics' && req.method === 'GET') {
       const rt = runtime.get(id);
       if (!rt) throw httpError(409, 'Drucker nicht aktiv');
-      const data = { printdock: require('./package.json').version, driver: existing.driver, model: existing.settings?.model || null, at: new Date().toISOString(), status: rt.driver.status };
+      const data = { printdock: require('./package.json').version, platform: `${process.platform} ${process.arch}, Node ${process.version}`, ffmpeg: (await ffmpegAvailable()) ? ffmpegPath() : null, driver: existing.driver, model: existing.settings?.model || null, at: new Date().toISOString(), status: rt.driver.status };
       try { Object.assign(data, await rt.driver.diagnostics()); } catch (err) { data.error = err.message; }
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="printdock-${existing.driver}-${id.slice(0, 8)}.json"` });
       return res.end(JSON.stringify(data, null, 2));
@@ -740,6 +740,7 @@ server.on('error', async (err) => {
   server.listen(PORT, () => {
     console.log(`PrintDock läuft auf http://localhost:${PORT}  (Daten: ${DATA_DIR})`);
     console.log(`${printerConfigs.length} Drucker, ${channels.length} Benachrichtigungskanal/-kanäle`);
+    ffmpegAvailable().then((ok) => console.log(ok ? `ffmpeg: ${ffmpegPath()}` : 'ffmpeg nicht gefunden – RTSP-Kameras (Bambu X1/H2D/X2D) zeigen kein Bild. Windows: winget install Gyan.FFmpeg'));
   });
 })();
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.2
+- Light on Klipper printers detected automatically (LED/output_pin, Moonraker power device or LIGHT_ON/OFF macros)
+- ffmpeg found automatically on Windows (winget, Chocolatey) and macOS (Homebrew); hint at startup if missing
+- Diagnostics include platform, ffmpeg and detected light/filament/fans
+
 ## 0.6.1
 - Snapmaker U1: filament per toolhead (material, colour, vendor, RFID) from `print_task_config`
 - Anycubic ACE (Rinkhals `filament_hub`, Happy Hare `mmu`, ACE Klipper fork): slots with material and colour

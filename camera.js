@@ -11,6 +11,48 @@
 
 const { EventEmitter } = require('events');
 const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * ffmpeg finden: FFMPEG_PATH, sonst übliche Installationsorte (Windows: winget, Chocolatey,
+ * C:\ffmpeg; macOS: Homebrew), sonst "ffmpeg" aus dem Suchpfad.
+ */
+let ffmpegCache;
+function ffmpegPath() {
+  if (ffmpegCache !== undefined) return ffmpegCache;
+  if (process.env.FFMPEG_PATH) return (ffmpegCache = process.env.FFMPEG_PATH);
+  const cands = [];
+  if (process.platform === 'win32') {
+    const la = process.env.LOCALAPPDATA || '';
+    cands.push(path.join(la, 'Microsoft', 'WinGet', 'Links', 'ffmpeg.exe'));
+    try {
+      const pk = path.join(la, 'Microsoft', 'WinGet', 'Packages');
+      for (const d of fs.readdirSync(pk).filter((x) => /ffmpeg/i.test(x))) {
+        for (const sub of fs.readdirSync(path.join(pk, d))) cands.push(path.join(pk, d, sub, 'bin', 'ffmpeg.exe'));
+      }
+    } catch { /* kein winget */ }
+    cands.push(path.join(process.env.ProgramData || 'C:\\ProgramData', 'chocolatey', 'bin', 'ffmpeg.exe'));
+    cands.push('C:\\ffmpeg\\bin\\ffmpeg.exe', path.join(process.env.ProgramFiles || 'C:\\Program Files', 'ffmpeg', 'bin', 'ffmpeg.exe'));
+  } else {
+    cands.push('/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/usr/bin/ffmpeg');
+  }
+  ffmpegCache = cands.find((c) => { try { return fs.statSync(c).isFile(); } catch { return false; } }) || 'ffmpeg';
+  return ffmpegCache;
+}
+
+/** Ist ffmpeg aufrufbar? (für Hinweise in der Oberfläche) */
+function ffmpegAvailable() {
+  return new Promise((resolve) => {
+    try {
+      const p = spawn(ffmpegPath(), ['-version'], { stdio: 'ignore' });
+      p.on('error', () => resolve(false));
+      p.on('exit', (code) => resolve(code === 0));
+    } catch {
+      resolve(false);
+    }
+  });
+}
 const tls = require('tls');
 
 const IDLE_STOP_MS = 30_000; // Quelle stoppen, wenn so lange niemand zuschaut
@@ -78,7 +120,7 @@ class FfmpegSource extends EventEmitter {
     ];
     let proc;
     try {
-      proc = spawn(process.env.FFMPEG_PATH || 'ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+      proc = spawn(ffmpegPath(), args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     } catch (err) {
       this.emit('error', err);
       return;
@@ -92,7 +134,7 @@ class FfmpegSource extends EventEmitter {
     });
     proc.stderr.on('data', (d) => (stderr = (stderr + d).slice(-500)));
     proc.on('error', (err) => {
-      this.emit('error', err.code === 'ENOENT' ? new Error('ffmpeg ist nicht installiert (nötig für diese Kamera)') : err);
+      this.emit('error', err.code === 'ENOENT' ? new Error('ffmpeg nicht gefunden – nötig für diese Kamera. Windows: „winget install Gyan.FFmpeg“, dann PrintDock neu starten.') : err);
     });
     proc.on('exit', () => {
       if (this.proc === proc) this.proc = null;
@@ -306,4 +348,4 @@ function serveMjpeg(req, res, session) {
   });
 }
 
-module.exports = { CameraManager, serveSnapshot, serveMjpeg, extractJpegs };
+module.exports = { CameraManager, serveSnapshot, serveMjpeg, extractJpegs, ffmpegPath, ffmpegAvailable };
