@@ -122,6 +122,10 @@ Oben fasst eine Zeile zusammen, wie viele Drucker frei sind, drucken, warten ode
 
 **Einstellungen → Demo-Daten → Demo-Daten einspielen** legt einen kompletten, laufenden Druckerpark an: Bambu X2D mit AMS (druckt), Snapmaker U1 mit 4 Werkzeugen (druckt), Anycubic Kobra S1 mit ACE (fertig), Voron 2.4 (bereit) und Bambu A1 (pausiert), dazu 9 Dateien mit Vorschaubildern, 20 Spulen, 4 Aufträge, Warteschlange, 30 Tage Verlauf und Wartungsaufgaben. Alles ist als Demo markiert und lässt sich mit einem Klick wieder entfernen – eigene Daten bleiben unberührt.
 
+## Updates
+
+*Einstellungen → System → Updates* sieht auf GitHub nach einer neuen Version (auch automatisch einmal am Tag) und installiert sie per Klick: als Add-on baut Home Assistant PrintDock neu, auf PC und Raspberry Pi ersetzt PrintDock seine Dateien und startet neu. Für ein privates Repository unter „Update-Quelle“ einen GitHub-Token mit Leserecht eintragen. Docker: `docker compose pull && docker compose up -d`.
+
 ## Datensicherung und Umzug
 
 *Einstellungen → System → Datensicherung* lädt eine `.zip` mit allem herunter: Einstellungen, Drucker, Warteschlange, Aufträge, Spulen, Wartung, Verlauf und Druckdateien. Einspielen lässt sie sich dort oder direkt im Einrichtungsassistenten einer neuen Installation (z. B. eines neuen Home Assistant). Als Add-on, Docker-Container oder systemd-Dienst startet PrintDock danach von selbst neu, sonst von Hand neu starten. Der vorherige Stand bleibt im Datenordner unter `before-restore-…` erhalten. Als Add-on steckt PrintDock außerdem in jeder Home-Assistant-Sicherung.
@@ -155,6 +159,7 @@ Beide Karten haben einen grafischen Editor (*Karte hinzufügen → PrintDock Car
 ```yaml
 type: custom:printdock-card
 entity: sensor.werkstatt_x2d_status
+height: 560            # optional: gleiche Höhe für alle Karten, Inhalt scrollt
 show_camera: true      # Kamera-Knopf (camera_open: true = anfangs sichtbar); außerdem show_temps, show_fans, show_filament, show_controls, compact
 
 type: custom:printdock-overview-card

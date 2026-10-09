@@ -1,5 +1,5 @@
 name: PrintDock
-version: "0.7.6"
+version: "0.7.7"
 slug: printdock
 description: Manage and monitor all your 3D printers – Bambu Lab, Snapmaker, Anycubic, Klipper, OctoPrint
 url: https://github.com/Codegulasch/printdock
@@ -16,11 +16,15 @@ ingress_port: 3080
 panel_icon: mdi:printer-3d
 panel_title: PrintDock
 homeassistant_api: true
-# Für den Neustart nach dem Einspielen einer Sicherung (addons/self/restart)
+# Supervisor-Zugriff: Neustart nach dem Einspielen einer Sicherung, Update aus PrintDock heraus
 hassio_api: true
+hassio_role: manager
 # Für die Dashboard-Karte: PrintDock legt sie unter /config/www/printdock ab und trägt sie als Ressource ein
 map:
   - type: homeassistant_config
+    read_only: false
+  # Update aus PrintDock heraus (lokales Add-on): neue Version in den eigenen Add-on-Ordner schreiben
+  - type: addons
     read_only: false
 services:
   - mqtt:want

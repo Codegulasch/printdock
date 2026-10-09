@@ -268,6 +268,7 @@ function langPref() {
 function applyAppearance() {
   const a = S.app || {};
   document.documentElement.dataset.accent = a.accent || 'cobalt';
+  document.documentElement.dataset.density = a.density || 'standard';
   setLang(langPref() || a.lang || 'de');
   applyTheme();
 }
@@ -288,6 +289,7 @@ function badges() {
     orders: s.ordersLate ? `<span class="badge">${s.ordersLate}</span>` : '',
     maint: s.maintDue ? `<span class="badge warn">${s.maintDue}</span>` : '',
     spools: s.spoolsLow ? `<span class="badge warn">${s.spoolsLow}</span>` : '',
+    system: S.app?.update ? `<span class="badge info" title="${esc(t('Update verfügbar'))}">↑</span>` : '',
   };
 }
 
@@ -949,18 +951,21 @@ function vHistory() {
 // ================================================================ Einstellungen: Drucker
 
 function vPrinters() {
-  const cards = S.printers.map((p) => {
+  const rows = S.printers.map((p) => {
     const drv = S.drivers.find((x) => x.id === p.driver);
     const st = S.maint?.stats?.[p.id];
     const v = pView(p);
-    return `<article class="card"><h3>${esc(p.name)}</h3>
-      <div class="facts" style="margin-bottom:10px"><span>${t('Anbindung')} <b>${esc(t(drv?.label || p.driver))}</b></span><span>${t('Modell')} <b>${esc(p.settings?.model || '–')}</b></span>
-      ${on('queue') ? `<span>${t('Auto-Start')} <b>${p.settings?.autoStart ? t('an') : t('aus')}</b></span>` : ''}<span>${t('Betrieb')} <b>${fnum(st?.hours, 1)} h</b></span>
-      <span class="lampi ${v.cls}"><i class="led ${v.cls}"></i><b>${esc(v.lamp)}</b></span></div>
-      <button class="b b-sm" data-act="editPrinter" data-id="${p.id}">${ICON.edit}${t('Einstellen')}</button></article>`;
+    return `<div class="prow" data-act="editPrinter" data-id="${p.id}" role="button" tabindex="0" title="${esc(t('Einstellen'))}">
+      <span class="lampi ${v.cls}"><i class="led ${v.cls}"></i></span>
+      <b class="pr-name">${esc(p.name)}</b>
+      <span class="meta">${esc(p.settings?.model || t(drv?.label || p.driver))}</span>
+      <span class="meta">${esc(v.lamp)}</span>
+      <span class="meta num">${on('maintenance') ? `${fnum(st?.hours, 1)} h` : ''}</span>
+      <span class="meta">${on('queue') && p.settings?.autoStart ? t('Auto-Start') : ''}${on('homeassistant') && p.settings?.powerEntity ? `${on('queue') && p.settings?.autoStart ? ' · ' : ''}${t('Steckdose')}` : ''}</span>
+      <span class="pr-edit">${ICON.edit}</span></div>`;
   }).join('');
-  return `<div class="bar-row"><h2>${t('Drucker#pl')}</h2><button class="b b-sm b-go" data-act="editPrinter">${ICON.plus}${t('Drucker hinzufügen')}</button></div>
-    ${S.printers.length ? `<div class="cards">${cards}</div>` : `<div class="list"><div class="empty">${t('Noch kein Drucker angelegt.')}</div></div>`}`;
+  return `<div class="page-head"><h1>${NAV_ICON.gear}${t('Drucker#pl')}</h1><span class="grow"></span><button class="b b-sm b-go" data-act="editPrinter">${ICON.plus}${t('Drucker hinzufügen')}</button></div>
+    ${S.printers.length ? `<div class="sbox plist">${rows}</div>` : `<div class="list"><div class="empty">${t('Noch kein Drucker angelegt.')}</div></div>`}`;
 }
 
 function printerDialog(p = null) {
