@@ -241,51 +241,56 @@ document.addEventListener('input', (e) => {
 
 // ================================================================ Einstellungen → Allgemein
 
+/** Eine Einstellungszeile: links Bezeichnung + Erklärung, rechts das Bedienelement. */
+const srow = (label, hint, control) => `<div class="srow"><div class="sl"><b>${label}</b>${hint ? `<span>${hint}</span>` : ''}</div><div class="sc">${control}</div></div>`;
+
 function vGeneral() {
   const a = S.app;
   if (!a) return `<div class="empty">${t('Lade …')}</div>`;
   return `<div class="page-head"><h1>${NAV_ICON.gear}${t('Allgemein')}</h1></div>
-    <div class="set-grid">
-      <section class="card set"><h3>${t('Sprache')}</h3>
-        <p class="meta">${t('Gilt für Oberfläche, Benachrichtigungen und Home Assistant. Jeder Browser kann oben links zusätzlich umschalten.')}</p>
-        <div class="chips">${[['de', 'Deutsch'], ['en', 'English']].map(([k, l]) => `<button class="chip" data-gact="lang" data-v="${k}" aria-pressed="${a.lang === k}">${l}</button>`).join('')}</div></section>
-      <section class="card set"><h3>${t('Darstellung')}</h3>
-        <div class="wz-field"><b>${t('Erscheinungsbild')}</b>${themePicker(themeGet(), 'data-g-theme')}</div>
-        <div class="wz-field"><b>${t('Akzentfarbe')}</b>${accentPicker(a.accent, 'data-g-accent')}</div>
-        <p class="meta">${t('Die Statusfarben der Drucker bleiben immer gleich: grün frei, blau druckt, gelb wartet, rot Störung.')}</p></section>
+    <div class="sbox">
+      ${srow(t('Sprache'), t('Oberfläche, Benachrichtigungen und Home Assistant'), `<div class="chips">${[['de', 'Deutsch'], ['en', 'English']].map(([k, l]) => `<button class="chip" data-gact="lang" data-v="${k}" aria-pressed="${a.lang === k}">${l}</button>`).join('')}</div>`)}
+      ${srow(t('Erscheinungsbild'), '', themePicker(themeGet(), 'data-g-theme'))}
+      ${srow(t('Akzentfarbe'), t('Statusfarben bleiben immer gleich'), accentPicker(a.accent, 'data-g-accent'))}
+      ${srow(t('Druckplatte'), t('Vor jedem Start aus Warteschlange oder Auftrag fragen, ob die Platte geräumt ist'), `<label class="tgl"><input type="checkbox" data-g-plate ${a.plateCheck ? 'checked' : ''}><span class="sw"></span></label>`)}
     </div>
-    <section class="sec"><h3>${t('Funktionen')}</h3>
-      <p class="intro">${t('Abgeschaltete Bereiche verschwinden aus Menü und Druckerkarten; ihre Daten bleiben erhalten.')}</p>
-      ${moduleGrid(a.modules, 'data-g-mod')}</section>
-    <div class="set-grid">
-      <section class="card set"><h3>${t('Druckstart')}</h3>
-        <label class="mod flat ${a.plateCheck ? 'on' : ''}"><input type="checkbox" data-g-plate ${a.plateCheck ? 'checked' : ''}><span class="sw"></span>
-          <span class="mt"><b>${t('Vor jedem Start nach der Druckplatte fragen')}</b><span>${t('Ein Druck aus Warteschlange oder Auftrag startet erst, wenn bestätigt ist, dass die Platte geräumt ist.')}</span></span></label></section>
-      <section class="card set"><h3>${t('Zugriff und Sicherheit')}</h3>
-        <label class="mod flat ${a.auth.enabled ? 'on' : ''}"><input type="checkbox" data-g-auth ${a.auth.enabled ? 'checked' : ''}><span class="sw"></span>
-          <span class="mt"><b>${t('Login-Schutz')}</b><span>${t('Pflicht, wenn PrintDock von außen erreichbar ist (Cloudflare Tunnel, Portfreigabe). Im eigenen Netz optional.')}</span></span></label>
-        <div class="two" style="margin-top:10px"><label class="fl">${t('Benutzer')}<input class="in" id="gUser" value="${esc(a.auth.user)}" autocomplete="username"></label>
-          <label class="fl">${a.auth.enabled ? t('Neues Passwort') : t('Passwort')}<input class="in" id="gPw" type="password" autocomplete="new-password" placeholder="${esc(t('mindestens 6 Zeichen'))}"></label></div>
-        <div class="btns"><button class="b b-sm b-done" data-gact="saveAuth">${t('Zugang speichern')}</button></div></section>
+    <h3 class="shead">${t('Funktionen')}</h3>
+    <p class="meta" style="margin:-4px 0 10px">${t('Abgeschaltete Bereiche verschwinden aus Menü und Druckerkarten; ihre Daten bleiben erhalten.')}</p>
+    ${moduleGrid(a.modules, 'data-g-mod')}`;
+}
+
+function vSystem() {
+  const a = S.app;
+  if (!a) return `<div class="empty">${t('Lade …')}</div>`;
+  const demoLoaded = S.printers.some((p) => p.demo);
+  return `<div class="page-head"><h1>${NAV_ICON.gear}${t('System')}</h1></div>
+    <h3 class="shead">${t('Datensicherung')}</h3>
+    <div class="sbox">
+      ${srow(t('Sicherung herunterladen'), t('Eine Datei mit allem: Einstellungen, Drucker, Warteschlange, Aufträge, Spulen, Wartung, Verlauf und Druckdateien.'), `<a class="b b-sm b-done" href="api/backup" download>${t('Herunterladen')}</a>`)}
+      ${srow(t('Sicherung einspielen'), t('Ersetzt den aktuellen Stand – z. B. nach einem Umzug oder auf einer neuen Home-Assistant-Installation.'), `<label class="b b-sm">${t('Datei wählen …')}<input type="file" accept=".zip,application/zip" hidden data-restore></label>`)}
+      ${srow(t('Datenordner'), a.addon ? t('Als Add-on steckt PrintDock außerdem in jeder Home-Assistant-Sicherung.') : '', `<span class="code">${esc(a.dataDir || '')}</span>`)}
     </div>
-    <div class="set-grid">
-      <section class="card set"><h3>${t('Fernzugriff')}</h3>
-        <p class="meta">${t('Tailscale: PrintDock bleibt privat, nur deine Geräte kommen dran – ohne Portfreigabe. Cloudflare Tunnel: eigene Adresse mit HTTPS, dann unbedingt den Login-Schutz einschalten.')}</p>
-        <p class="meta">${t('Fertige Vorlagen: docker-compose mit den Profilen „cloudflare“ und „tailscale“, Anleitung in docs/remote-access.md.')}</p></section>
-      <section class="card set"><h3>${t('API-Key')}</h3>
-        <p class="meta">${t('Für Kamerabilder in Home Assistant und Download-Links, wenn der Login-Schutz an ist.')}</p>
-        <div class="btns"><button class="b b-sm" data-gact="showKey">${t('Anzeigen')}</button><button class="b b-sm" data-gact="newKey">${t('Neu erzeugen')}</button></div><p class="code" data-key hidden></p></section>
-      <section class="card set"><h3>${t('Datensicherung')}</h3>
-        <p class="meta">${t('Eine Datei mit allem: Einstellungen, Drucker, Warteschlange, Aufträge, Spulen, Wartung, Verlauf und Druckdateien. Damit ziehst du PrintDock auf ein anderes Gerät oder eine neue Home-Assistant-Installation um.')}</p>
-        ${a.addon ? `<p class="meta">${t('Als Add-on steckt PrintDock außerdem in jeder Home-Assistant-Sicherung.')}</p>` : ''}
-        <div class="btns"><a class="b b-sm b-done" href="api/backup" download>${t('Sicherung herunterladen')}</a><label class="b b-sm">${t('Sicherung einspielen')}<input type="file" accept=".zip,application/zip" hidden data-restore></label></div>
-        <p class="meta">${t('Datenordner')}: <span class="code">${esc(a.dataDir || '')}</span></p></section>
-      <section class="card set"><h3>${t('Einrichtung')}</h3>
-        <p class="meta">${t('PrintDock {v} · Assistent erneut durchlaufen, z. B. um Funktionen neu auszuwählen.', { v: esc(a.version) })}</p>
-        <div class="btns"><button class="b b-sm" data-gact="wizard">${t('Assistent starten')}</button></div></section>
+    <h3 class="shead">${t('Zugriff')}</h3>
+    <div class="sbox">
+      ${srow(t('Adresse im Heimnetz'), t('Für Slicer, Handy und Downloads'), `<span class="code">${esc(a.directUrl || location.origin)}</span> <button class="b b-sm" data-act="copy" data-text="${esc(a.directUrl || location.origin)}">${t('Kopieren')}</button>`)}
+      ${srow(t('Login-Schutz'), t('Pflicht, wenn PrintDock von außen erreichbar ist (Cloudflare Tunnel, Portfreigabe).'), `<label class="tgl"><input type="checkbox" data-g-auth ${a.auth.enabled ? 'checked' : ''}><span class="sw"></span></label>`)}
+      ${a.auth.enabled || S.authEdit ? srow(t('Benutzer und Passwort'), '', `<div class="two"><input class="in" id="gUser" value="${esc(a.auth.user)}" autocomplete="username" aria-label="${esc(t('Benutzer'))}">
+          <input class="in" id="gPw" type="password" autocomplete="new-password" placeholder="${esc(a.auth.enabled ? t('Neues Passwort') : t('Passwort (mindestens 6 Zeichen)'))}"></div>
+          <div class="btns" style="margin-top:8px"><button class="b b-sm b-done" data-gact="saveAuth">${t('Zugang speichern')}</button></div>`) : ''}
+      ${srow(t('API-Key'), t('Für Kamerabilder in Home Assistant und Download-Links, wenn der Login-Schutz an ist.'), `<div class="btns" style="margin:0"><button class="b b-sm" data-gact="showKey">${t('Anzeigen')}</button><button class="b b-sm" data-gact="newKey">${t('Neu erzeugen')}</button></div><p class="code" data-key hidden></p>`)}
+      ${srow(t('Fernzugriff'), t('Tailscale oder Cloudflare Tunnel – Vorlagen in docker-compose.yml, Anleitung in docs/remote-access.md.'), '')}
+    </div>
+    <h3 class="shead">${t('Einrichtung')}</h3>
+    <div class="sbox">
+      ${srow(t('Version'), '', `<b>PrintDock ${esc(a.version)}</b>${a.addon ? ` · ${t('Home-Assistant-Add-on')}` : ''}`)}
+      ${srow(t('Einrichtungsassistent'), t('Erneut durchlaufen, z. B. um Funktionen neu auszuwählen.'), `<button class="b b-sm" data-gact="wizard">${t('Assistent starten')}</button>`)}
+      ${on('demo') ? srow(t('Demo-Daten'), t('5 simulierte Drucker mit Dateien, Spulen, Aufträgen und Verlauf – zum Ausprobieren. Eigene Daten bleiben unberührt.'), demoLoaded
+        ? `<button class="b b-sm b-fault" data-hact="demoRemove">${t('Demo-Daten entfernen')}</button>`
+        : `<button class="b b-sm" data-hact="demoLoad">${t('Demo-Daten einspielen')}</button>`) : ''}
     </div>`;
 }
 
+VIEW_FN.system = vSystem;
 VIEW_FN.general = vGeneral;
 
 async function saveApp(body, okText = t('Gespeichert')) {
@@ -318,7 +323,10 @@ document.addEventListener('click', async (e) => {
     const pw = $('#gPw').value;
     const body = { auth: { user: $('#gUser').value } };
     if (pw) body.auth.password = pw;
-    const r = await saveApp(body, t('Zugang gespeichert'));
+    // Erst Zugang eintragen, dann einschalten (Schalter „Login-Schutz“ hat die Felder geöffnet)
+    if (S.authEdit && !S.app.auth.enabled) body.auth.enabled = true;
+    const r = await saveApp(body, body.auth.enabled ? t('Login-Schutz eingeschaltet') : t('Zugang gespeichert'));
+    if (r) S.authEdit = false;
     if (r && pw && r.auth.enabled) await api('login', { method: 'POST', body: { user: r.auth.user, password: pw } }).catch(() => {});
     return;
   }
@@ -345,6 +353,14 @@ document.addEventListener('change', async (e) => {
   if (el.matches('[data-g-plate]')) return saveApp({ plateCheck: el.checked });
   if (el.matches('[data-g-auth]')) {
     const enable = el.checked;
+    if (enable && !$('#gPw')) {
+      // Felder für Benutzer und Passwort einblenden; eingeschaltet wird mit „Zugang speichern“
+      el.checked = false;
+      S.authEdit = true;
+      render();
+      $('#gPw')?.focus();
+      return;
+    }
     if (enable) {
       const pw = $('#gPw').value;
       const body = { auth: { enabled: true, user: $('#gUser').value } };

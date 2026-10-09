@@ -277,7 +277,7 @@ function vBoard() {
     return `<div class="page-head"><h1>${NAV_ICON.printer}${t('Drucker#pl')}</h1></div>
       <div class="list"><div class="empty"><h3>${t('Noch kein Drucker angelegt')}</h3>
       <p>${t('Lege deinen ersten Drucker an – oder spiele Demo-Daten ein, um alles mit simulierten Druckern auszuprobieren.')}</p>
-      <div class="btns" style="justify-content:center"><button class="b b-go" data-act="editPrinter">${ICON.plus}${t('Drucker hinzufügen')}</button>${on('demo') ? `<button class="b" data-view="demo">${t('Demo-Daten ansehen')}</button>` : ''}</div></div></div>`;
+      <div class="btns" style="justify-content:center"><button class="b b-go" data-act="editPrinter">${ICON.plus}${t('Drucker hinzufügen')}</button>${on('demo') ? `<button class="b" data-view="system">${t('Demo-Daten ansehen')}</button>` : ''}</div></div></div>`;
   }
   const q = S.boardSearch.trim().toLowerCase();
   const list = S.printers.filter((p) => {

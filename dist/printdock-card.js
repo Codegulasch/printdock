@@ -11,7 +11,7 @@
  * https://github.com/Codegulasch/printdock
  */
 (() => {
-  const VERSION = '0.7.3';
+  const VERSION = '0.7.4';
 
   // ------------------------------------------------------------------ texts
   const TXT = {
@@ -22,7 +22,7 @@
       empty: 'leer', printers: 'Drucker', queue: 'Warteschlange', orders: 'Aufträge', spools: 'Spulen knapp', maintenance: 'Wartung',
       nothing: 'Nichts eingeplant', noOrders: 'Keine offenen Aufträge', noSpools: 'Alle Spulen ausreichend', noMaint: 'Keine Wartung fällig',
       due: 'fällig', soon: 'bald', late: 'überfällig', of: 'von', free: 'frei', run: 'druckt', wait: 'wartet', fault: 'Störung', off: 'offline',
-      notFound: 'PrintDock-Entität nicht gefunden. Sind in PrintDock die MQTT-Geräte eingeschaltet?', messages: 'Meldungen', camera: 'Kamera',
+      notFound: 'PrintDock-Entität nicht gefunden. Sind in PrintDock die MQTT-Geräte eingeschaltet?', messages: 'Meldungen', camera: 'Kamera', camShow: 'Kamera zeigen', camHide: 'Kamera ausblenden', cameraOpen: 'Kamera anfangs zeigen',
       entity: 'Drucker (Status-Sensor)', showCamera: 'Kamera', showTemps: 'Temperaturen', showFans: 'Lüfter', showFilament: 'Filament', showControls: 'Steuerung', compact: 'Kompakt',
       overviewEntity: 'PrintDock-Übersicht', title: 'Titel', sections: 'Bereiche', maxItems: 'Einträge je Bereich', more: 'weitere',
     },
@@ -33,7 +33,7 @@
       empty: 'empty', printers: 'Printers', queue: 'Queue', orders: 'Orders', spools: 'Spools low', maintenance: 'Maintenance',
       nothing: 'Nothing scheduled', noOrders: 'No open orders', noSpools: 'All spools sufficient', noMaint: 'No maintenance due',
       due: 'due', soon: 'soon', late: 'overdue', of: 'of', free: 'idle', run: 'printing', wait: 'waiting', fault: 'fault', off: 'offline',
-      notFound: 'PrintDock entity not found. Are MQTT devices enabled in PrintDock?', messages: 'messages', camera: 'Camera',
+      notFound: 'PrintDock entity not found. Are MQTT devices enabled in PrintDock?', messages: 'messages', camera: 'Camera', camShow: 'Show camera', camHide: 'Hide camera', cameraOpen: 'Show camera initially',
       entity: 'Printer (status sensor)', showCamera: 'Camera', showTemps: 'Temperatures', showFans: 'Fans', showFilament: 'Filament', showControls: 'Controls', compact: 'Compact',
       overviewEntity: 'PrintDock overview', title: 'Title', sections: 'Sections', maxItems: 'Items per section', more: 'more',
     },
@@ -49,6 +49,7 @@
 
   // Icons (Material Design paths)
   const ICON = {
+    cam: 'M4,4H7L9,2H15L17,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z',
     light: 'M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z',
     power: 'M16.56,5.44L15.11,6.89C16.84,7.94 18,9.83 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12C6,9.83 7.16,7.94 8.88,6.88L7.44,5.44C5.36,6.88 4,9.28 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12C20,9.28 18.64,6.88 16.56,5.44M13,3H11V13H13',
     pause: 'M14,19H18V5H14M6,19H10V5H6V19Z',
@@ -125,7 +126,11 @@
 
     setConfig(config) {
       if (!config?.entity) throw new Error('entity is required (sensor.<printer>_status)');
-      this.config = { show_camera: true, show_temps: true, show_fans: false, show_filament: true, show_controls: true, compact: false, ...config };
+      this.config = { show_camera: true, camera_open: false, show_temps: true, show_fans: false, show_filament: true, show_controls: true, compact: false, ...config };
+      // Kamera an/aus merkt sich jeder Browser je Karte; Standard: aus
+      let saved = null;
+      try { saved = localStorage.getItem(`printdock-cam:${this.config.entity}`); } catch {}
+      this.camOn = saved != null ? saved === '1' : Boolean(this.config.camera_open);
       if (!this.shadowRoot) {
         this.attachShadow({ mode: 'open' });
         this.shadowRoot.addEventListener('click', (e) => this.onClick(e));
@@ -154,7 +159,7 @@
       const st = hass.states[this.config.entity];
       const camId = this.config.show_camera ? this.config.camera_entity || deviceEntity(hass, this.config.entity, 'image') : null;
       const cam = camId ? hass.states[camId] : null;
-      const sig = JSON.stringify([st?.state, st?.attributes, cam?.attributes?.entity_picture, cam?.state, hass.locale?.language, this.config]);
+      const sig = JSON.stringify([st?.state, st?.attributes, this.camOn ? [cam?.attributes?.entity_picture, cam?.state] : 0, Boolean(cam), this.camOn, hass.locale?.language, this.config]);
       if (sig === this.sig) return;
       this.sig = sig;
       const t = tx(hass);
@@ -187,7 +192,8 @@
       const msg = a.message && (a.printer_state === 'error' || active) ? `<div class="msg ${a.printer_state === 'error' ? 'bad' : ''}">${esc(a.message)}</div>` : '';
       const next = a.next_job && !active ? `<div class="next muted">${esc(t.next)}: <b>${esc(a.next_job)}</b>${a.queued > 1 ? ` · +${a.queued - 1}` : ''}</div>` : '';
 
-      const camImg = cam?.attributes?.entity_picture
+      const camBtn = cam ? `<button class="ibtn ${this.camOn ? 'on' : ''}" data-act="camToggle" title="${esc(this.camOn ? t.camHide : t.camShow)}">${svg(ICON.cam)}</button>` : '';
+      const camImg = this.camOn && cam?.attributes?.entity_picture
         ? `<div class="cam" data-act="cam"><img src="${esc(cam.attributes.entity_picture)}${cam.attributes.entity_picture.includes('?') ? '&' : '?'}t=${encodeURIComponent(cam.state || '')}" alt="${esc(t.camera)}"></div>` : '';
 
       const temps = c.show_temps && !c.compact && a.temps?.length ? `<div class="sect">${esc(t.temps)}</div><div class="temps">${a.temps.map((x) => `<div class="tt ${x.active ? 'act' : ''} ${x.current > 45 ? 'hot' : ''}">
@@ -206,18 +212,20 @@
         }).join('')}</div>`;
       }
 
-      const ctrls = c.show_controls && a.online ? `<div class="ctrls">
-          ${a.can_light ? `<button class="ibtn ${a.light ? 'on' : ''}" data-act="light" title="${esc(t.light)}">${svg(ICON.light)}</button>` : ''}
-          ${a.can_speed && !c.compact ? `<select data-act="speed" ${active ? '' : 'disabled'}>${(a.speed_options || []).map((o) => `<option ${o === a.speed ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>` : ''}
+      const showCtrls = c.show_controls && a.online;
+      const ctrls = showCtrls || camBtn ? `<div class="ctrls">
+          ${camBtn}
+          ${showCtrls && a.can_light ? `<button class="ibtn ${a.light ? 'on' : ''}" data-act="light" title="${esc(t.light)}">${svg(ICON.light)}</button>` : ''}
+          ${showCtrls && a.can_speed && !c.compact ? `<select data-act="speed" ${active ? '' : 'disabled'}>${(a.speed_options || []).map((o) => `<option ${o === a.speed ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>` : ''}
           <span class="grow"></span>
-          ${active ? (a.printer_state === 'paused' ? `<button class="btn go" data-act="resume">${svg(ICON.play)}${esc(t.resume)}</button>` : `<button class="btn" data-act="pause">${svg(ICON.pause)}${esc(t.pause)}</button>`) + `<button class="btn danger" data-act="cancel">${svg(ICON.stop)}${esc(t.stop)}</button>` : ''}
+          ${showCtrls && active ? (a.printer_state === 'paused' ? `<button class="btn go" data-act="resume">${svg(ICON.play)}${esc(t.resume)}</button>` : `<button class="btn" data-act="pause">${svg(ICON.pause)}${esc(t.pause)}</button>`) + `<button class="btn danger" data-act="cancel">${svg(ICON.stop)}${esc(t.stop)}</button>` : ''}
         </div>` : '';
 
       this.shadowRoot.innerHTML = `<style>${BASE_CSS}${CARD_CSS}</style><ha-card class="${c.compact ? 'compact' : ''}">
         <div class="bar ${cat}"></div>
         <div class="body">${head}${hms}
           <div class="status">${status}${msg}${next}</div>
-          ${c.compact ? '' : camImg}${temps}${fans}${fil}${ctrls}
+          ${temps}${fans}${fil}${ctrls}${camImg}
         </div></ha-card>`;
     }
 
@@ -238,6 +246,11 @@
       if (act === 'cancel') { if (confirm(t.confirmStop)) this.publish('cancel'); return; }
       if (act === 'plate') { if (confirm(t.confirmPlate)) this.publish('plate_clear'); return; }
       if (act === 'power' && a.power_entity) return this._hass.callService('homeassistant', a.power === 'on' ? 'turn_off' : 'turn_on', { entity_id: a.power_entity });
+      if (act === 'camToggle') {
+        this.camOn = !this.camOn;
+        try { localStorage.setItem(`printdock-cam:${this.config.entity}`, this.camOn ? '1' : '0'); } catch {}
+        return this.render();
+      }
       if (act === 'cam') {
         const cam = this.config.camera_entity || deviceEntity(this._hass, this.config.entity, 'image');
         if (cam) moreInfo(this, cam);
@@ -430,12 +443,12 @@
 
   class PrintDockCardEditor extends BaseEditor {
     defaults() {
-      return { show_camera: true, show_temps: true, show_fans: false, show_filament: true, show_controls: true, compact: false };
+      return { show_camera: true, camera_open: false, show_temps: true, show_fans: false, show_filament: true, show_controls: true, compact: false };
     }
 
     labels() {
       const t = tx(this._hass);
-      return { entity: t.entity, name: 'Name', show_camera: t.showCamera, show_temps: t.showTemps, show_fans: t.showFans, show_filament: t.showFilament, show_controls: t.showControls, compact: t.compact };
+      return { entity: t.entity, name: 'Name', show_camera: t.showCamera, camera_open: t.cameraOpen, show_temps: t.showTemps, show_fans: t.showFans, show_filament: t.showFilament, show_controls: t.showControls, compact: t.compact };
     }
 
     schema() {
@@ -443,7 +456,7 @@
       return [
         { name: 'entity', required: true, selector: { entity: { include_entities: ids, domain: 'sensor' } } },
         { name: 'name', selector: { text: {} } },
-        { type: 'grid', name: '', schema: ['show_camera', 'show_temps', 'show_fans', 'show_filament', 'show_controls', 'compact'].map((n) => ({ name: n, selector: { boolean: {} } })) },
+        { type: 'grid', name: '', schema: ['show_camera', 'camera_open', 'show_temps', 'show_fans', 'show_filament', 'show_controls', 'compact'].map((n) => ({ name: n, selector: { boolean: {} } })) },
       ];
     }
   }

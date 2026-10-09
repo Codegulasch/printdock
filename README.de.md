@@ -124,7 +124,7 @@ Oben fasst eine Zeile zusammen, wie viele Drucker frei sind, drucken, warten ode
 
 ## Datensicherung und Umzug
 
-*Einstellungen → Allgemein → Datensicherung* lädt eine `.zip` mit allem herunter: Einstellungen, Drucker, Warteschlange, Aufträge, Spulen, Wartung, Verlauf und Druckdateien. Einspielen lässt sie sich dort oder direkt im Einrichtungsassistenten einer neuen Installation (z. B. eines neuen Home Assistant). Als Add-on, Docker-Container oder systemd-Dienst startet PrintDock danach von selbst neu, sonst von Hand neu starten. Der vorherige Stand bleibt im Datenordner unter `before-restore-…` erhalten. Als Add-on steckt PrintDock außerdem in jeder Home-Assistant-Sicherung.
+*Einstellungen → System → Datensicherung* lädt eine `.zip` mit allem herunter: Einstellungen, Drucker, Warteschlange, Aufträge, Spulen, Wartung, Verlauf und Druckdateien. Einspielen lässt sie sich dort oder direkt im Einrichtungsassistenten einer neuen Installation (z. B. eines neuen Home Assistant). Als Add-on, Docker-Container oder systemd-Dienst startet PrintDock danach von selbst neu, sonst von Hand neu starten. Der vorherige Stand bleibt im Datenordner unter `before-restore-…` erhalten. Als Add-on steckt PrintDock außerdem in jeder Home-Assistant-Sicherung.
 
 ## Home Assistant
 
@@ -155,7 +155,7 @@ Beide Karten haben einen grafischen Editor (*Karte hinzufügen → PrintDock Car
 ```yaml
 type: custom:printdock-card
 entity: sensor.werkstatt_x2d_status
-show_camera: true      # außerdem show_temps, show_fans, show_filament, show_controls, compact
+show_camera: true      # Kamera-Knopf (camera_open: true = anfangs sichtbar); außerdem show_temps, show_fans, show_filament, show_controls, compact
 
 type: custom:printdock-overview-card
 sections: [printers, queue, orders, spools, maintenance]

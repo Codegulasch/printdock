@@ -20,7 +20,7 @@ As an add-on, PrintDock connects to Home Assistant automatically:
 
 ## Backup
 
-All data lives in the add-on's `/data` folder and is included in Home Assistant backups. To move to a new Home Assistant installation, download a backup under **Settings → General → Backup** and restore it in the setup wizard of the new installation.
+All data lives in the add-on's `/data` folder and is included in Home Assistant backups. To move to a new Home Assistant installation, download a backup under **Settings → System → Backup** and restore it in the setup wizard of the new installation.
 
 ## Direct access (port 3080)
 
@@ -52,7 +52,7 @@ PrintDock verwaltet und überwacht 3D-Drucker aller Hersteller an einem Ort: Liv
 
 ## Datensicherung
 
-Alle Daten liegen im Ordner `/data` des Add-ons und stecken in jeder Home-Assistant-Sicherung. Für den Umzug auf eine neue Home-Assistant-Installation unter **Einstellungen → Allgemein → Datensicherung** eine Sicherung herunterladen und im Einrichtungsassistenten der neuen Installation einspielen.
+Alle Daten liegen im Ordner `/data` des Add-ons und stecken in jeder Home-Assistant-Sicherung. Für den Umzug auf eine neue Home-Assistant-Installation unter **Einstellungen → System → Datensicherung** eine Sicherung herunterladen und im Einrichtungsassistenten der neuen Installation einspielen.
 
 ## Direktzugriff (Port 3080)
 

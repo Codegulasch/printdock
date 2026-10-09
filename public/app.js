@@ -36,7 +36,7 @@ const NAV_ALL = [
   { g: 'fil', l: 'Filament', icon: 'spool', v: [['spools', 'Spulen', 'filament'], ['slots', 'Belegung', 'filament'], ['usage', 'Verbrauch', 'filament']] },
   { g: 'maint', l: 'Wartung', icon: 'wrench', v: [['maint', 'Wartungsplan', 'maintenance']] },
   { g: 'ana', l: 'Auswertung', icon: 'chart', v: [['stats', 'Statistik', 'stats'], ['history', 'Verlauf', 'history']] },
-  { g: 'set', l: 'Einstellungen', icon: 'gear', sep: true, v: [['general', 'Allgemein'], ['printers', 'Drucker#pl'], ['ha', 'Home Assistant', 'homeassistant'], ['notify', 'Benachrichtigungen', 'notifications'], ['slicer', 'Slicer', 'slicer'], ['demo', 'Demo-Daten', 'demo']] },
+  { g: 'set', l: 'Einstellungen', icon: 'gear', sep: true, v: [['general', 'Allgemein'], ['printers', 'Drucker#pl'], ['ha', 'Home Assistant', 'homeassistant'], ['notify', 'Benachrichtigungen', 'notifications'], ['slicer', 'Slicer', 'slicer'], ['system', 'System']] },
 ];
 const on = (m) => !m || S.app?.modules?.[m] !== false;
 function navGroups() {
@@ -355,34 +355,64 @@ function thumbHTML(file, cls = 'thumb') {
 // ---------------------------------------------------------------- Kamera
 const camEls = new Map();
 
+// Livebild: zuerst MJPEG-Stream. Kommt darüber nichts an (z. B. durch den Home-Assistant-Ingress,
+// der Streams puffert), auf Einzelbilder umschalten – die gehen durch jeden Proxy.
 function startStream(box, id) {
   const img = $('img', box);
   const note = $('.cam-note', box);
+  stopStream(box);
+  box._stopped = false;
   note.textContent = t('Verbinde mit Kamera …');
   box.classList.remove('live');
   img.src = `api/printers/${encodeURIComponent(id)}/camera.mjpg`;
   const t0 = Date.now();
-  clearInterval(box._w);
-  box._w = setInterval(async () => {
-    if (!img.isConnected) return clearInterval(box._w);
+  box._w = setInterval(() => {
+    if (box._stopped) return clearInterval(box._w);
     if (img.naturalWidth > 0) {
       box.classList.add('live');
       return clearInterval(box._w);
     }
-    if (Date.now() - t0 > 12000) {
+    if (Date.now() - t0 > 5000) {
       clearInterval(box._w);
-      try {
-        const r = await fetch(`api/printers/${encodeURIComponent(id)}/camera.jpg`);
-        const d = r.ok ? null : await r.json().catch(() => ({}));
-        note.textContent = r.ok ? t('Livebild hängt – Seite neu laden.') : t('Kein Kamerabild: {e}', { e: t(d.error || 'unbekannter Fehler') });
-      } catch {
-        note.textContent = t('Kein Kamerabild: Server nicht erreichbar');
+      startPolling(box, id);
+    }
+  }, 300);
+}
+function startPolling(box, id) {
+  const img = $('img', box);
+  const note = $('.cam-note', box);
+  img.removeAttribute('src'); // Stream beenden
+  let fails = 0;
+  let lastUrl = null;
+  const next = async () => {
+    if (box._stopped) return;
+    const t1 = Date.now();
+    try {
+      const r = await fetch(`api/printers/${encodeURIComponent(id)}/camera.jpg?t=${t1}`, { cache: 'no-store' });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
+      const url = URL.createObjectURL(await r.blob());
+      if (box._stopped) return URL.revokeObjectURL(url);
+      img.src = url;
+      if (lastUrl) URL.revokeObjectURL(lastUrl);
+      lastUrl = url;
+      box.classList.add('live');
+      fails = 0;
+    } catch (err) {
+      fails += 1;
+      if (fails >= 3) {
+        box.classList.remove('live');
+        note.textContent = t('Kein Kamerabild: {e}', { e: t(err.message === 'Failed to fetch' ? 'Server nicht erreichbar' : err.message) });
       }
     }
-  }, 400);
+    // etwa ein Bild pro Sekunde; bei Fehlern langsamer
+    box._p = setTimeout(next, Math.max(250, (fails ? 4000 : 1000) - (Date.now() - t1)));
+  };
+  next();
 }
 function stopStream(box) {
+  box._stopped = true;
   clearInterval(box._w);
+  clearTimeout(box._p);
   $('img', box).removeAttribute('src');
 }
 function attachCameras() {
@@ -783,7 +813,7 @@ async function slicerMenu(btn, fileId) {
     const r = await api('app/key').catch(() => null);
     if (r) key = `?k=${r.apiKey}`;
   }
-  const dl = `${S.ha?.directUrl || location.origin}/api/files/${encodeURIComponent(f.id)}/dl/${encodeURIComponent(f.name)}${key}`;
+  const dl = `${S.app?.directUrl || S.ha?.directUrl || location.origin}/api/files/${encodeURIComponent(f.id)}/dl/${encodeURIComponent(f.name)}${key}`;
   const items = on('slicer') ? (S.settings?.slicers || []).map((s) => `<a href="${esc(s.url.replace('{url}', encodeURIComponent(dl)))}">${esc(s.name)}</a>`).join('') : '';
   btn.parentElement.insertAdjacentHTML('beforeend', `<div class="menu-list" role="menu">${items}<a href="${esc(dl)}" download>${t('Herunterladen')}</a></div>`);
   setTimeout(() => document.addEventListener('click', () => $$('.menu-list').forEach((m) => m.remove()), { once: true }), 0);
@@ -1038,27 +1068,35 @@ function channelDialog(c = null) {
 function vSlicer() {
   const st = S.settings;
   if (!st) return `<div class="empty">${t('Lade …')}</div>`;
-  const base = `${S.ha?.directUrl || location.origin}/slicer`;
+  const base = `${S.app?.directUrl || S.ha?.directUrl || location.origin}/slicer`;
   const urlRow = (label, url) => `<div>${esc(label)}</div><span class="code">${esc(url)}</span><button class="b b-sm" data-act="copy" data-text="${esc(url)}">${t('Kopieren')}</button>`;
-  return `<div class="bar-row"><h2>${t('Slicer')}</h2></div>
-    <section class="sec"><h3>${t('Aus dem Slicer direkt an PrintDock senden')}</h3>
-      <p class="intro">${t('PrintDock verhält sich gegenüber dem Slicer wie ein OctoPrint-Server. Das funktioniert mit OrcaSlicer, PrusaSlicer, SuperSlicer und darauf aufbauenden Slicern (z. B. Snapmaker Orca, Anycubic Slicer Next).')}
-      ${t('Im Slicer einen „physischen Drucker“ anlegen, Host-Typ OctoPrint, Adresse und API-Key von hier eintragen. „Hochladen und drucken“ reiht den Druck ganz oben ein.')}</p>
-      <div class="card"><div class="kv">
-        ${urlRow(t('Nur in die Bibliothek'), base)}
-        ${on('queue') ? urlRow(t('In die Warteschlange (passender Drucker)'), `${base}/queue`) : ''}
-        ${on('queue') ? S.printers.map((p) => urlRow(t('Warteschlange {p}', { p: p.name }), `${base}/${p.id}`)).join('') : ''}
-        <div>${t('API-Key')}</div><span class="code">${esc(st.slicerKey)}</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="b b-sm" data-act="copy" data-text="${esc(st.slicerKey)}">${t('Kopieren')}</button><button class="b b-sm" data-act="newKey">${t('Neu erzeugen')}</button></span>
-      </div></div>
-      <p class="meta">${t('Bambu Studio kann Bambu-Drucker nicht über OctoPrint ansprechen. Dort die Platte als .gcode.3mf exportieren und unter Dateien hochladen.')}</p>
-    </section>
-    <section class="sec"><h3>${t('Dateien im Slicer öffnen')}</h3>
+  const targets = [[base, t('Nur in die Bibliothek')], ...(on('queue') ? [[`${base}/queue`, t('In die Warteschlange (passender Drucker)')], ...S.printers.map((p) => [`${base}/${p.id}`, t('Warteschlange {p}', { p: p.name })])] : [])];
+  return `<div class="page-head"><h1>${NAV_ICON.gear}${t('Slicer')}</h1></div>
+    <h3 class="shead">${t('Aus dem Slicer an PrintDock senden')}</h3>
+    <p class="meta" style="margin:-4px 0 10px">${t('OrcaSlicer, Snapmaker Orca, PrusaSlicer, Anycubic Slicer Next: Drucker-Einstellungen → „Physischer Drucker“ / „Druck-Host“. PrintDock antwortet wie OctoPrint bzw. Klipper.')}</p>
+    <div class="sbox">
+      ${urlRowS(t('Host-Typ'), t('OctoPrint – im Orca „Octo/Klipper“'), '')}
+      ${urlRowS(t('Hostname, IP oder URL'), t('Bestimmt, wohin der Druck geht – eine Adresse je „physischem Drucker“ im Slicer.'), `<select class="in" data-slurl style="max-width:100%">${targets.map(([u, l]) => `<option value="${esc(u)}">${esc(l)}</option>`).join('')}</select>
+        <span class="code" data-slshow>${esc(targets[0][0])}</span><button class="b b-sm" data-act="copy" data-text="${esc(targets[0][0])}" data-slcopy>${t('Kopieren')}</button>`)}
+      ${urlRowS(t('API-Schlüssel / Passwort'), '', `<span class="code">${esc(st.slicerKey)}</span><button class="b b-sm" data-act="copy" data-text="${esc(st.slicerKey)}">${t('Kopieren')}</button><button class="b b-sm" data-act="newKey">${t('Neu erzeugen')}</button>`)}
+    </div>
+    <p class="meta">${t('Die Adresse muss die IP des Rechners sein, auf dem PrintDock läuft (als Add-on: die IP von Home Assistant) mit Port 3080 – nicht die Adresse aus der Browserzeile von Home Assistant.')}
+      ${t('Bambu Studio spricht kein OctoPrint: dort die Platte als .gcode.3mf exportieren und unter Dateien hochladen.')}</p>
+    <h3 class="shead" style="margin-top:26px">${t('Dateien im Slicer öffnen')}</h3><section>
       <p class="intro">${t('„Öffnen in …“ bei einer Datei startet den Slicer auf diesem Rechner und lädt die Datei aus PrintDock. Weitere Slicer lassen sich mit ihrem Link-Schema ergänzen; {url} steht für die Download-Adresse.')}</p>
       <div class="list" data-slicers>${st.slicers.map((s, i) => `<div class="row" style="grid-template-columns:minmax(140px,1fr) 2fr auto"><input class="in" data-sn="${i}" value="${esc(s.name)}" aria-label="${t('Name')}"><input class="in" data-su="${i}" value="${esc(s.url)}" aria-label="${t('Link-Schema')}"><button class="x del" data-act="slRemove" data-i="${i}" aria-label="${t('Entfernen')}">${ICON.trash}</button></div>`).join('')}</div>
       <div class="btns"><button class="b b-sm" data-act="slAdd">${ICON.plus}${t('Slicer ergänzen')}</button><button class="b b-sm b-done" data-act="slSave">${t('Speichern')}</button></div>
       <p class="meta">${t('Manche Slicer öffnen nur Dateien von bestimmten Webseiten. Klappt das nicht, „Herunterladen“ wählen und die Datei im Slicer öffnen.')}</p>
     </section>`;
 }
+
+const urlRowS = (label, hint, control) => `<div class="srow"><div class="sl"><b>${label}</b>${hint ? `<span>${hint}</span>` : ''}</div><div class="sc">${control}</div></div>`;
+document.addEventListener('change', (e) => {
+  const sel = e.target.closest?.('[data-slurl]');
+  if (!sel) return;
+  $('[data-slshow]').textContent = sel.value;
+  $('[data-slcopy]').dataset.text = sel.value;
+});
 
 function readSlicerRows() {
   return $$('[data-sn]').map((el) => ({ name: el.value, url: $(`[data-su="${el.dataset.sn}"]`).value }));

@@ -138,6 +138,9 @@ const filament = new Filament({
   },
 });
 
+// Als Add-on: echte IP des Home-Assistant-Rechners für Slicer und Downloads ermitteln
+require('./lib/hostinfo').refresh(PORT).then((i) => i.ip && console.log(`Erreichbar im Heimnetz unter http://${i.ip}:${i.port || PORT}`));
+
 ha = new HomeAssistant({
   printers: () => printerConfigs,
   runtime,
@@ -372,7 +375,7 @@ async function handleApi(req, res, url) {
   const [, resource, id, action] = parts;
 
   // ---- App-Einstellungen und Login (ohne Anmeldung erreichbar)
-  if (resource === 'app' && !id && req.method === 'GET') return sendJson(res, 200, app.publicSettings(req));
+  if (resource === 'app' && !id && req.method === 'GET') return sendJson(res, 200, { ...app.publicSettings(req), directUrl: ha.directUrl });
   if (resource === 'login' && req.method === 'POST') {
     app.login(req, res, await readBody(req));
     return sendJson(res, 200, { ok: true });
@@ -391,7 +394,7 @@ async function handleApi(req, res, url) {
       app.save(await readBody(req));
       if (before !== app.moduleOn('homeassistant')) ha.init().catch(() => {});
       broadcast('app', null);
-      return sendJson(res, 200, app.publicSettings(req));
+      return sendJson(res, 200, { ...app.publicSettings(req), directUrl: ha.directUrl });
     }
     if (id === 'key' && req.method === 'GET') return sendJson(res, 200, { apiKey: app.apiKey });
   }

@@ -89,22 +89,23 @@ function vHa() {
       </div><div class="btns"><button class="b b-sm b-done" data-hact="saveConn">${t('Speichern und testen')}</button><span class="meta" style="align-self:center">${t('Status')}: ${haStatusHTML(h.status.rest, t('verbunden'))}</span></div></div>
     </section>`}
     <section class="sec"><h3>${num()}${t('Drucker ein- und ausschalten')}</h3>
-      <p class="intro">${t('Hängt ein Drucker an einer schaltbaren Steckdose, trägst du hier deren Entität ein. Auf der Druckerkarte erscheint dann ein Ein/Aus-Knopf. Auto-Aus schaltet nach Druckende ab – aber erst, wenn die Düse abgekühlt ist und kein neuer Druck läuft. Während eines Drucks lässt sich nicht ausschalten.')}</p>
+      <p class="intro">${t('Steckdose wählen – dann gibt es auf der Druckerkarte einen Ein/Aus-Knopf. Auto-Aus schaltet nach dem Druck ab, sobald die Düse abgekühlt ist.')}</p>
       <div class="list">${rows || `<div class="empty">${t('Noch kein Drucker angelegt.')}</div>`}</div>
     </section>
     <section class="sec"><h3>${num()}${t('PrintDock in Home Assistant anzeigen')}</h3>
-      <p class="intro">${t('Per MQTT-Discovery erscheint jeder Drucker in Home Assistant als Gerät: Status, Fortschritt, Restzeit, „Fertig um“, Temperaturen, Kamera, Licht, Geschwindigkeit sowie Knöpfe für Pause, Fortsetzen, Abbrechen und „Platte ist frei“. Dazu kommen Gesamtwerte wie Warteschlange, knappe Spulen und fällige Wartungen. Voraussetzung ist ein MQTT-Broker – meist das Mosquitto-Add-on.')}</p>
+      <p class="intro">${t('Jeder Drucker erscheint in Home Assistant als Gerät mit Status, Temperaturen, Kamera und Knöpfen – Grundlage für Automationen und die Dashboard-Karten.')}</p>
       <div class="card"><div class="kv" style="grid-template-columns:minmax(140px,200px) 1fr">
         <div>${t('MQTT-Geräte')}</div><label class="meta" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="mqEnabled" ${m.enabled ? 'checked' : ''}> ${t('einschalten')}</label>
         ${h.addon && h.mqttAuto ? `<div>${t('Broker')}</div><div class="meta" style="align-self:center">${esc(t('automatisch: {h}', { h: h.mqttAuto.host }))}</div>` : `
         <div>${t('Broker')}</div><input class="in" id="mqUrl" value="${esc(m.url)}" placeholder="${h.mqttAuto ? esc(t('automatisch: {h}', { h: h.mqttAuto.host })) : 'mqtt://192.168.1.10:1883'}">
         <div>${t('Benutzer')}</div><input class="in" id="mqUser" value="${esc(m.username)}" placeholder="${h.mqttAuto ? t('automatisch') : t('optional')}">
         <div>${t('Passwort')}</div><input class="in" id="mqPass" type="password" value="${esc(m.password)}">`}
+      </div>
+      <details class="adv"><summary>${t('Erweitert')}</summary><div class="kv" style="grid-template-columns:minmax(140px,200px) 1fr;margin-top:8px">
         <div>${t('PrintDock-Adresse')}</div><input class="in" id="haPublic" value="${esc(h.publicUrl)}" placeholder="${esc(h.directUrl)}">
         <div>${t('Discovery-Präfix')}</div><input class="in" id="mqPrefix" value="${esc(m.discoveryPrefix)}">
         <div>${t('Basis-Topic')}</div><input class="in" id="mqBase" value="${esc(m.baseTopic)}">
-      </div>
-      <p class="meta">${t('Die PrintDock-Adresse nutzt Home Assistant für Kamerabilder und den Link „Gerät besuchen“. Leer lassen = automatisch ({u}).', { u: esc(h.directUrl) })}</p>
+      </div><p class="meta">${t('Die PrintDock-Adresse nutzt Home Assistant für den Link „Gerät besuchen“. Leer lassen = automatisch ({u}).', { u: esc(h.directUrl) })}</p></details>
       <div class="btns"><button class="b b-sm b-done" data-hact="saveMqtt">${t('Speichern')}</button><span class="meta" style="align-self:center">${t('Status')}: ${haStatusHTML(h.status.mqtt, t('verbunden – Geräte sind angemeldet'))}</span></div></div>
     </section>
     ${h.addon ? '' : `<section class="sec"><h3>${num()}${t('PrintDock in der Home-Assistant-Seitenleiste')}</h3>
@@ -117,7 +118,7 @@ function vHa() {
       </div>
     </section>`}
     <section class="sec"><h3>${num()}${t('PrintDock-Karten im Dashboard')}</h3>
-      <p class="intro">${t('Zwei fertige Dashboard-Karten: „PrintDock Card“ zeigt einen Drucker wie hier in PrintDock – Statusampel, Fortschritt, Kamera, Temperaturen, Filament und Knöpfe. „PrintDock Übersicht“ zeigt alle Drucker auf einen Blick, dazu Warteschlange, Aufträge, knappe Spulen und fällige Wartung. Voraussetzung: MQTT-Geräte sind eingeschaltet (siehe oben).')}</p>
+      <p class="intro">${t('„PrintDock Card“ zeigt einen Drucker, „PrintDock Overview“ alle Drucker mit Warteschlange, Aufträgen, Spulen und Wartung. Braucht die MQTT-Geräte.')}</p>
       <div class="cards">
         <div class="card"><h3>${t('Einrichten')}</h3>
           ${h.addon

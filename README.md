@@ -106,7 +106,7 @@ Passwords are stored with scrypt, sessions use HttpOnly cookies, 5 wrong attempt
 
 ## Backup and moving
 
-*Settings → General → Backup* downloads a single `.zip` with everything: settings, printers, queue, orders, spools, maintenance, history and print files. Restore it on the same page or directly in the setup wizard of a fresh installation (e.g. a new Home Assistant). PrintDock restarts by itself as add-on, Docker container or systemd service; otherwise restart it manually. The previous state is kept in `before-restore-…` inside the data folder. As an add-on, PrintDock is also part of every Home Assistant backup.
+*Settings → System → Backup* downloads a single `.zip` with everything: settings, printers, queue, orders, spools, maintenance, history and print files. Restore it on the same page or directly in the setup wizard of a fresh installation (e.g. a new Home Assistant). PrintDock restarts by itself as add-on, Docker container or systemd service; otherwise restart it manually. The previous state is kept in `before-restore-…` inside the data folder. As an add-on, PrintDock is also part of every Home Assistant backup.
 
 ## Home Assistant
 
@@ -120,7 +120,7 @@ Passwords are stored with scrypt, sessions use HttpOnly cookies, 5 wrong attempt
 ```yaml
 type: custom:printdock-card
 entity: sensor.workshop_x2d_status
-show_camera: true      # temps, fans, filament, controls, compact also available
+show_camera: true      # camera button (camera_open: true = shown initially)
 
 type: custom:printdock-overview-card
 sections: [printers, queue, orders, spools, maintenance]

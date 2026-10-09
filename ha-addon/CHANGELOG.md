@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.4
+- Cameras in PrintDock: if the live stream does not get through (e.g. via the Home Assistant sidebar/ingress), PrintDock switches to still images automatically (about one per second)
+- Dashboard card: camera button to show/hide the camera, hidden by default; remembered per card and browser (`camera_open: true` to start with the camera shown)
+- Add-on: PrintDock now shows the real address of the Home Assistant machine (e.g. `http://192.168.x.x:3080`) instead of the internal container address – for slicers, downloads and the phone
+- Slicer upload: besides OctoPrint, PrintDock now also answers like Klipper/Moonraker (`/server/files/upload`), clearer setup page with address selection
+- Settings reorganised: *General* (language, look, build plate, features) and new *System* (backup, access, API key, version, setup wizard, demo data); shorter Home Assistant page with advanced MQTT options folded away
+- Files: the "Open in …" menu is no longer cut off
+
 ## 0.7.3
 - **Important fix for the add-on:** the Home Assistant base image (s6-overlay) started PrintDock with an empty environment. PrintDock then stored its data inside the container instead of `/data` – so printers and settings were lost on every update – and did not recognise that it was running as an add-on (no automatic connection, no automatic card setup). From this version on, data lives in `/data`, survives updates and is part of Home Assistant backups. Data entered with an older add-on version cannot be recovered
 - **Backup and restore:** *Settings → General → Backup* downloads one file with everything (settings, printers, queue, orders, spools, maintenance, history, print files). Restore it there or right in the setup wizard of a new installation – PrintDock restarts by itself (add-on, Docker, systemd)
