@@ -506,6 +506,14 @@ body.has-overlay{overflow:hidden}
 .srow .sc .two{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:520px}
 .srow .sc .wz-field,.srow .sc .chips{margin:0}
 .adv{margin-top:10px}.adv summary{cursor:pointer;color:var(--muted);font-size:14px}
+.fmap{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:4px 0 10px;background:var(--panel2)}
+.fm-row{display:grid;grid-template-columns:auto minmax(64px,auto) auto auto minmax(0,1fr);gap:4px 8px;align-items:center;padding:5px 0}
+.fm-state{grid-column:2/-1;font-size:13px;margin-top:-2px}
+.fm-state .vl{font-size:13px}
+.fm-row .swatch{width:18px;height:18px;border-radius:50%;border:1px solid var(--line);flex:none}
+.fm-row select{width:100%;min-width:0}
+.fm-arrow{color:var(--muted)}
+@media (max-width:600px){.fm-row{grid-template-columns:auto 1fr auto auto}.fm-target{grid-column:1/-1}.fm-state{grid-column:1/-1}}
 .shead{margin:6px 0 10px;font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .tgl{position:relative;display:inline-flex;cursor:pointer}
 .tgl input{position:absolute;opacity:0;pointer-events:none}

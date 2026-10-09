@@ -27,6 +27,19 @@ const STYLE = {
 // ------------------------------------------------------------------ Kanaltypen
 
 const CHANNELS = {
+  homeassistant: {
+    label: 'Home Assistant (Companion-App)',
+    hint: 'Schickt die Meldung über Home Assistant – an die Companion-App auf dem Handy oder als Meldung in Home Assistant. Als Add-on ohne weitere Einrichtung, sonst die Verbindung unter Einstellungen → Home Assistant eintragen.',
+    fields: [{ key: 'service', label: 'Ziel', type: 'haNotify', required: true }],
+    image: true,
+    ha: null, // wird von server.js gesetzt
+    async send(cfg, msg, image) {
+      if (!CHANNELS.homeassistant.ha) throw new Error('Home Assistant ist nicht verbunden');
+      const style = STYLE[msg.event] || STYLE.test;
+      await CHANNELS.homeassistant.ha.notify(cfg.service, { ...msg, title: `${style.emoji} ${msg.title}` }, { image: Boolean(image), priority: style.priority });
+    },
+  },
+
   ntfy: {
     label: 'ntfy (Push aufs Handy)',
     hint: 'Kostenlose App für Android und iOS. Thema in der App abonnieren – fertig. Eigener ntfy-Server möglich.',

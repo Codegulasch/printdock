@@ -150,6 +150,7 @@ ha = new HomeAssistant({
   summary: () => ({ ...production.summary(), ...filament.summary() }),
   port: PORT,
 });
+CHANNELS.homeassistant.ha = ha;
 
 const ACTIVE = new Set(['preparing', 'printing', 'paused']);
 const ENDED = { finished: 'erfolgreich', cancelled: 'abgebrochen', error: 'fehlgeschlagen' };
@@ -500,6 +501,7 @@ async function handleApi(req, res, url) {
     }
     if (id === 'test' && req.method === 'POST') return sendJson(res, 200, await ha.test());
     if (id === 'entities' && req.method === 'GET') return sendJson(res, 200, await ha.entities());
+    if (id === 'notify-services' && req.method === 'GET') return sendJson(res, 200, await ha.notifyServices());
     if (id === 'restart' && req.method === 'POST') return sendJson(res, 200, await ha.restartCore());
     if (id === 'card' && req.method === 'POST') {
       if (ha.publicSettings().addon) {
@@ -575,6 +577,12 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, { ok: true });
     }
     if (id === 'settings' && req.method === 'PUT') return sendJson(res, 200, filament.saveSettings(await readBody(req)));
+    if (id === 'mapping' && req.method === 'GET') {
+      const cfg = printerConfigs.find((p) => p.id === url.searchParams.get('printerId'));
+      const item = production.getItem(url.searchParams.get('queueId'));
+      if (!cfg || !item) throw httpError(404, 'Drucker oder Eintrag nicht gefunden');
+      return sendJson(res, 200, filament.mappingFor(cfg, files.get(item.fileId), item.options));
+    }
     if (id === 'check' && req.method === 'GET') {
       const cfg = printerConfigs.find((p) => p.id === url.searchParams.get('printerId'));
       const item = production.getItem(url.searchParams.get('queueId'));
@@ -658,6 +666,16 @@ async function handleApi(req, res, url) {
     if (action === 'start' && req.method === 'POST') {
       const body = await readBody(req);
       if (app.plateCheck && body.plateConfirmed !== true) throw httpError(409, 'Bitte bestätigen, dass die Druckplatte geräumt ist');
+      // Filament-Zuordnung aus dem Startdialog übernehmen (Bambu: als ams_mapping an den Drucker)
+      if (Array.isArray(body.slotMap) && body.slotMap.length) {
+        const item = production.getItem(id);
+        const cfg = printerConfigs.find((p) => p.id === body.printerId);
+        if (item && cfg) {
+          const options = { ...(item.options || {}), slotMap: body.slotMap };
+          if (filament.canMap(cfg)) options.amsMapping = filament.amsMappingFor(files.get(item.fileId), body.slotMap.map(String));
+          production.updateItem(id, { options });
+        }
+      }
       if (body.printerId && body.plateConfirmed) production.setPlateClear(body.printerId, true);
       return sendJson(res, 200, await production.start(id, body.printerId, { manual: true }));
     }

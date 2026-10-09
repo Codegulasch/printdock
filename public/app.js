@@ -187,6 +187,16 @@ function formError(d, msg) {
 
 /** Formularfeld aus Treiber-/Kanal-Feldbeschreibung. */
 function fieldHtml(f, value) {
+  if (f.type === 'haNotify') {
+    // Ziele aus Home Assistant (Companion-Apps, Meldungsglocke); ohne Verbindung von Hand eintragen
+    const list = S.haNotify || [];
+    if (list.length) {
+      const cur = value || list.find((x) => x.id.startsWith('notify.mobile_app_'))?.id || list[0].id;
+      return `<label>${esc(t(f.label))}<select name="cfg_${esc(f.key)}">${list.map((o) => `<option value="${esc(o.id)}" ${o.id === cur ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}${cur && !list.some((o) => o.id === cur) ? `<option value="${esc(cur)}" selected>${esc(cur)}</option>` : ''}</select></label>`;
+    }
+    return `<label>${esc(t(f.label))}<input name="cfg_${esc(f.key)}" required value="${esc(value ?? '')}" placeholder="notify.mobile_app_mein_handy" autocomplete="off">
+      <span class="meta">${S.haNotify === null ? t('Ziele werden aus Home Assistant geladen …') : t('Keine Verbindung zu Home Assistant – Ziel von Hand eintragen oder unter Einstellungen → Home Assistant verbinden.')}</span></label>`;
+  }
   if (f.type === 'select') {
     const cur = value ?? f.default;
     return `<label>${esc(t(f.label))}<select name="cfg_${esc(f.key)}">${f.options.map((o) => `<option value="${esc(o.value)}" ${o.value === cur ? 'selected' : ''}>${esc(t(o.label))}</option>`).join('')}</select></label>`;
@@ -590,15 +600,22 @@ async function startItem(itemId, printerId = null) {
     <div class="dlg-actions"><button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-go" data-ok ${mustConfirm ? 'disabled' : ''}>${ICON.play}${t('Jetzt starten')}</button></div></form>`);
   const form = $('form', d);
   const okBtn = $('[data-ok]', d);
+  let fmap = null;
   const loadCheck = async () => {
     const box = $('[data-fcheck]', d);
     box.innerHTML = '';
-    if (!on('filament') || typeof filamentCheckHTML !== 'function') return;
+    fmap = null;
+    if (typeof filamentMapHTML !== 'function') return;
     try {
-      const check = await api(`filament/check?printerId=${encodeURIComponent(form.printerId.value)}&queueId=${encodeURIComponent(itemId)}`);
-      box.innerHTML = filamentCheckHTML(check);
-    } catch { /* ohne Prüfung */ }
+      // Welches Filament aus dem Slice kommt aus welchem Platz? Vorschlag nach Farbe und Material
+      fmap = await api(`filament/mapping?printerId=${encodeURIComponent(form.printerId.value)}&queueId=${encodeURIComponent(itemId)}`);
+      box.innerHTML = filamentMapHTML(fmap);
+    } catch { /* ohne Zuordnung */ }
   };
+  $('[data-fcheck]', d).addEventListener('change', (e) => {
+    const sel = e.target.closest('[data-fm]');
+    if (sel && fmap) filamentMapUpdate($('[data-fcheck]', d), fmap, sel);
+  });
   form.printerId.addEventListener('change', loadCheck);
   form.plate?.addEventListener('change', () => (okBtn.disabled = !form.plate.checked));
   loadCheck();
@@ -609,7 +626,7 @@ async function startItem(itemId, printerId = null) {
     okBtn.disabled = true;
     try {
       toast(t('Wird an {p} übertragen …', { p: p?.name }));
-      await api(`queue/${itemId}/start`, { method: 'POST', body: { printerId: pid, plateConfirmed: mustConfirm ? form.plate.checked : true } });
+      await api(`queue/${itemId}/start`, { method: 'POST', body: { printerId: pid, plateConfirmed: mustConfirm ? form.plate.checked : true, slotMap: fmap?.mappable && fmap.filaments.length ? fmap.suggested : undefined } });
       d.close();
       toast(t('Druck auf {p} gestartet', { p: p?.name }));
       reload('queue', 'summary', 'orders');
@@ -1050,6 +1067,13 @@ function channelDialog(c = null) {
   };
   renderFields(c?.config);
   form.type.addEventListener('change', () => renderFields());
+  // Home-Assistant-Ziele einmal laden, dann die Felder neu zeichnen
+  if (S.haNotify === undefined) {
+    S.haNotify = null;
+    api('ha/notify-services').then((l) => (S.haNotify = l)).catch(() => (S.haNotify = [])).finally(() => {
+      if (d.open && form.type.value === 'homeassistant') renderFields({ ...(c?.config || {}), ...readFields(form) });
+    });
+  }
   $('[data-del]', d)?.addEventListener('click', async () => {
     await run(() => api(`notifications/${c.id}`, { method: 'DELETE' }), t('Kanal entfernt'));
     d.close();
