@@ -20,6 +20,18 @@ function fanName(o) {
 }
 const EMPTY_MAT = /^(|none|null|unknown|-|\?)$/i;
 
+/** RFID-Kennung vereinheitlichen; leere/Null-Kennungen („0“, [0,0,0,0], „NONE“) gelten als kein Chip. */
+function tagUid(v) {
+  if (v == null) return null;
+  if (Array.isArray(v)) {
+    if (!v.length || v.every((b) => !Number(b))) return null;
+    return v.map((b) => Number(b).toString(16).padStart(2, '0')).join('').toUpperCase();
+  }
+  const str = String(v).trim();
+  if (!str || /^(none|null|unknown|n\/a)$/i.test(str) || /^[0\s,:.-]*$/.test(str)) return null;
+  return str.toUpperCase();
+}
+
 const STATE_MAP = {
   standby: 'idle',
   printing: 'printing',
@@ -223,7 +235,8 @@ class MoonrakerDriver extends BaseDriver {
           material: material && sub && !material.includes(sub) ? `${material} ${sub}` : material,
           color: material ? normColor(ptc.filament_color_rgba?.[i] ?? ptc.filament_color?.[i]) : null,
           vendor: material ? mat(ptc.filament_vendor?.[i]) : null,
-          uid: material ? (mat(info.UID ?? info.CARD_UID ?? info.uid ?? ptc.filament_sku?.[i]) || null) : null,
+          // Nur echte Chip-Kennung – keine Artikelnummer (SKU), die ist bei gleichen Spulen identisch
+          uid: material ? tagUid(info.CARD_UID ?? info.UID ?? info.uid) : null,
           weight: Number(info.WEIGHT) || null,
           remainPct: null,
         });

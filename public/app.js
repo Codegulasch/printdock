@@ -925,8 +925,7 @@ function printerDialog(p = null) {
       <p class="hint" style="margin-top:-4px" ${on('filament') ? '' : 'hidden'}>${t('Nur nötig, wenn der Drucker seine Plätze nicht selbst meldet (Bambu-AMS meldet sie). Leer = ein Platz je Düse.')}</p>
     </fieldset>
     <fieldset ${on('homeassistant') ? '' : 'hidden'}><legend>${t('Strom über Home Assistant')}</legend>
-      <label>${t('Steckdose (Entität)')}<input name="powerEntity" list="haents2" value="${esc(p?.settings?.powerEntity || '')}" placeholder="${esc(t('z. B. switch.drucker_werkstatt'))}"></label>
-      <datalist id="haents2">${(S.haEntities || []).map((e) => `<option value="${esc(e.entity_id)}">${esc(e.name)}</option>`).join('')}</datalist>
+      <label>${t('Steckdose (Entität)')}<div data-power-pick>${entityPickerHTML('powerEntity', p?.settings?.powerEntity)}</div></label>
       <label class="check"><input type="checkbox" name="autoOff" ${p?.settings?.autoOff ? 'checked' : ''}> ${t('Nach dem Druck automatisch ausschalten, sobald die Düse abgekühlt ist')}</label>
       <p class="hint" style="margin-top:-4px">${t('Verbindung einrichten unter Einstellungen → Home Assistant. Leer lassen, wenn der Drucker nicht geschaltet werden soll.')}</p>
     </fieldset>
@@ -941,6 +940,15 @@ function printerDialog(p = null) {
   };
   renderFields(p?.config);
   form.driver.addEventListener('change', () => renderFields());
+  // Steckdosen-Auswahl: Entitäten aus Home Assistant nachladen
+  if (on('homeassistant') && S.haEntities === null && !S.haEntLoading) {
+    S.haEntLoading = true;
+    loadHaEntities().then(() => {
+      S.haEntLoading = false;
+      const box = $('[data-power-pick]', d);
+      if (box && d.open) box.innerHTML = entityPickerHTML('powerEntity', form.powerEntity.value);
+    });
+  }
   $('[data-del]', d)?.addEventListener('click', async () => {
     if (!(await confirmBox(t('Drucker entfernen'), t('„{n}“ aus PrintDock entfernen? Verlauf und Dateien bleiben erhalten.', { n: p.name }), t('Entfernen'), 'b-fault'))) return;
     await run(() => api(`printers/${p.id}`, { method: 'DELETE' }), t('Drucker entfernt'));

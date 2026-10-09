@@ -12,6 +12,45 @@ async function loadHaEntities() {
   return S.haEntities;
 }
 
+/**
+ * Auswahlliste für schaltbare Entitäten (gruppiert nach Bereich). Der Wert steht im Textfeld `name`,
+ * damit Formulare ihn wie bisher lesen; „Andere Entität …“ blendet das Textfeld zum Eintippen ein.
+ */
+function entityPickerHTML(name, value, cls = '') {
+  const ents = S.haEntities || [];
+  const val = value || '';
+  const input = (show) => `<input class="${cls}" style="width:100%;${show ? '' : 'display:none'}" name="${name}" value="${esc(val)}" placeholder="switch.drucker_werkstatt" autocomplete="off">`;
+  if (!ents.length) {
+    const hint = S.haEntities === null && S.haEntLoading ? t('Entitäten werden geladen …') : t('Keine Entitäten gefunden – Verbindung zu Home Assistant prüfen oder von Hand eintragen.');
+    return `<div class="epick">${input(true)}<div class="meta" style="margin-top:3px">${hint}</div></div>`;
+  }
+  const known = ents.some((e) => e.entity_id === val);
+  const stateTxt = (st) => (st === 'on' ? t('an') : st === 'off' ? t('aus') : st === 'unavailable' ? t('nicht erreichbar') : st);
+  const groups = {};
+  for (const e of ents) (groups[e.area || t('Ohne Bereich')] ||= []).push(e);
+  const opts = Object.entries(groups).map(([area, list]) => `<optgroup label="${esc(area)}">${list.map((e) => `<option value="${esc(e.entity_id)}" ${e.entity_id === val ? 'selected' : ''}>${esc(e.name)} (${esc(stateTxt(e.state))}) · ${esc(e.entity_id)}</option>`).join('')}</optgroup>`).join('');
+  return `<div class="epick"><select class="${cls}" style="width:100%" data-epick>
+      <option value="" ${!val ? 'selected' : ''}>${t('– keine Steckdose –')}</option>
+      ${val && !known ? `<option value="${esc(val)}" selected>${esc(val)} (${t('nicht gefunden')})</option>` : ''}
+      ${opts}
+      <option value="__other">${t('Andere Entität eintragen …')}</option>
+    </select>${input(false)}</div>`;
+}
+
+document.addEventListener('change', (e) => {
+  const sel = e.target.closest?.('[data-epick]');
+  if (!sel) return;
+  const input = sel.parentElement.querySelector('input');
+  if (sel.value === '__other') {
+    input.style.display = '';
+    input.value = '';
+    input.focus();
+  } else {
+    input.style.display = 'none';
+    input.value = sel.value;
+  }
+});
+
 function haStatusHTML(st, okText) {
   if (!st) return `<span class="meta">${t('nicht eingerichtet')}</span>`;
   if (st === 'ok') return `<span class="vl ok">${esc(okText)}</span>`;
@@ -22,14 +61,12 @@ function haStatusHTML(st, okText) {
 function vHa() {
   const h = S.ha;
   if (!h) return `<div class="empty">${t('Lade …')}</div>`;
-  const ents = S.haEntities || [];
-  const entList = `<datalist id="haents">${ents.map((e) => `<option value="${esc(e.entity_id)}">${esc(e.name)}</option>`).join('')}</datalist>`;
   const rows = S.printers.map((p) => {
     const st = p.settings || {};
     const pw = p.power === 'on' ? t('an') : p.power === 'off' ? t('aus') : t('nicht erreichbar');
     return `<div class="row" style="grid-template-columns:minmax(140px,1fr) minmax(200px,1.4fr) 110px 90px 90px auto" data-pp="${p.id}">
       <div class="c-main"><b>${esc(p.name)}</b><div class="meta">${p.power ? `${t('Steckdose')}: <b>${pw}</b>` : t('keine Steckdose')}</div></div>
-      <div><span class="lbl">${t('Entität')}</span><input class="in" style="width:100%" name="powerEntity" list="haents" value="${esc(st.powerEntity || '')}" placeholder="switch.drucker_werkstatt"></div>
+      <div><span class="lbl">${t('Entität')}</span>${entityPickerHTML('powerEntity', st.powerEntity, 'in')}</div>
       <label class="meta" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="autoOff" ${st.autoOff ? 'checked' : ''}> ${t('Auto-Aus')}</label>
       <div><span class="lbl">${t('nach Min.')}</span><input class="in" style="width:80px" type="number" min="1" name="autoOffDelay" value="${esc(st.autoOffDelay || 10)}" title="${esc(t('Minuten nach Druckende'))}"></div>
       <div><span class="lbl">${t('unter °C')}</span><input class="in" style="width:80px" type="number" min="30" name="autoOffMaxTemp" value="${esc(st.autoOffMaxTemp || 50)}" title="${esc(t('erst ausschalten, wenn die Düse kühler ist'))}"></div>
@@ -48,8 +85,7 @@ function vHa() {
     </section>
     <section class="sec"><h3>${t('2. Drucker ein- und ausschalten')}</h3>
       <p class="intro">${t('Hängt ein Drucker an einer schaltbaren Steckdose, trägst du hier deren Entität ein. Auf der Druckerkarte erscheint dann ein Ein/Aus-Knopf. Auto-Aus schaltet nach Druckende ab – aber erst, wenn die Düse abgekühlt ist und kein neuer Druck läuft. Während eines Drucks lässt sich nicht ausschalten.')}</p>
-      ${entList}<div class="list">${rows || `<div class="empty">${t('Noch kein Drucker angelegt.')}</div>`}</div>
-      ${ents.length ? '' : `<p class="meta">${t('Tipp: Ist die Verbindung eingerichtet, schlägt das Eingabefeld die vorhandenen Schalter vor.')}</p>`}
+      <div class="list">${rows || `<div class="empty">${t('Noch kein Drucker angelegt.')}</div>`}</div>
     </section>
     <section class="sec"><h3>${t('3. PrintDock in Home Assistant anzeigen')}</h3>
       <p class="intro">${t('Per MQTT-Discovery erscheint jeder Drucker in Home Assistant als Gerät: Status, Fortschritt, Restzeit, „Fertig um“, Temperaturen, Kamera, Licht, Geschwindigkeit sowie Knöpfe für Pause, Fortsetzen, Abbrechen und „Platte ist frei“. Dazu kommen Gesamtwerte wie Warteschlange, knappe Spulen und fällige Wartungen. Voraussetzung ist ein MQTT-Broker – meist das Mosquitto-Add-on.')}</p>
@@ -139,9 +175,9 @@ const _render = render;
 // eslint-disable-next-line no-global-assign
 render = function renderWithHa() {
   _render();
-  if (S.view === 'ha' && S.haEntities === null && S.ha && (S.ha.addon || S.ha.url)) {
-    S.haEntities = [];
-    loadHaEntities().then(() => S.view === 'ha' && _render());
+  if (S.view === 'ha' && S.haEntities === null && !S.haEntLoading && S.ha && (S.ha.addon || S.ha.url)) {
+    S.haEntLoading = true;
+    loadHaEntities().then(() => { S.haEntLoading = false; if (S.view === 'ha') _render(); });
   }
 };
 
