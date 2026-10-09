@@ -74,26 +74,32 @@ function vHa() {
   }).join('');
   const m = h.mqtt;
   const example = S.printers[0] ? S.printers[0].name.toLowerCase().replace(/[^a-z0-9]+/g, '_') : 'werkstatt_x2d';
+  let n = 0;
+  const num = () => `${++n}. `;
+  // Als Add-on: Verbindung und Broker sind automatisch – nur der Status oben, keine Eingaben
+  const addonHead = h.addon ? `<div class="card" style="margin-bottom:18px"><b>${t('PrintDock läuft als Home-Assistant-Add-on')}</b> – ${t('Verbindung und MQTT-Broker werden automatisch eingerichtet.')}
+      <div class="meta" style="margin-top:6px">Home Assistant: ${haStatusHTML(h.status.rest || 'ok', t('verbunden'))} · MQTT: ${h.mqttAuto ? haStatusHTML(m.enabled ? h.status.mqtt : null, t('verbunden')) + (m.enabled ? '' : ` (${t('Geräte unten einschalten')})`) : `<span class="vl warn">${t('kein Broker gefunden – Mosquitto-Add-on installieren')}</span>`}</div></div>` : '';
   return `<div class="page-head"><h1>${NAV_ICON.gear}Home Assistant</h1></div>
-    <section class="sec"><h3>${t('1. Verbindung')}</h3>
-      ${h.addon ? `<div class="card"><b>${t('PrintDock läuft als Home-Assistant-Add-on')}</b> ${t('und ist automatisch verbunden.')} ${t('Status')}: ${haStatusHTML(h.status.rest || 'ok', t('verbunden'))}</div>`
-        : `<p class="intro">${t('Für das Schalten der Drucker braucht PrintDock Zugriff auf Home Assistant: Adresse und ein Langzeit-Zugriffstoken (in Home Assistant unten links auf dein Profil → Sicherheit → „Token erstellen“).')}</p>
+    ${addonHead}
+    ${h.addon ? '' : `<section class="sec"><h3>${num()}${t('Verbindung')}</h3>
+      <p class="intro">${t('Für das Schalten der Drucker braucht PrintDock Zugriff auf Home Assistant: Adresse und ein Langzeit-Zugriffstoken (in Home Assistant unten links auf dein Profil → Sicherheit → „Token erstellen“).')}</p>
       <div class="card"><div class="kv" style="grid-template-columns:minmax(140px,200px) 1fr">
         <div>${t('Adresse')}</div><input class="in" id="haUrl" value="${esc(h.url)}" placeholder="http://homeassistant.local:8123">
         <div>${t('Token')}</div><input class="in" id="haToken" type="password" value="${esc(h.token)}" placeholder="eyJhbGciOi…">
-      </div><div class="btns"><button class="b b-sm b-done" data-hact="saveConn">${t('Speichern und testen')}</button><span class="meta" style="align-self:center">${t('Status')}: ${haStatusHTML(h.status.rest, t('verbunden'))}</span></div></div>`}
-    </section>
-    <section class="sec"><h3>${t('2. Drucker ein- und ausschalten')}</h3>
+      </div><div class="btns"><button class="b b-sm b-done" data-hact="saveConn">${t('Speichern und testen')}</button><span class="meta" style="align-self:center">${t('Status')}: ${haStatusHTML(h.status.rest, t('verbunden'))}</span></div></div>
+    </section>`}
+    <section class="sec"><h3>${num()}${t('Drucker ein- und ausschalten')}</h3>
       <p class="intro">${t('Hängt ein Drucker an einer schaltbaren Steckdose, trägst du hier deren Entität ein. Auf der Druckerkarte erscheint dann ein Ein/Aus-Knopf. Auto-Aus schaltet nach Druckende ab – aber erst, wenn die Düse abgekühlt ist und kein neuer Druck läuft. Während eines Drucks lässt sich nicht ausschalten.')}</p>
       <div class="list">${rows || `<div class="empty">${t('Noch kein Drucker angelegt.')}</div>`}</div>
     </section>
-    <section class="sec"><h3>${t('3. PrintDock in Home Assistant anzeigen')}</h3>
+    <section class="sec"><h3>${num()}${t('PrintDock in Home Assistant anzeigen')}</h3>
       <p class="intro">${t('Per MQTT-Discovery erscheint jeder Drucker in Home Assistant als Gerät: Status, Fortschritt, Restzeit, „Fertig um“, Temperaturen, Kamera, Licht, Geschwindigkeit sowie Knöpfe für Pause, Fortsetzen, Abbrechen und „Platte ist frei“. Dazu kommen Gesamtwerte wie Warteschlange, knappe Spulen und fällige Wartungen. Voraussetzung ist ein MQTT-Broker – meist das Mosquitto-Add-on.')}</p>
       <div class="card"><div class="kv" style="grid-template-columns:minmax(140px,200px) 1fr">
         <div>${t('MQTT-Geräte')}</div><label class="meta" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="mqEnabled" ${m.enabled ? 'checked' : ''}> ${t('einschalten')}</label>
+        ${h.addon && h.mqttAuto ? `<div>${t('Broker')}</div><div class="meta" style="align-self:center">${esc(t('automatisch: {h}', { h: h.mqttAuto.host }))}</div>` : `
         <div>${t('Broker')}</div><input class="in" id="mqUrl" value="${esc(m.url)}" placeholder="${h.mqttAuto ? esc(t('automatisch: {h}', { h: h.mqttAuto.host })) : 'mqtt://192.168.1.10:1883'}">
         <div>${t('Benutzer')}</div><input class="in" id="mqUser" value="${esc(m.username)}" placeholder="${h.mqttAuto ? t('automatisch') : t('optional')}">
-        <div>${t('Passwort')}</div><input class="in" id="mqPass" type="password" value="${esc(m.password)}">
+        <div>${t('Passwort')}</div><input class="in" id="mqPass" type="password" value="${esc(m.password)}">`}
         <div>${t('PrintDock-Adresse')}</div><input class="in" id="haPublic" value="${esc(h.publicUrl)}" placeholder="${esc(h.directUrl)}">
         <div>${t('Discovery-Präfix')}</div><input class="in" id="mqPrefix" value="${esc(m.discoveryPrefix)}">
         <div>${t('Basis-Topic')}</div><input class="in" id="mqBase" value="${esc(m.baseTopic)}">
@@ -101,7 +107,7 @@ function vHa() {
       <p class="meta">${t('Die PrintDock-Adresse nutzt Home Assistant für Kamerabilder und den Link „Gerät besuchen“. Leer lassen = automatisch ({u}).', { u: esc(h.directUrl) })}</p>
       <div class="btns"><button class="b b-sm b-done" data-hact="saveMqtt">${t('Speichern')}</button><span class="meta" style="align-self:center">${t('Status')}: ${haStatusHTML(h.status.mqtt, t('verbunden – Geräte sind angemeldet'))}</span></div></div>
     </section>
-    <section class="sec"><h3>${t('4. PrintDock in der Home-Assistant-Seitenleiste')}</h3>
+    ${h.addon ? '' : `<section class="sec"><h3>${num()}${t('PrintDock in der Home-Assistant-Seitenleiste')}</h3>
       <div class="cards">
         <div class="card"><h3>${t('Als Add-on (empfohlen)')}</h3><p class="meta">${t('PrintDock läuft dann direkt in Home Assistant, mit eigenem Eintrag in der Seitenleiste, automatischer Verbindung und Datensicherung.')}</p>
           <ol style="margin:8px 0 0;padding-left:20px;line-height:1.6"><li>${t('Einstellungen → Add-ons → Add-on-Store → ⋮ → Repositories')}</li><li>${t('Adresse deines PrintDock-GitHub-Repositorys eintragen')}</li><li>${t('„PrintDock“ installieren, starten, „In Seitenleiste anzeigen“')}</li></ol></div>
@@ -109,9 +115,9 @@ function vHa() {
           <p><span class="code">${esc(h.directUrl)}</span> <button class="b b-sm" data-act="copy" data-text="${esc(h.directUrl)}">${t('Kopieren')}</button></p>
           <p class="meta">${t('Funktioniert nur, wenn Home Assistant und PrintDock gleich erreichbar sind (beide http oder beide https).')}</p></div>
       </div>
-    </section>
-    <section class="sec"><h3>${t('5. PrintDock-Karten im Dashboard')}</h3>
-      <p class="intro">${t('Zwei fertige Dashboard-Karten: „PrintDock Card“ zeigt einen Drucker wie hier in PrintDock – Statusampel, Fortschritt, Kamera, Temperaturen, Filament und Knöpfe. „PrintDock Übersicht“ zeigt alle Drucker auf einen Blick, dazu Warteschlange, Aufträge, knappe Spulen und fällige Wartung. Voraussetzung: MQTT-Geräte (Schritt 3) sind eingeschaltet.')}</p>
+    </section>`}
+    <section class="sec"><h3>${num()}${t('PrintDock-Karten im Dashboard')}</h3>
+      <p class="intro">${t('Zwei fertige Dashboard-Karten: „PrintDock Card“ zeigt einen Drucker wie hier in PrintDock – Statusampel, Fortschritt, Kamera, Temperaturen, Filament und Knöpfe. „PrintDock Übersicht“ zeigt alle Drucker auf einen Blick, dazu Warteschlange, Aufträge, knappe Spulen und fällige Wartung. Voraussetzung: MQTT-Geräte sind eingeschaltet (siehe oben).')}</p>
       <div class="cards">
         <div class="card"><h3>${t('Einrichten')}</h3>
           ${h.addon
@@ -215,7 +221,7 @@ document.addEventListener('click', async (e) => {
       method: 'PUT',
       body: {
         publicUrl: $('#haPublic').value,
-        mqtt: { enabled: $('#mqEnabled').checked, url: $('#mqUrl').value, username: $('#mqUser').value, password: $('#mqPass').value, discoveryPrefix: $('#mqPrefix').value, baseTopic: $('#mqBase').value },
+        mqtt: { enabled: $('#mqEnabled').checked, url: $('#mqUrl')?.value, username: $('#mqUser')?.value, password: $('#mqPass')?.value, discoveryPrefix: $('#mqPrefix').value, baseTopic: $('#mqBase').value },
       },
     }), t('Gespeichert'));
     if (r) S.ha = r;

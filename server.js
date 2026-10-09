@@ -1,6 +1,7 @@
 // PrintDock – herstellerübergreifende 3D-Drucker-Verwaltung
 // Start: node server.js   (Port über PORT, Datenordner über DATA_DIR)
 
+require('./lib/env'); // zuerst: Umgebung (Add-on) vervollständigen
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -300,6 +301,26 @@ function httpError(status, message) {
   return Object.assign(new Error(message), { status });
 }
 
+/**
+ * PrintDock neu starten (z. B. nach dem Einspielen einer Sicherung).
+ * Add-on: über den Supervisor. Docker/systemd (PRINTDOCK_RESTART=exit): Prozess beenden, der Dienst startet neu.
+ * Sonst: 'manual' – von Hand neu starten.
+ */
+async function restartSelf() {
+  if (process.env.SUPERVISOR_TOKEN) {
+    setTimeout(() => {
+      fetch('http://supervisor/addons/self/restart', { method: 'POST', headers: { Authorization: `Bearer ${process.env.SUPERVISOR_TOKEN}` } })
+        .catch((err) => console.warn(`Neustart über den Supervisor fehlgeschlagen: ${err.message}`));
+    }, 800);
+    return 'auto';
+  }
+  if (process.env.PRINTDOCK_RESTART === 'exit') {
+    setTimeout(() => process.exit(75), 800);
+    return 'auto';
+  }
+  return 'manual';
+}
+
 function sendJson(res, status, data) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(data));
@@ -474,6 +495,44 @@ async function handleApi(req, res, url) {
         return sendJson(res, 200, ha.publicSettings().card);
       }
       return sendJson(res, 200, await ha.registerCardResource());
+    }
+  }
+
+  // ---- Datensicherung
+  if (resource === 'backup') {
+    const backup = require('./lib/backup');
+    const { DATA_DIR } = require('./lib/store');
+    if (!id && req.method === 'GET') {
+      const day = new Date().toISOString().slice(0, 10);
+      res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="printdock-backup-${day}.zip"`, 'Cache-Control': 'no-store' });
+      try {
+        await backup.writeBackup(DATA_DIR, res, { version: require('./package.json').version, printers: printerConfigs.length });
+        res.end();
+      } catch (err) {
+        console.warn(`Sicherung: ${err.message}`);
+        res.destroy();
+      }
+      return;
+    }
+    if (id === 'restore' && req.method === 'POST') {
+      const part = path.join(DATA_DIR, `${backup.PENDING}.part`);
+      await new Promise((resolve, reject) => {
+        const out = fs.createWriteStream(part);
+        req.pipe(out);
+        out.on('finish', resolve);
+        out.on('error', reject);
+        req.on('error', reject);
+      });
+      let info;
+      try {
+        info = backup.inspect(part);
+      } catch (err) {
+        fs.rmSync(part, { force: true });
+        return sendJson(res, 400, { error: err.status ? err.message : 'Das ist keine PrintDock-Sicherung' });
+      }
+      fs.renameSync(part, path.join(DATA_DIR, backup.PENDING));
+      const restart = await restartSelf();
+      return sendJson(res, 200, { ...info, restart });
     }
   }
 

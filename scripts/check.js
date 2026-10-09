@@ -67,6 +67,13 @@ else ok(`Übersetzungen vollständig (${Object.keys(DICTS.en).length} Einträge)
     const q = (await req('/api/queue')).body.find((x) => x.status === 'queued');
     const noPlate = await req(`/api/queue/${q.id}/start`, { method: 'POST', body: JSON.stringify({ printerId: 'x' }) });
     if (noPlate.status !== 409) fail(`Start ohne Plattenbestätigung sollte abgelehnt werden (HTTP ${noPlate.status})`); else ok('Start ohne „Platte geräumt“ wird abgelehnt');
+    const bk = await fetch(`${base}/api/backup`);
+    const bkFile = path.join(os.tmpdir(), `printdock-check-${port}.zip`);
+    fs.writeFileSync(bkFile, Buffer.from(await bk.arrayBuffer()));
+    try {
+      const info = require('../lib/backup').inspect(bkFile);
+      if (bk.status !== 200 || info.printers !== 5 || info.files < 8) fail(`Sicherung unvollständig (${JSON.stringify(info)})`); else ok(`Sicherung: ${info.files} Dateien`);
+    } catch (err) { fail(`Sicherung: ${err.message}`); } finally { fs.rmSync(bkFile, { force: true }); }
     const auth = await req('/api/app', { method: 'PUT', body: JSON.stringify({ auth: { enabled: true, user: 'admin', password: 'test1234' } }) });
     const locked = await req('/api/printers');
     if (auth.status !== 200 || locked.status !== 401) fail(`Login-Schutz greift nicht (HTTP ${locked.status})`); else ok('Login-Schutz greift');

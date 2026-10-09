@@ -18,6 +18,10 @@ As an add-on, PrintDock connects to Home Assistant automatically:
 - **Printers as Home Assistant devices:** enable "MQTT devices" under **Settings → Home Assistant**. The Mosquitto add-on is used automatically. Every printer appears with status, progress, time left, temperatures, camera and buttons.
 - **Dashboard cards:** the add-on installs the PrintDock cards automatically. In a dashboard choose **Add card → PrintDock Card** (one printer) or **PrintDock Overview** (all printers, queue, orders, low spools, maintenance). Reload the browser once after the first start.
 
+## Backup
+
+All data lives in the add-on's `/data` folder and is included in Home Assistant backups. To move to a new Home Assistant installation, download a backup under **Settings → General → Backup** and restore it in the setup wizard of the new installation.
+
 ## Direct access (port 3080)
 
 Port 3080 is also reachable directly (`http://<home-assistant>:3080`). It is used for uploads from OrcaSlicer/PrusaSlicer, camera images in Home Assistant and phone access on your home network. Remove the port mapping in the add-on configuration if you don't need it. If port 3080 is reachable from outside, enable **login protection** under **Settings → General**.
@@ -45,6 +49,10 @@ PrintDock verwaltet und überwacht 3D-Drucker aller Hersteller an einem Ort: Liv
 - **Drucker ein- und ausschalten:** beim Drucker eine Steckdose (z. B. `switch.drucker_werkstatt`) eintragen. Optional schaltet PrintDock nach dem Druck aus, sobald die Düse abgekühlt ist.
 - **Drucker als Geräte:** unter **Einstellungen → Home Assistant** „MQTT-Geräte“ einschalten. Das Mosquitto-Add-on wird automatisch genutzt.
 - **Dashboard-Karten:** das Add-on installiert die PrintDock-Karten automatisch. Im Dashboard **Karte hinzufügen → PrintDock Card** (ein Drucker) oder **PrintDock Overview** (alle Drucker, Warteschlange, Aufträge, knappe Spulen, Wartung). Nach dem ersten Start den Browser einmal neu laden.
+
+## Datensicherung
+
+Alle Daten liegen im Ordner `/data` des Add-ons und stecken in jeder Home-Assistant-Sicherung. Für den Umzug auf eine neue Home-Assistant-Installation unter **Einstellungen → Allgemein → Datensicherung** eine Sicherung herunterladen und im Einrichtungsassistenten der neuen Installation einspielen.
 
 ## Direktzugriff (Port 3080)
 

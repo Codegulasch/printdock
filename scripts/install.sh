@@ -78,6 +78,7 @@ WorkingDirectory=$APP_DIR
 Environment=NODE_ENV=production
 Environment=PORT=$PORT
 Environment=DATA_DIR=$DATA_DIR
+Environment=PRINTDOCK_RESTART=exit
 ExecStart=$(command -v node) $APP_DIR/server.js
 Restart=on-failure
 RestartSec=5

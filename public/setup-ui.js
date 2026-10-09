@@ -119,7 +119,8 @@ function renderSetup() {
       <div class="wz-field"><b>${t('Sprache')}</b><div class="chips">${[['de', 'Deutsch'], ['en', 'English']].map(([k, l]) => `<button type="button" class="chip" data-w="lang" data-v="${k}" aria-pressed="${W.lang === k}">${l}</button>`).join('')}</div></div>
       <div class="wz-field"><b>${t('Erscheinungsbild')}</b>${themePicker(W.theme, 'data-w-theme')}</div>
       <div class="wz-field"><b>${t('Akzentfarbe')}</b>${accentPicker(W.accent, 'data-w-accent')}</div>
-      ${statusLegendHTML()}`;
+      ${statusLegendHTML()}
+      <p class="meta" style="margin-top:14px">${t('Umzug oder Neuinstallation?')} <label class="linkish">${t('Sicherung einspielen')}<input type="file" accept=".zip,application/zip" hidden data-restore></label> – ${t('Drucker, Einstellungen und Daten sind dann sofort wieder da.')}</p>`;
   } else if (W.step === 1) {
     body = `<h2>${t('Welche Funktionen brauchst du?')}</h2>
       <p class="intro">${t('Was du nicht brauchst, schaltest du ab – es verschwindet dann aus Menü und Druckerkarten. Die Druckerübersicht ist immer dabei.')}</p>
@@ -274,6 +275,11 @@ function vGeneral() {
       <section class="card set"><h3>${t('API-Key')}</h3>
         <p class="meta">${t('Für Kamerabilder in Home Assistant und Download-Links, wenn der Login-Schutz an ist.')}</p>
         <div class="btns"><button class="b b-sm" data-gact="showKey">${t('Anzeigen')}</button><button class="b b-sm" data-gact="newKey">${t('Neu erzeugen')}</button></div><p class="code" data-key hidden></p></section>
+      <section class="card set"><h3>${t('Datensicherung')}</h3>
+        <p class="meta">${t('Eine Datei mit allem: Einstellungen, Drucker, Warteschlange, Aufträge, Spulen, Wartung, Verlauf und Druckdateien. Damit ziehst du PrintDock auf ein anderes Gerät oder eine neue Home-Assistant-Installation um.')}</p>
+        ${a.addon ? `<p class="meta">${t('Als Add-on steckt PrintDock außerdem in jeder Home-Assistant-Sicherung.')}</p>` : ''}
+        <div class="btns"><a class="b b-sm b-done" href="api/backup" download>${t('Sicherung herunterladen')}</a><label class="b b-sm">${t('Sicherung einspielen')}<input type="file" accept=".zip,application/zip" hidden data-restore></label></div>
+        <p class="meta">${t('Datenordner')}: <span class="code">${esc(a.dataDir || '')}</span></p></section>
       <section class="card set"><h3>${t('Einrichtung')}</h3>
         <p class="meta">${t('PrintDock {v} · Assistent erneut durchlaufen, z. B. um Funktionen neu auszuwählen.', { v: esc(a.version) })}</p>
         <div class="btns"><button class="b b-sm" data-gact="wizard">${t('Assistent starten')}</button></div></section>
@@ -350,5 +356,49 @@ document.addEventListener('change', async (e) => {
     }
     if (!(await confirmBox(t('Login-Schutz ausschalten'), t('Dann kann jeder, der PrintDock erreicht, alles bedienen. Nur im eigenen Netz empfehlenswert.'), t('Ausschalten'), 'b-fault'))) { el.checked = true; return; }
     return saveApp({ auth: { enabled: false } }, t('Login-Schutz ausgeschaltet'));
+  }
+});
+
+
+// ================================================================ Sicherung einspielen
+
+async function restoreBackup(file) {
+  if (!file) return;
+  if (!(await confirmBox(t('Sicherung einspielen'), t('Alle aktuellen Drucker, Einstellungen und Daten werden durch die Sicherung „{n}“ ersetzt. Der bisherige Stand wird im Datenordner aufgehoben. Fortfahren?', { n: file.name }), t('Einspielen'), 'b-fault'))) return;
+  overlay(`<div class="wizard" style="max-width:460px"><h2>${t('Sicherung wird eingespielt …')}</h2><p class="intro" data-rs>${t('Datei wird hochgeladen.')}</p></div>`);
+  const msg = (txt) => { const el = document.querySelector('#overlay [data-rs]'); if (el) el.textContent = txt; };
+  let r;
+  try {
+    const res = await fetch('api/backup/restore', { method: 'POST', body: file, headers: { 'Content-Type': 'application/zip' } });
+    r = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(r.error || `HTTP ${res.status}`);
+  } catch (err) {
+    closeOverlay();
+    return toast(t(err.message), true);
+  }
+  if (r.restart !== 'auto') {
+    return msg(t('Sicherung vom {d} ist bereit. Bitte PrintDock jetzt neu starten – beim Start wird sie eingespielt.', { d: new Date(r.createdAt).toLocaleString() }));
+  }
+  msg(t('Sicherung vom {d} ist hochgeladen. PrintDock startet neu …', { d: new Date(r.createdAt).toLocaleString() }));
+  // Warten, bis PrintDock weg und wieder da ist
+  let wasDown = false;
+  for (let i = 0; i < 90; i++) {
+    await new Promise((res) => setTimeout(res, 2000));
+    try {
+      const res = await fetch('api/app', { cache: 'no-store' });
+      if (res.ok && wasDown) return location.reload();
+      if (!res.ok) wasDown = true;
+    } catch {
+      wasDown = true;
+    }
+  }
+  msg(t('PrintDock antwortet nicht. Bitte von Hand neu starten und die Seite neu laden.'));
+}
+
+document.addEventListener('change', (e) => {
+  if (e.target.matches?.('[data-restore]')) {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    restoreBackup(f);
   }
 });

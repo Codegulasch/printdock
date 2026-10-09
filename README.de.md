@@ -122,6 +122,10 @@ Oben fasst eine Zeile zusammen, wie viele Drucker frei sind, drucken, warten ode
 
 **Einstellungen → Demo-Daten → Demo-Daten einspielen** legt einen kompletten, laufenden Druckerpark an: Bambu X2D mit AMS (druckt), Snapmaker U1 mit 4 Werkzeugen (druckt), Anycubic Kobra S1 mit ACE (fertig), Voron 2.4 (bereit) und Bambu A1 (pausiert), dazu 9 Dateien mit Vorschaubildern, 20 Spulen, 4 Aufträge, Warteschlange, 30 Tage Verlauf und Wartungsaufgaben. Alles ist als Demo markiert und lässt sich mit einem Klick wieder entfernen – eigene Daten bleiben unberührt.
 
+## Datensicherung und Umzug
+
+*Einstellungen → Allgemein → Datensicherung* lädt eine `.zip` mit allem herunter: Einstellungen, Drucker, Warteschlange, Aufträge, Spulen, Wartung, Verlauf und Druckdateien. Einspielen lässt sie sich dort oder direkt im Einrichtungsassistenten einer neuen Installation (z. B. eines neuen Home Assistant). Als Add-on, Docker-Container oder systemd-Dienst startet PrintDock danach von selbst neu, sonst von Hand neu starten. Der vorherige Stand bleibt im Datenordner unter `before-restore-…` erhalten. Als Add-on steckt PrintDock außerdem in jeder Home-Assistant-Sicherung.
+
 ## Home Assistant
 
 **Drucker ein- und ausschalten.** Unter *Einstellungen → Home Assistant* Adresse und Langzeit-Token eintragen (beim Add-on automatisch). Je Drucker eine schaltbare Entität (`switch.…`, `light.…`, `input_boolean.…`) wählen. Die Druckerkarte bekommt einen Ein/Aus-Knopf; ausgeschaltete Drucker lassen sich direkt aus der Karte einschalten. **Auto-Aus** schaltet nach Druckende ab, aber erst wenn die Düse unter der eingestellten Temperatur ist und kein neuer Druck läuft. Während eines Drucks verweigert PrintDock das Ausschalten.

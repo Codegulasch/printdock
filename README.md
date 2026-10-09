@@ -104,6 +104,10 @@ On your home network PrintDock runs without login. For access from outside, enab
 
 Passwords are stored with scrypt, sessions use HttpOnly cookies, 5 wrong attempts lock for a minute. Never forward port 3080 directly on your router.
 
+## Backup and moving
+
+*Settings → General → Backup* downloads a single `.zip` with everything: settings, printers, queue, orders, spools, maintenance, history and print files. Restore it on the same page or directly in the setup wizard of a fresh installation (e.g. a new Home Assistant). PrintDock restarts by itself as add-on, Docker container or systemd service; otherwise restart it manually. The previous state is kept in `before-restore-…` inside the data folder. As an add-on, PrintDock is also part of every Home Assistant backup.
+
 ## Home Assistant
 
 - **Power switching:** enter a switchable entity (`switch.…`, `light.…`, `input_boolean.…`) per printer; an on/off button appears on the card. Optional auto-off once the print is done and the nozzle has cooled down.
