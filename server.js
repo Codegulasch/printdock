@@ -359,13 +359,23 @@ const MIME = {
   '.png': 'image/png',
 };
 
+const APP_VERSION = require('./package.json').version;
 function serveStatic(req, res) {
   const urlPath = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   const file = path.join(PUBLIC_DIR, urlPath === '/' ? 'index.html' : urlPath);
   if (!file.startsWith(PUBLIC_DIR)) return sendJson(res, 403, { error: 'Verboten' });
   fs.readFile(file, (err, buf) => {
     if (err) return sendJson(res, 404, { error: 'Nicht gefunden' });
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+    // index.html: Skripte mit Versionsnummer laden, damit nach einem Update nie alte Dateien aus dem Cache kommen
+    if (file.endsWith('index.html')) buf = Buffer.from(buf.toString('utf8').replace(/(src|href)="((?:[\w-]+)\.(?:js|svg|webmanifest))"/g, `$1="$2?v=${APP_VERSION}"`));
+    const etag = `"${crypto.createHash('sha1').update(buf).digest('base64').slice(0, 20)}"`;
+    // Immer beim Server nachfragen (304, wenn unverändert) – Browser und Home-Assistant-App cachen sonst alte Stände
+    const headers = { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache', ETag: etag };
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, headers);
+      return res.end();
+    }
+    res.writeHead(200, headers);
     res.end(buf);
   });
 }
@@ -788,6 +798,11 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
     if (url.pathname.startsWith('/slicer') && (await slicer.handleOctoPrint(req, res, url, production))) return;
+    // „Gerät“-Ansicht im Slicer (OrcaSlicer zeigt die Host-Adresse als Webseite): zur Oberfläche weiterleiten
+    if (/^\/slicer(\/[^/]+)?\/?$/.test(url.pathname) && req.method === 'GET') {
+      res.writeHead(302, { Location: '/' });
+      return res.end();
+    }
     if (url.pathname === '/printdock-card.js') {
       // Home-Assistant-Karte – ohne Anmeldung, damit Home Assistant sie laden kann
       res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache' });

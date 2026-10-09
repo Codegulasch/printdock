@@ -198,9 +198,18 @@ const readFields = (form) => Object.fromEntries($$('[name^="cfg_"]', form).map((
 
 // ================================================================ Daten laden
 
+// Mit welcher Version wurde diese Seite geladen? (index.html hängt ?v=<Version> an)
+const UI_VERSION = (() => { try { return new URL(document.currentScript.src).searchParams.get('v'); } catch { return null; } })();
+
 const loaders = {
   app: async () => {
     S.app = await api('app');
+    // Nach einem Update: Server ist neuer als die Seite → einmal neu laden
+    if (UI_VERSION && S.app.version && S.app.version !== UI_VERSION) {
+      let tried = null;
+      try { tried = sessionStorage.getItem('pd-reload'); sessionStorage.setItem('pd-reload', S.app.version); } catch {}
+      if (tried !== S.app.version) return location.reload();
+    }
     applyAppearance();
   },
   printers: async () => (S.printers = await api('printers')),
