@@ -16,6 +16,7 @@ As an add-on, PrintDock connects to Home Assistant automatically:
 
 - **Power printers on/off:** choose a smart plug (e.g. `switch.printer_workshop`) per printer. Optionally PrintDock turns it off after printing once the nozzle has cooled down.
 - **Printers as Home Assistant devices:** enable "MQTT devices" under **Settings → Home Assistant**. The Mosquitto add-on is used automatically. Every printer appears with status, progress, time left, temperatures, camera and buttons.
+- **Dashboard cards:** the add-on installs the PrintDock cards automatically. In a dashboard choose **Add card → PrintDock Card** (one printer) or **PrintDock Overview** (all printers, queue, orders, low spools, maintenance). Reload the browser once after the first start.
 
 ## Direct access (port 3080)
 
@@ -43,6 +44,7 @@ PrintDock verwaltet und überwacht 3D-Drucker aller Hersteller an einem Ort: Liv
 
 - **Drucker ein- und ausschalten:** beim Drucker eine Steckdose (z. B. `switch.drucker_werkstatt`) eintragen. Optional schaltet PrintDock nach dem Druck aus, sobald die Düse abgekühlt ist.
 - **Drucker als Geräte:** unter **Einstellungen → Home Assistant** „MQTT-Geräte“ einschalten. Das Mosquitto-Add-on wird automatisch genutzt.
+- **Dashboard-Karten:** das Add-on installiert die PrintDock-Karten automatisch. Im Dashboard **Karte hinzufügen → PrintDock Card** (ein Drucker) oder **PrintDock Overview** (alle Drucker, Warteschlange, Aufträge, knappe Spulen, Wartung). Nach dem ersten Start den Browser einmal neu laden.
 
 ## Direktzugriff (Port 3080)
 

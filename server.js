@@ -97,7 +97,10 @@ function broadcast(event, data) {
   if (event === 'printers') setTimeout(() => ha.publishDiscovery(), 500);
   if (['production', 'filament', 'history'].includes(event)) {
     clearTimeout(broadcast.sumTimer);
-    broadcast.sumTimer = setTimeout(() => ha.publishSummary(), 1000);
+    broadcast.sumTimer = setTimeout(() => {
+      ha.publishSummary();
+      ha.publishAllStates();
+    }, 1000);
   }
 }
 
@@ -139,6 +142,7 @@ ha = new HomeAssistant({
   runtime,
   broadcast,
   production,
+  filament,
   summary: () => ({ ...production.summary(), ...filament.summary() }),
   port: PORT,
 });
@@ -462,6 +466,14 @@ async function handleApi(req, res, url) {
     }
     if (id === 'test' && req.method === 'POST') return sendJson(res, 200, await ha.test());
     if (id === 'entities' && req.method === 'GET') return sendJson(res, 200, await ha.entities());
+    if (id === 'card' && req.method === 'POST') {
+      if (ha.publicSettings().addon) {
+        ha.cardInstalled = false;
+        await ha.installCard();
+        return sendJson(res, 200, { ok: true });
+      }
+      return sendJson(res, 200, await ha.registerCardResource());
+    }
   }
 
   // ---- Demo-Daten
@@ -713,6 +725,11 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
     if (url.pathname.startsWith('/slicer') && (await slicer.handleOctoPrint(req, res, url, production))) return;
+    if (url.pathname === '/printdock-card.js') {
+      // Home-Assistant-Karte – ohne Anmeldung, damit Home Assistant sie laden kann
+      res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache' });
+      return fs.createReadStream(path.join(__dirname, 'dist', 'printdock-card.js')).pipe(res);
+    }
     if (url.pathname.startsWith('/api/')) await handleApi(req, res, url);
     else serveStatic(req, res);
   } catch (err) {

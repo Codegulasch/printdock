@@ -6,7 +6,7 @@ const path = require('path');
 
 const root = path.join(__dirname, '..');
 const target = path.join(root, 'ha-addon', 'app');
-const include = ['server.js', 'camera.js', 'notify.js', 'package.json', 'package-lock.json', 'drivers', 'lib', 'public'];
+const include = ['server.js', 'camera.js', 'notify.js', 'package.json', 'package-lock.json', 'drivers', 'lib', 'public', 'dist'];
 
 fs.rmSync(target, { recursive: true, force: true });
 fs.mkdirSync(target, { recursive: true });

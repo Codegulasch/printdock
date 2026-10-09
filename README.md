@@ -108,7 +108,20 @@ Passwords are stored with scrypt, sessions use HttpOnly cookies, 5 wrong attempt
 
 - **Power switching:** enter a switchable entity (`switch.…`, `light.…`, `input_boolean.…`) per printer; an on/off button appears on the card. Optional auto-off once the print is done and the nozzle has cooled down.
 - **MQTT discovery:** every printer becomes a device with status, progress, time left, finish time, file, layer, temperatures, connectivity, "clear plate", buttons (pause, resume, cancel, plate is clear), light switch, speed select and camera image – plus a PrintDock device with queue, active printers, overdue orders, low spools and due maintenance.
+- **Dashboard cards:** `custom:printdock-card` (one printer with camera, temperatures, filament and controls) and `custom:printdock-overview-card` (all printers, queue, orders, low spools, maintenance). Both have a visual editor. Installed automatically with the add-on; otherwise click *Add to Home Assistant* under *Settings → Home Assistant*, add this repository to HACS as a *Dashboard* repository, or add the resource `http://<printdock>:3080/printdock-card.js` (JavaScript module) yourself.
 - **Add-on:** sidebar entry via ingress, automatic connection to Home Assistant and the Mosquitto broker, included in HA backups.
+
+![PrintDock cards in Home Assistant](docs/screenshots/ha-cards.png)
+
+```yaml
+type: custom:printdock-card
+entity: sensor.workshop_x2d_status
+show_camera: true      # temps, fans, filament, controls, compact also available
+
+type: custom:printdock-overview-card
+sections: [printers, queue, orders, spools, maintenance]
+max_items: 6
+```
 
 ## Writing a printer driver
 

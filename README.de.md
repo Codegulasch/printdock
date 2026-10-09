@@ -139,6 +139,25 @@ Oben fasst eine Zeile zusammen, wie viele Drucker frei sind, drucken, warten ode
 
 Damit lassen sich Automationen bauen, z. B. „Licht in der Werkstatt an, wenn ein Druck fertig ist“ oder „Benachrichtigung, wenn die Platte geräumt werden muss“.
 
+**PrintDock-Karten fürs Dashboard.** Zwei eigene Karten zeigen PrintDock direkt im Home-Assistant-Dashboard (Voraussetzung: *MQTT-Geräte* sind eingeschaltet):
+
+- `custom:printdock-card` – ein Drucker mit Statusampel, Auftrag, Fortschritt, Kamera, Temperaturen, Lüftern, Filamentbelegung und Steuerung (Licht, Geschwindigkeit, Pause/Weiter/Stopp, „Platte ist frei“, Ein/Aus).
+- `custom:printdock-overview-card` – alle Drucker auf einen Blick plus Warteschlange, Aufträge, knappe Spulen und fällige Wartungen. Bereiche und Listenlänge sind wählbar.
+
+Beide Karten haben einen grafischen Editor (*Karte hinzufügen → PrintDock Card / PrintDock Overview*). Installation: beim Add-on automatisch; sonst *Einstellungen → Home Assistant → In Home Assistant eintragen*, über HACS (dieses Repository als *Dashboard* hinzufügen) oder von Hand als Ressource `http://<printdock>:3080/printdock-card.js` (JavaScript-Modul).
+
+![PrintDock-Karten in Home Assistant](docs/screenshots/ha-cards.png)
+
+```yaml
+type: custom:printdock-card
+entity: sensor.werkstatt_x2d_status
+show_camera: true      # außerdem show_temps, show_fans, show_filament, show_controls, compact
+
+type: custom:printdock-overview-card
+sections: [printers, queue, orders, spools, maintenance]
+max_items: 6
+```
+
 **Als Add-on.** PrintDock läuft auch direkt in Home Assistant – mit Eintrag in der Seitenleiste (Ingress), automatischer Verbindung zu Home Assistant und zum Mosquitto-Broker sowie Datensicherung über die Home-Assistant-Backups:
 
 1. In Home Assistant: *Einstellungen → Add-ons → Add-on-Store → ⋮ → Repositories* → `https://github.com/Codegulasch/printdock`.

@@ -12,6 +12,7 @@ COPY server.js camera.js notify.js ./
 COPY drivers ./drivers
 COPY lib ./lib
 COPY public ./public
+COPY dist ./dist
 
 ENV NODE_ENV=production PORT=3080 DATA_DIR=/data
 VOLUME /data

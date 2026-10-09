@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0
+- **PrintDock cards for Home Assistant dashboards** (`custom:printdock-card`, `custom:printdock-overview-card`)
+  - Printer card: status light, job with progress and layers, camera, temperatures, fans, filament slots, light, speed, pause/resume/stop, "plate is clear", power on/off
+  - Overview card: status counts, all printers, queue, orders, low spools and due maintenance – sections selectable, list length adjustable
+  - Visual editor, German and English, follows the Home Assistant theme
+- Installed automatically with the add-on; otherwise one click under *Settings → Home Assistant* or via HACS (Dashboard repository)
+- New MQTT sensor "PrintDock overview" with all data for the overview card
+
 ## 0.6.2
 - Light on Klipper printers detected automatically (LED/output_pin, Moonraker power device or LIGHT_ON/OFF macros)
 - ffmpeg found automatically on Windows (winget, Chocolatey) and macOS (Homebrew); hint at startup if missing

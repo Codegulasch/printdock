@@ -13,7 +13,7 @@ const fail = (msg) => { failed += 1; console.error(`✗ ${msg}`); };
 const ok = (msg) => console.log(`✓ ${msg}`);
 
 // ---------------------------------------------------------------- 1. Syntax
-const jsFiles = ['.', 'lib', 'drivers', 'public', 'scripts']
+const jsFiles = ['.', 'lib', 'drivers', 'public', 'scripts', 'dist']
   .flatMap((d) => fs.readdirSync(path.join(root, d)).filter((f) => f.endsWith('.js')).map((f) => path.join(root, d, f)));
 for (const f of jsFiles) {
   try { execFileSync(process.execPath, ['--check', f], { stdio: 'pipe' }); } catch (err) { fail(`Syntax: ${path.relative(root, f)}\n${err.stderr}`); }

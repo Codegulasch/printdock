@@ -72,12 +72,27 @@ function vHa() {
         <div class="card"><h3>${t('Als Dashboard-Seite')}</h3><p class="meta">${t('Läuft PrintDock woanders (NAS, Raspberry Pi, PC), lässt es sich als Webseite einbinden: Einstellungen → Dashboards → Dashboard hinzufügen → Webseite → Adresse:')}</p>
           <p><span class="code">${esc(h.directUrl)}</span> <button class="b b-sm" data-act="copy" data-text="${esc(h.directUrl)}">${t('Kopieren')}</button></p>
           <p class="meta">${t('Funktioniert nur, wenn Home Assistant und PrintDock gleich erreichbar sind (beide http oder beide https).')}</p></div>
-        <div class="card"><h3>${t('Beispiel-Karte')}</h3><p class="meta">${t('Mit MQTT-Geräten, z. B. als Kachel im Dashboard (Namen ggf. anpassen):')}</p>
-<pre class="code" style="white-space:pre-wrap;font-size:12.5px">type: tile
-entity: sensor.${esc(example)}_${LANG === 'en' ? 'progress' : 'fortschritt'}
-features:
-  - type: button
-    entity: button.${esc(example)}_${LANG === 'en' ? 'plate_is_clear' : 'platte_ist_frei'}</pre></div>
+      </div>
+    </section>
+    <section class="sec"><h3>${t('5. PrintDock-Karten im Dashboard')}</h3>
+      <p class="intro">${t('Zwei fertige Dashboard-Karten: „PrintDock Card“ zeigt einen Drucker wie hier in PrintDock – Statusampel, Fortschritt, Kamera, Temperaturen, Filament und Knöpfe. „PrintDock Übersicht“ zeigt alle Drucker auf einen Blick, dazu Warteschlange, Aufträge, knappe Spulen und fällige Wartung. Voraussetzung: MQTT-Geräte (Schritt 3) sind eingeschaltet.')}</p>
+      <div class="cards">
+        <div class="card"><h3>${t('Einrichten')}</h3>
+          ${h.addon
+            ? `<p class="meta">${h.cardInstalled ? `<span class="vl ok">${t('Eingerichtet')}</span> – ${t('die Karten stehen im Dashboard unter „Karte hinzufügen“.')}` : t('Das Add-on richtet die Karten beim Start selbst ein.')}</p><div class="btns"><button class="b b-sm" data-hact="card">${t('Erneut einrichten')}</button></div>`
+            : `<p class="meta">${t('Am einfachsten über HACS: Benutzerdefiniertes Repository hinzufügen, Typ „Dashboard“, dann „PrintDock Card“ installieren. Oder hier eintragen lassen (Verbindung aus Schritt 1 nötig):')}</p>
+              <div class="btns"><button class="b b-sm b-done" data-hact="card">${t('In Home Assistant eintragen')}</button></div>
+              <p class="meta">${t('Von Hand: Einstellungen → Dashboards → ⋮ → Ressourcen → Ressource hinzufügen, Typ „JavaScript-Modul“:')}<br><span class="code">${esc(h.directUrl)}/printdock-card.js</span></p>
+              <p class="meta">${t('Läuft Home Assistant über https, blockiert der Browser eine http-Adresse – dann HACS nutzen.')}</p>`}
+        </div>
+        <div class="card"><h3>${t('Beispiel')}</h3><p class="meta">${t('Im Dashboard „Karte hinzufügen“ → „PrintDock Card“ wählen – oder als YAML:')}</p>
+<pre class="code" style="white-space:pre-wrap;font-size:12.5px">type: custom:printdock-card
+entity: sensor.${esc(example)}_status
+show_camera: true
+show_fans: false
+
+type: custom:printdock-overview-card
+sections: [printers, queue, orders, spools, maintenance]</pre></div>
       </div>
     </section>`;
 }
@@ -169,6 +184,12 @@ document.addEventListener('click', async (e) => {
     if (settings.powerEntity && !/^(switch|light|input_boolean)\.\w+$/.test(settings.powerEntity)) return toast(t('Bitte eine Entität wie switch.drucker_werkstatt eintragen'), true);
     await run(() => api(`printers/${p.id}`, { method: 'PUT', body: { name: p.name, driver: p.driver, config: p.config, settings } }), t('Gespeichert'));
     return reload('printers');
+  }
+  if (act === 'card') {
+    el.disabled = true;
+    const r = await run(() => api('ha/card', { method: 'POST' }), t('Karten in Home Assistant eingetragen – Dashboard neu laden'));
+    if (r) S.ha = await api('ha');
+    return render();
   }
   if (act === 'demoLoad') {
     await loadDemo(el);
