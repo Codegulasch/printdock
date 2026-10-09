@@ -79,7 +79,7 @@ function vHa() {
       <div class="cards">
         <div class="card"><h3>${t('Einrichten')}</h3>
           ${h.addon
-            ? `<p class="meta">${h.cardInstalled ? `<span class="vl ok">${t('Eingerichtet')}</span> – ${t('die Karten stehen im Dashboard unter „Karte hinzufügen“.')}` : t('Das Add-on richtet die Karten beim Start selbst ein.')}</p><div class="btns"><button class="b b-sm" data-hact="card">${t('Erneut einrichten')}</button></div>`
+            ? cardStateHTML(h)
             : `<p class="meta">${t('Am einfachsten über HACS: Benutzerdefiniertes Repository hinzufügen, Typ „Dashboard“, dann „PrintDock Card“ installieren. Oder hier eintragen lassen (Verbindung aus Schritt 1 nötig):')}</p>
               <div class="btns"><button class="b b-sm b-done" data-hact="card">${t('In Home Assistant eintragen')}</button></div>
               <p class="meta">${t('Von Hand: Einstellungen → Dashboards → ⋮ → Ressourcen → Ressource hinzufügen, Typ „JavaScript-Modul“:')}<br><span class="code">${esc(h.directUrl)}/printdock-card.js</span></p>
@@ -95,6 +95,21 @@ type: custom:printdock-overview-card
 sections: [printers, queue, orders, spools, maintenance]</pre></div>
       </div>
     </section>`;
+}
+
+/** Add-on: Stand der automatischen Karten-Einrichtung */
+function cardStateHTML(h) {
+  const c = h.card || {};
+  const again = `<button class="b b-sm" data-hact="card">${t('Erneut einrichten')}</button>`;
+  if (c.state === 'ok') return `<p class="meta"><span class="vl ok">${t('Eingerichtet')}</span> – ${t('die Karten stehen im Dashboard unter „Karte hinzufügen“. Falls nicht: Browser einmal neu laden (Strg+F5), in der App den Frontend-Cache leeren.')}</p><div class="btns">${again}</div>`;
+  if (c.state === 'restart') return `<p class="meta"><span class="vl warn">${t('Neustart nötig')}</span> – ${t('Die Karten sind kopiert. Home Assistant liefert den Ordner „www“ erst nach einem Neustart aus.')}</p><div class="btns"><button class="b b-sm b-done" data-hact="restartHa">${t('Home Assistant neu starten')}</button>${again}</div>`;
+  if (c.state === 'yaml') return `<p class="meta"><span class="vl warn">${t('Von Hand eintragen')}</span> – ${t('Deine Dashboards laufen im YAML-Modus. Diese Zeilen in die configuration.yaml unter lovelace: eintragen:')}</p>
+<pre class="code" style="white-space:pre-wrap;font-size:12.5px">resources:
+  - url: ${esc(c.url || '/local/printdock/printdock-card.js')}
+    type: module</pre><div class="btns">${again}</div>`;
+  if (c.state === 'error') return `<p class="meta"><span class="vl bad">${t('Fehler')}</span> – ${esc(c.error)}</p><div class="btns">${again}</div>`;
+  if (c.state === 'working') return `<p class="meta">${t('Wird eingerichtet …')}</p>`;
+  return `<p class="meta">${t('Das Add-on richtet die Karten beim Start selbst ein.')}</p><div class="btns">${again}</div>`;
 }
 
 function vDemo() {
@@ -187,9 +202,15 @@ document.addEventListener('click', async (e) => {
   }
   if (act === 'card') {
     el.disabled = true;
-    const r = await run(() => api('ha/card', { method: 'POST' }), t('Karten in Home Assistant eingetragen – Dashboard neu laden'));
-    if (r) S.ha = await api('ha');
+    const r = await run(() => api('ha/card', { method: 'POST' }), S.ha?.addon ? null : t('Karten in Home Assistant eingetragen – Dashboard neu laden'));
+    S.ha = await api('ha').catch(() => S.ha);
     return render();
+  }
+  if (act === 'restartHa') {
+    if (!confirm(t('Home Assistant jetzt neu starten? Das dauert etwa eine Minute.'))) return;
+    el.disabled = true;
+    await run(() => api('ha/restart', { method: 'POST' }), t('Home Assistant startet neu – danach Browser neu laden'));
+    return;
   }
   if (act === 'demoLoad') {
     await loadDemo(el);

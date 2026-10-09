@@ -466,11 +466,12 @@ async function handleApi(req, res, url) {
     }
     if (id === 'test' && req.method === 'POST') return sendJson(res, 200, await ha.test());
     if (id === 'entities' && req.method === 'GET') return sendJson(res, 200, await ha.entities());
+    if (id === 'restart' && req.method === 'POST') return sendJson(res, 200, await ha.restartCore());
     if (id === 'card' && req.method === 'POST') {
       if (ha.publicSettings().addon) {
         ha.cardInstalled = false;
         await ha.installCard();
-        return sendJson(res, 200, { ok: true });
+        return sendJson(res, 200, ha.publicSettings().card);
       }
       return sendJson(res, 200, await ha.registerCardResource());
     }

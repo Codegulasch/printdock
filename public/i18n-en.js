@@ -990,6 +990,16 @@
     'Unbekannter Endpunkt': 'Unknown endpoint',
     'Verboten': 'Forbidden',
     'Nicht gefunden': 'Not found',
+    'die Karten stehen im Dashboard unter „Karte hinzufügen“. Falls nicht: Browser einmal neu laden (Strg+F5), in der App den Frontend-Cache leeren.': 'the cards are listed under “Add card” in your dashboard. If not: reload the browser once (Ctrl+F5), or clear the frontend cache in the app.',
+    'Neustart nötig': 'Restart needed',
+    'Die Karten sind kopiert. Home Assistant liefert den Ordner „www“ erst nach einem Neustart aus.': 'The cards have been copied. Home Assistant only serves the “www” folder after a restart.',
+    'Home Assistant neu starten': 'Restart Home Assistant',
+    'Von Hand eintragen': 'Add manually',
+    'Deine Dashboards laufen im YAML-Modus. Diese Zeilen in die configuration.yaml unter lovelace: eintragen:': 'Your dashboards run in YAML mode. Add these lines to configuration.yaml under lovelace:',
+    'Wird eingerichtet …': 'Setting up …',
+    'Home Assistant jetzt neu starten? Das dauert etwa eine Minute.': 'Restart Home Assistant now? This takes about a minute.',
+    'Home Assistant startet neu – danach Browser neu laden': 'Home Assistant is restarting – reload the browser afterwards',
+    'Konfigurationsordner von Home Assistant nicht gefunden (/homeassistant)': 'Home Assistant configuration folder not found (/homeassistant)',
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = EN;
   else root.PD_DICT_EN = EN;
