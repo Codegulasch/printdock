@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0
+- **Spoolman (optional):** *Settings → Filament → Spoolman* takes over the spool inventory from Spoolman and reports usage, weighed remaining amounts and the current printer/slot back. New spools created in PrintDock can be added to Spoolman automatically. Bookings are kept and sent later if Spoolman is unreachable
+- **Filament humidity:** AMS, ACE and optional Home Assistant humidity sensors (e.g. in a dry box) are monitored with warning and alarm thresholds – colour on the printer cards, tiles with a 48 h history under *Filament → Assignment*, notification "Filament too humid" with the affected spools, and a "dried" date per spool
+- **Spool labels with QR code:** 62 × 29 mm (Brother QL), 50 × 30, 40 × 30, 57 × 25 mm or an A4 sheet; scanning opens the spool in PrintDock with quick actions (load, weigh, dried, label)
+- **RFID/NFC:** write a spool's link to an NFC sticker from the phone (Chrome on Android), or use an ESPHome reader (PN532/RC522) at the printer: tag on the reader → PrintDock puts the spool into the slot; unknown tags are assigned once. API: `POST /api/rfid`
+
 ## 0.7.8
 - **Camera image in notifications** can be switched per channel right in the list. Home Assistant notifications now carry the snapshot from the moment of the event (as an add-on stored under a random name in `/local`, deleted after 2 days), also in the Home Assistant sidebar notifications
 - **Settings → General** rebuilt: appearance with segmented controls, colour swatches and a live preview of the status lights; features as a grouped list with switches

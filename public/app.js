@@ -36,7 +36,7 @@ const NAV_ALL = [
   { g: 'fil', l: 'Filament', icon: 'spool', v: [['spools', 'Spulen', 'filament'], ['slots', 'Belegung', 'filament'], ['usage', 'Verbrauch', 'filament']] },
   { g: 'maint', l: 'Wartung', icon: 'wrench', v: [['maint', 'Wartungsplan', 'maintenance']] },
   { g: 'ana', l: 'Auswertung', icon: 'chart', v: [['stats', 'Statistik', 'stats'], ['history', 'Verlauf', 'history']] },
-  { g: 'set', l: 'Einstellungen', icon: 'gear', sep: true, v: [['general', 'Allgemein'], ['printers', 'Drucker#pl'], ['ha', 'Home Assistant', 'homeassistant'], ['notify', 'Benachrichtigungen', 'notifications'], ['slicer', 'Slicer', 'slicer'], ['system', 'System']] },
+  { g: 'set', l: 'Einstellungen', icon: 'gear', sep: true, v: [['general', 'Allgemein'], ['printers', 'Drucker#pl'], ['ha', 'Home Assistant', 'homeassistant'], ['notify', 'Benachrichtigungen', 'notifications'], ['slicer', 'Slicer', 'slicer'], ['filset', 'Filament', 'filament'], ['system', 'System']] },
 ];
 const on = (m) => !m || S.app?.modules?.[m] !== false;
 function navGroups() {
@@ -987,6 +987,8 @@ function printerDialog(p = null) {
     </fieldset>
     <fieldset ${on('homeassistant') ? '' : 'hidden'}><legend>${t('Strom über Home Assistant')}</legend>
       <label>${t('Steckdose (Entität)')}<div data-power-pick>${entityPickerHTML('powerEntity', p?.settings?.powerEntity)}</div></label>
+      ${on('filament') ? `<label>${t('Feuchtesensor (optional)')}<div data-hum-pick>${entityPickerHTML('humidityEntity', p?.settings?.humidityEntity, '', S.haHumidity ?? null, t('– kein Sensor –'))}</div></label>
+      <p class="hint" style="margin-top:-4px">${t('Z. B. ein Sensor in der Trockenbox – PrintDock überwacht ihn wie die AMS-/ACE-Feuchte.')}</p>` : ''}
       <label class="check"><input type="checkbox" name="autoOff" ${p?.settings?.autoOff ? 'checked' : ''}> ${t('Nach dem Druck automatisch ausschalten, sobald die Düse abgekühlt ist')}</label>
       <p class="hint" style="margin-top:-4px">${t('Verbindung einrichten unter Einstellungen → Home Assistant. Leer lassen, wenn der Drucker nicht geschaltet werden soll.')}</p>
     </fieldset>
@@ -1002,6 +1004,13 @@ function printerDialog(p = null) {
   renderFields(p?.config);
   form.driver.addEventListener('change', () => renderFields());
   // Steckdosen-Auswahl: Entitäten aus Home Assistant nachladen
+  if (on('homeassistant') && on('filament') && S.haHumidity === undefined) {
+    S.haHumidity = null;
+    api('ha/humidity-sensors').then((l) => (S.haHumidity = l)).catch(() => (S.haHumidity = [])).finally(() => {
+      const box = $('[data-hum-pick]', d);
+      if (box && d.open) box.innerHTML = entityPickerHTML('humidityEntity', form.humidityEntity?.value, '', S.haHumidity, t('– kein Sensor –'));
+    });
+  }
   if (on('homeassistant') && S.haEntities === null && !S.haEntLoading) {
     S.haEntLoading = true;
     loadHaEntities().then(() => {
@@ -1020,7 +1029,7 @@ function printerDialog(p = null) {
     e.preventDefault();
     const body = {
       name: form.name.value, driver: form.driver.value, config: readFields(form),
-      settings: { ...(p?.settings || {}), model: form.model.value, autoStart: form.autoStart.checked, hoursOffset: form.hoursOffset.value, slots: form.slots.value, powerEntity: form.powerEntity.value.trim(), autoOff: form.autoOff.checked },
+      settings: { ...(p?.settings || {}), model: form.model.value, autoStart: form.autoStart.checked, hoursOffset: form.hoursOffset.value, slots: form.slots.value, powerEntity: form.powerEntity.value.trim(), humidityEntity: form.humidityEntity?.value.trim() || '', autoOff: form.autoOff.checked },
     };
     try {
       await api(p ? `printers/${p.id}` : 'printers', { method: p ? 'PUT' : 'POST', body });

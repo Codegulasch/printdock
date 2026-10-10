@@ -122,6 +122,13 @@ Oben fasst eine Zeile zusammen, wie viele Drucker frei sind, drucken, warten ode
 
 **Einstellungen → Demo-Daten → Demo-Daten einspielen** legt einen kompletten, laufenden Druckerpark an: Bambu X2D mit AMS (druckt), Snapmaker U1 mit 4 Werkzeugen (druckt), Anycubic Kobra S1 mit ACE (fertig), Voron 2.4 (bereit) und Bambu A1 (pausiert), dazu 9 Dateien mit Vorschaubildern, 20 Spulen, 4 Aufträge, Warteschlange, 30 Tage Verlauf und Wartungsaufgaben. Alles ist als Demo markiert und lässt sich mit einem Klick wieder entfernen – eigene Daten bleiben unberührt.
 
+## Filament: Spoolman, Feuchte, Etiketten, RFID
+
+- **Spoolman (optional):** *Einstellungen → Filament → Spoolman* übernimmt den Spulenbestand aus Spoolman und meldet Verbrauch, gewogene Restmengen und den aktuellen Drucker/Platz zurück. In PrintDock angelegte Spulen landen auf Wunsch auch in Spoolman. Ist Spoolman kurz weg, holt PrintDock die Buchungen nach.
+- **Filamentfeuchte:** AMS, ACE und optional ein Feuchtesensor aus Home Assistant je Drucker (z. B. in der Trockenbox) mit Warn- und Alarmwert, Verlauf über 48 Stunden, Meldung „Filament zu feucht“ und Trocknungsdatum je Spule.
+- **Spulen-Etiketten:** mit QR-Code in 62 × 29 mm (Brother QL), 50 × 30, 40 × 30, 57 × 25 mm oder als A4-Bogen. Scannen öffnet die Spule mit Schnellaktionen.
+- **RFID/NFC:** Spulen-Link vom Handy auf einen NFC-Sticker schreiben (Chrome auf Android) oder ein ESPHome-Leser (PN532/RC522) am Drucker: Tag auflegen → Spule liegt im Platz. Beispiel-Konfiguration unter *Einstellungen → Filament → RFID-Leser*, Schnittstelle `POST /api/rfid` mit `{"tag": "…", "printer": "…", "slot": "…"}`.
+
 ## Updates
 
 *Einstellungen → System → Updates* sieht auf GitHub nach einer neuen Version (auch automatisch einmal am Tag) und installiert sie per Klick: als Add-on baut Home Assistant PrintDock neu, auf PC und Raspberry Pi ersetzt PrintDock seine Dateien und startet neu. Für ein privates Repository unter „Update-Quelle“ einen GitHub-Token mit Leserecht eintragen. Docker: `docker compose pull && docker compose up -d`.

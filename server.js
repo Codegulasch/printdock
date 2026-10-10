@@ -141,6 +141,11 @@ const filament = new Filament({
 // Als Add-on: echte IP des Home-Assistant-Rechners für Slicer und Downloads ermitteln
 require('./lib/hostinfo').refresh(PORT).then((i) => i.ip && console.log(`Erreichbar im Heimnetz unter http://${i.ip}:${i.port || PORT}`));
 
+// Optionale Spoolman-Anbindung: Spulen kommen aus Spoolman, Verbrauch geht zurück
+const { Spoolman } = require('./lib/spoolman');
+const spoolman = new Spoolman({ db: require('./lib/filament').db, filament, printers: () => printerConfigs });
+filament.ext = spoolman;
+
 ha = new HomeAssistant({
   printers: () => printerConfigs,
   runtime,
@@ -272,6 +277,7 @@ function validatePrinter(body, existing) {
     hoursOffset: Math.max(0, Number(st.hoursOffset) || 0),
     slots: String(st.slots || '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, 16).join(', '),
     powerEntity: /^(switch|light|input_boolean)\.[\w]+$/.test(String(st.powerEntity || '').trim()) ? String(st.powerEntity).trim() : '',
+    humidityEntity: /^sensor\.[\w]+$/.test(String(st.humidityEntity || '').trim()) ? String(st.humidityEntity).trim() : '',
     autoOff: st.autoOff === true || st.autoOff === 'true',
     autoOffDelay: Math.max(1, Math.min(240, Number(st.autoOffDelay) || 10)),
     autoOffMaxTemp: Math.max(30, Math.min(120, Number(st.autoOffMaxTemp) || 50)),
@@ -380,7 +386,7 @@ function serveStatic(req, res) {
   fs.readFile(file, (err, buf) => {
     if (err) return sendJson(res, 404, { error: 'Nicht gefunden' });
     // index.html: Skripte mit Versionsnummer laden, damit nach einem Update nie alte Dateien aus dem Cache kommen
-    if (file.endsWith('index.html')) buf = Buffer.from(buf.toString('utf8').replace(/(src|href)="((?:[\w-]+)\.(?:js|svg|webmanifest))"/g, `$1="$2?v=${APP_VERSION}"`));
+    if (file.endsWith('index.html')) buf = Buffer.from(buf.toString('utf8').replace(/(src|href)="((?:[\w-]+\/)?[\w-]+\.(?:js|svg|webmanifest))"/g, `$1="$2?v=${APP_VERSION}"`));
     const etag = `"${crypto.createHash('sha1').update(buf).digest('base64').slice(0, 20)}"`;
     // Immer beim Server nachfragen (304, wenn unverändert) – Browser und Home-Assistant-App cachen sonst alte Stände
     const headers = { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache', ETag: etag };
@@ -522,6 +528,7 @@ async function handleApi(req, res, url) {
     }
     if (id === 'test' && req.method === 'POST') return sendJson(res, 200, await ha.test());
     if (id === 'entities' && req.method === 'GET') return sendJson(res, 200, await ha.entities());
+    if (id === 'humidity-sensors' && req.method === 'GET') return sendJson(res, 200, await ha.humiditySensors());
     if (id === 'notify-services' && req.method === 'GET') return sendJson(res, 200, await ha.notifyServices());
     if (id === 'restart' && req.method === 'POST') return sendJson(res, 200, await ha.restartCore());
     if (id === 'card' && req.method === 'POST') {
@@ -593,8 +600,25 @@ async function handleApi(req, res, url) {
   }
 
   // ---- Filament
+  if (resource === 'spoolman') {
+    if (!id && req.method === 'GET') return sendJson(res, 200, spoolman.publicSettings());
+    if (!id && req.method === 'PUT') {
+      const r = await spoolman.saveSettings(await readBody(req));
+      broadcast('filament', null);
+      return sendJson(res, 200, r);
+    }
+    if (id === 'test' && req.method === 'POST') {
+      const b = await readBody(req);
+      if (b.url !== undefined) await spoolman.saveSettings({ url: b.url });
+      return sendJson(res, 200, await spoolman.test());
+    }
+    if (id === 'sync' && req.method === 'POST') {
+      const r = await spoolman.sync();
+      return sendJson(res, 200, { ...r, settings: spoolman.publicSettings() });
+    }
+  }
   if (resource === 'filament') {
-    if (!id && req.method === 'GET') return sendJson(res, 200, filament.view());
+    if (!id && req.method === 'GET') return sendJson(res, 200, { ...filament.view(), spoolman: spoolman.publicSettings() });
     if (id === 'assign' && req.method === 'POST') {
       const b = await readBody(req);
       filament.assign(b.printerId, b.key, b.spoolId || null);
@@ -623,6 +647,11 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, filament.check(cfg, files.get(item.fileId), item.options));
     }
   }
+  if (resource === 'spools' && action === 'dried' && req.method === 'POST') return sendJson(res, 200, filament.dried(id));
+  // RFID/NFC: Leser am Drucker (ESPHome) oder Handy melden einen Tag bzw. eine Spulennummer
+  if (resource === 'rfid' && !id && req.method === 'POST') return sendJson(res, 200, filament.rfidScan(await readBody(req)));
+  if (resource === 'rfid' && id === 'assign' && req.method === 'POST') return sendJson(res, 200, filament.rfidAssign((await readBody(req)).spoolId));
+  if (resource === 'rfid' && id === 'dismiss' && req.method === 'POST') { filament.pendingTag = null; filament.save(); return sendJson(res, 200, { ok: true }); }
   if (resource === 'spools') {
     if (!id && req.method === 'POST') return sendJson(res, 201, filament.saveSpool(await readBody(req)));
     if (id && !action && req.method === 'PUT') return sendJson(res, 200, filament.saveSpool(await readBody(req), id));

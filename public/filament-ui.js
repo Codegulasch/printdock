@@ -130,19 +130,21 @@ function vSpools() {
   const active = F.spools.filter((s) => !s.archived);
   const cards = list.map((s) => `<article class="card spool ${s.low ? 'is-low' : ''}">
       <div class="sp-top">${spoolRing(s.color, pctOf(s))}<div style="min-width:0">
-        <h3><span class="meta num">${esc(s.nr)}</span> ${esc(s.material)}${s.colorName ? ` · ${esc(t(s.colorName))}` : ''}</h3>
+        <h3 class="sp-open" data-fact="sheet" data-id="${s.id}" title="${esc(t('Spule öffnen'))}"><span class="meta num">${esc(s.nr)}</span> ${esc(s.material)}${s.colorName ? ` · ${esc(t(s.colorName))}` : ''}</h3>
         <div class="meta">${esc(s.brand || t('Hersteller unbekannt'))}${s.diameter !== 1.75 ? ` · ${s.diameter} mm` : ''}${s.rfid ? ' · RFID' : ''}</div></div></div>
       <div class="sp-amt"><b class="num">${fnum(s.remaining, 0)} g</b><span class="meta">${t('von {g} g', { g: fnum(s.netWeight, 0) })}</span>${s.low && !s.archived ? `<span class="pill pause">${t('knapp')}</span>` : ''}</div>
       <div class="bar ${s.remaining <= low ? 'warn' : ''}"><i style="width:${pctOf(s)}%"></i></div>
-      <div class="facts" style="margin-top:8px"><span>${spoolPlace(s)}</span>${s.pricePerKg ? `<span><b>${money(s.pricePerKg)}</b>/kg</span>` : ''}${s.lastUsedAt ? `<span>${t('zuletzt {t}', { t: tfmt(s.lastUsedAt) })}</span>` : ''}</div>
+      <div class="facts" style="margin-top:8px"><span>${spoolPlace(s)}</span>${s.pricePerKg ? `<span><b>${money(s.pricePerKg)}</b>/kg</span>` : ''}${s.lastUsedAt ? `<span>${t('zuletzt {t}', { t: tfmt(s.lastUsedAt) })}</span>` : ''}${s.driedAt ? `<span title="${esc(tfmt(s.driedAt))}">💧 ${t('getrocknet vor {d}', { d: agoDays(s.driedAt) })}</span>` : ''}${s.spoolmanId ? `<span class="pill">Spoolman #${s.spoolmanId}</span>` : ''}</div>
       <div class="btns">
         ${s.archived ? '' : s.slot ? `<button class="b b-sm" data-fact="unload" data-id="${s.id}">${t('Entnehmen')}</button>` : `<button class="b b-sm b-go" data-fact="load" data-id="${s.id}">${t('Einlegen')}</button>`}
         ${s.archived ? '' : `<button class="b b-sm" data-fact="weigh" data-id="${s.id}" title="${t('Restmenge durch Wiegen bestimmen')}">${t('Wiegen')}</button><button class="b b-sm" data-fact="book" data-id="${s.id}" title="${t('Verbrauch von Hand abbuchen')}">− g</button>`}
+        ${s.archived ? '' : `<button class="b b-sm" data-fact="dried" data-id="${s.id}" title="${esc(t('Heute getrocknet'))}">${t('Getrocknet')}</button>`}
         <button class="x" data-fact="editSpool" data-id="${s.id}" title="${t('Bearbeiten')}" aria-label="${esc(t('{n} bearbeiten', { n: s.nr }))}">${ICON.edit}</button>
       </div></article>`).join('');
   return `${stripHTML()}<div class="bar-row"><h2>${t('Spulen')}</h2><div class="chips">${chips}</div>
       ${mats.length > 1 ? `<select class="in" data-fact-change="spMaterial" aria-label="${t('Material')}"><option value="">${t('Alle Materialien')}</option>${mats.map((m) => `<option ${m === S.spMaterial ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>` : ''}
-      <button class="b b-sm b-go" data-fact="editSpool">${ICON.plus}${t('Neue Spule')}</button></div>
+      <button class="b b-sm" data-fact="labels">${t('Etiketten')}</button><button class="b b-sm b-go" data-fact="editSpool">${ICON.plus}${t('Neue Spule')}</button></div>
+    ${pendingTagHTML(F)}
     <div class="strip" style="margin-top:-4px"><div><b class="num">${active.length}</b><span>${t('Spulen')}</span></div>
       <div><b class="num">${fnum(active.reduce((a, s) => a + s.remaining, 0) / 1000, 1)} kg</b><span>${t('auf Lager')}</span></div>
       <div><b class="num">${active.filter((s) => s.slot).length}</b><span>${t('im Drucker')}</span></div>
@@ -150,6 +152,12 @@ function vSpools() {
     ${list.length ? `<div class="cards">${cards}</div>` : `<div class="list"><div class="empty"><h3>${F.spools.length ? t('Keine Spulen in dieser Auswahl') : t('Noch keine Spulen angelegt')}</h3>
       <p>${t('Spulen mit Material, Farbe und Gewicht anlegen, dann unter „Belegung“ in die Drucker legen. Nach jedem Druck bucht PrintDock den Verbrauch ab.')}</p>
       <button class="b b-go" data-fact="editSpool">${ICON.plus}${t('Neue Spule')}</button></div></div>`}`;
+}
+
+/** „3 Tagen“, „heute“ … */
+function agoDays(iso) {
+  const d = Math.floor((Date.now() - Date.parse(iso)) / 864e5);
+  return d <= 0 ? t('weniger als 1 Tag') : d === 1 ? t('1 Tag') : t('{n} Tagen', { n: d });
 }
 
 function spoolDialog(s = null) {
@@ -332,10 +340,216 @@ function vSlots() {
   }).join('');
   const unmatched = F.printers.flatMap((p) => p.slots.filter((x) => x.unmatched));
   return `${stripHTML()}<div class="bar-row"><h2>${t('Belegung')}</h2><span class="meta">${t('Platz antippen = Spule einlegen oder wechseln')}</span></div>
+    ${pendingTagHTML(F)}${humidityHTML(F)}
     ${unmatched.length ? `<div class="newspool big"><span>${BI.spool}</span><div><b>${unmatched.length === 1 ? t('Neue Spule erkannt') : t('{n} neue Spulen erkannt', { n: unmatched.length })}</b><small>${t('Die Drucker melden Filament, zu dem es noch keine Spule im Lager gibt.')}</small></div><button class="b b-sm b-go" data-fact="newSpools">${t('Spulen anlegen')}</button></div>` : ''}
     <div style="display:grid;gap:14px">${cards}</div>
     <p class="meta">${t('Bambu-AMS meldet Material, Farbe und – bei Bambu-Spulen – RFID und Restmenge. RFID-Spulen ordnet PrintDock automatisch zu.')}
     ${t('Bei Snapmaker U1 und Anycubic mit ACE die Spulen hier von Hand zuordnen; die Plätze lassen sich beim Drucker benennen (z. B. „ACE 1, ACE 2, …“).')}</p>`;
+}
+
+// ================================================================ Spulen-Seite (QR/NFC), Etiketten, RFID
+
+/** Link, den QR-Code und NFC-Tag enthalten: öffnet die Spule in PrintDock */
+const spoolLink = (sp) => `${S.app?.directUrl || location.origin}/#spool=${encodeURIComponent(sp.nr)}`;
+
+function qrSVG(text, px = 120) {
+  if (typeof qrcode !== 'function') return '';
+  const q = qrcode(0, 'M');
+  q.addData(text);
+  q.make();
+  return q.createSvgTag({ cellSize: 4, margin: 0, scalable: true }).replace('<svg ', `<svg width="${px}" height="${px}" `);
+}
+
+/** Kompakte Spulen-Ansicht mit den wichtigsten Aktionen – öffnet sich beim Scannen von QR-Code oder NFC-Tag. */
+function spoolSheet(sp) {
+  if (!sp) return toast(t('Spule nicht gefunden'), true);
+  const nfc = 'NDEFReader' in window;
+  const d = openDialog(`<div class="dlg sheet">
+    <div class="sh-top">${spoolRing(sp.color, pctOf(sp), 74)}<div style="min-width:0"><div class="meta num">${esc(sp.nr)}${sp.spoolmanId ? ` · Spoolman #${sp.spoolmanId}` : ''}</div>
+      <h2 style="margin:0">${esc(sp.material)}${sp.colorName ? ` · ${esc(t(sp.colorName))}` : ''}</h2>
+      <div class="meta">${esc(sp.brand || t('Hersteller unbekannt'))} · ${fnum(sp.diameter || 1.75, 2)} mm${sp.rfid ? ` · RFID ${esc(sp.rfid)}` : ''}</div></div></div>
+    <div class="strip" style="margin:12px 0"><div><b class="num">${fnum(sp.remaining, 0)} g</b><span>${t('von {g} g', { g: fnum(sp.netWeight, 0) })}</span></div>
+      <div><b>${spoolPlace(sp)}</b><span>${t('Ort')}</span></div>
+      <div><b>${sp.driedAt ? agoDays(sp.driedAt) : '–'}</b><span>${t('seit dem Trocknen')}</span></div></div>
+    <div class="sh-acts">
+      ${sp.archived ? '' : sp.slot ? `<button class="b" data-fact="unload" data-id="${sp.id}">${t('Entnehmen')}</button>` : `<button class="b b-go" data-fact="load" data-id="${sp.id}">${t('In Drucker legen')}</button>`}
+      <button class="b" data-fact="weigh" data-id="${sp.id}">${t('Wiegen')}</button>
+      <button class="b" data-fact="dried" data-id="${sp.id}">${t('Getrocknet')}</button>
+      <button class="b" data-fact="labels" data-id="${sp.id}">${t('Etikett')}</button>
+      ${nfc ? `<button class="b" data-fact="nfcWrite" data-id="${sp.id}">${t('NFC-Tag beschreiben')}</button>` : ''}
+      <button class="b" data-fact="editSpool" data-id="${sp.id}">${ICON.edit}${t('Bearbeiten')}</button>
+    </div>
+    <div class="dlg-actions"><button class="b" data-close>${t('Schließen')}</button></div></div>`);
+  d.addEventListener('click', (e) => { if (e.target.closest('[data-fact]:not([data-fact="labels"])')) d.close(); });
+}
+
+/** #spool=S-012 in der Adresse (vom QR-Code/NFC-Tag) → Spule öffnen */
+function openSpoolFromHash() {
+  const m = /^#spool=(.+)$/.exec(location.hash);
+  if (!m || !S.fil) return false;
+  const key = decodeURIComponent(m[1]);
+  const sp = fil().spools.find((x) => x.nr === key || x.id === key);
+  history.replaceState(null, '', `#${on('filament') ? 'spools' : 'board'}`);
+  if (on('filament') && S.view !== 'spools') setView('spools');
+  spoolSheet(sp);
+  return true;
+}
+window.addEventListener('hashchange', openSpoolFromHash);
+// nach dem ersten Laden (boot) prüfen
+setTimeout(function waitFil() { if (S.fil) openSpoolFromHash(); else setTimeout(waitFil, 300); }, 300);
+
+const LABEL_FORMATS = {
+  ql62: { name: '62 × 29 mm (Brother QL, DK-11209)', w: 62, h: 29 },
+  l5030: { name: '50 × 30 mm', w: 50, h: 30 },
+  l4030: { name: '40 × 30 mm', w: 40, h: 30 },
+  l5725: { name: '57 × 25 mm (Thermo, Niimbot/Phomemo)', w: 57, h: 25 },
+  a4: { name: 'A4-Bogen 3 × 8 (70 × 37 mm)', w: 70, h: 37.1, sheet: true },
+};
+
+function labelHTML(sp, f) {
+  const qr = qrSVG(spoolLink(sp));
+  const sub = sp.brand || '';
+  const spec = [`${fnum(sp.diameter || 1.75, 2)} mm`, `${fnum(sp.netWeight, 0)} g`].join(' · ');
+  return `<div class="lbl" style="--c:${esc(sp.color || '#888')};width:${f.w}mm;height:${f.h}mm">
+    <div class="lbl-band"></div>
+    <div class="lbl-txt"><div class="lbl-mat">${esc(sp.material)}</div><div class="lbl-col">${esc(t(sp.colorName || ''))}</div>
+      ${sub ? `<div class="lbl-sub">${esc(sub)}</div>` : ''}<div class="lbl-sub">${esc(spec)}</div><div class="lbl-nr">${esc(sp.nr)}</div></div>
+    <div class="lbl-qr">${qr}</div></div>`;
+}
+
+const LABEL_CSS = `.lbl,.lbl *{box-sizing:border-box}body{margin:0;font-family:Barlow,Arial,sans-serif;color:#000}
+.lbl{display:flex;align-items:stretch;gap:1.6mm;padding:1.6mm;overflow:hidden;background:#fff;color:#000;page-break-inside:avoid}
+.lbl *{color:#000}.lbl .lbl-sub{color:#333}
+.lbl-band{width:3.5mm;border-radius:1mm;background:var(--c);border:0.2mm solid #000;flex:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.lbl-txt{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;line-height:1.08}
+.lbl-mat{font-weight:700;font-size:4.2mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lbl-col{font-size:3.2mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lbl-sub{font-size:2.2mm;color:#333;margin-top:0.3mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lbl-nr{font-size:3mm;font-weight:700;margin-top:0.8mm;letter-spacing:.02em}
+.lbl-qr{flex:none;height:100%;aspect-ratio:1;display:flex;align-items:center}
+.lbl-qr svg{width:100%;height:100%}
+.lsheet{display:grid;grid-template-columns:repeat(3,70mm);grid-auto-rows:37.1mm;width:210mm}`;
+
+/** Etiketten drucken: Format wählen, Spulen auswählen, Vorschau, Drucken */
+function labelsDialog(preId = null) {
+  const F = fil();
+  const list = F.spools.filter((x) => !x.archived);
+  let fmt = 'ql62';
+  try { fmt = localStorage.getItem('pd-label') || 'ql62'; } catch {}
+  const d = openDialog(`<div class="dlg" style="max-width:760px"><h2>${t('Spulen-Etiketten')}</h2>
+    <label>${t('Format')}<select name="fmt">${Object.entries(LABEL_FORMATS).map(([k, f]) => `<option value="${k}" ${k === fmt ? 'selected' : ''}>${esc(t(f.name))}</option>`).join('')}</select></label>
+    <div class="lbl-pick"><div class="meta" style="display:flex;gap:10px;align-items:center"><span>${t('Spulen')}</span><button class="x" type="button" data-all>${t('alle')}</button><button class="x" type="button" data-none>${t('keine')}</button></div>
+      <div class="lbl-list">${list.map((x) => `<label class="check"><input type="checkbox" value="${x.id}" ${preId ? (x.id === preId ? 'checked' : '') : 'checked'}> <span class="swatch" style="background:${esc(x.color)}"></span>${esc(x.nr)} ${esc(x.material)} ${esc(t(x.colorName || ''))}</label>`).join('')}</div></div>
+    <div class="meta">${t('Vorschau')}</div><div class="lbl-prev" data-prev></div>
+    <p class="meta">${t('Der QR-Code öffnet die Spule in PrintDock ({u}) – im Heimnetz mit jeder Handykamera.', { u: esc(S.app?.directUrl || location.origin) })}</p>
+    <div class="dlg-actions"><button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-go" type="button" data-print>${t('Drucken')}</button></div></div>`);
+  const chosen = () => $$('.lbl-list input:checked', d).map((i) => spoolById(i.value)).filter(Boolean);
+  const prev = () => {
+    const f = LABEL_FORMATS[$('[name=fmt]', d).value];
+    const first = chosen()[0];
+    $('[data-prev]', d).innerHTML = first ? `<style>${LABEL_CSS.replace(/body\{[^}]*\}/, '')}</style><div class="lbl-scale">${labelHTML(first, f)}</div><span class="meta">${t('{n} Etiketten', { n: chosen().length })}</span>` : `<span class="meta">${t('Keine Spule gewählt')}</span>`;
+  };
+  d.addEventListener('change', prev);
+  $('[data-all]', d).addEventListener('click', () => { $$('.lbl-list input', d).forEach((i) => (i.checked = true)); prev(); });
+  $('[data-none]', d).addEventListener('click', () => { $$('.lbl-list input', d).forEach((i) => (i.checked = false)); prev(); });
+  $('[data-print]', d).addEventListener('click', () => {
+    const key = $('[name=fmt]', d).value;
+    const f = LABEL_FORMATS[key];
+    try { localStorage.setItem('pd-label', key); } catch {}
+    const items = chosen();
+    if (!items.length) return toast(t('Keine Spule gewählt'), true);
+    const body = f.sheet ? `<div class="lsheet">${items.map((x) => labelHTML(x, f)).join('')}</div>` : items.map((x) => labelHTML(x, f)).join('');
+    const page = f.sheet ? '@page{size:A4;margin:10.8mm 0 0 0}' : `@page{size:${f.w}mm ${f.h}mm;margin:0}`;
+    const fr = document.createElement('iframe');
+    fr.style.cssText = 'position:fixed;width:0;height:0;border:0;right:0;bottom:0';
+    document.body.appendChild(fr);
+    fr.contentDocument.write(`<!doctype html><html><head><meta charset="utf-8"><title>PrintDock</title><style>${page}${LABEL_CSS}</style></head><body>${body}</body></html>`);
+    fr.contentDocument.close();
+    setTimeout(() => { fr.contentWindow.focus(); fr.contentWindow.print(); setTimeout(() => fr.remove(), 60_000); }, 300);
+  });
+  prev();
+}
+
+/** Spulen-Link auf einen NFC-Tag schreiben (Chrome auf Android) */
+async function nfcWrite(sp) {
+  try {
+    const w = new NDEFReader();
+    toast(t('Tag ans Handy halten …'));
+    await w.write({ records: [{ recordType: 'url', data: spoolLink(sp) }] });
+    toast(t('{nr} auf den Tag geschrieben', { nr: sp.nr }));
+  } catch (err) {
+    toast(t('NFC: {e}', { e: err.message }), true);
+  }
+}
+
+/** Hinweis bei unbekanntem Tag vom Leser */
+function pendingTagHTML(F) {
+  const p = F.pendingTag;
+  if (!p) return '';
+  const opts = F.spools.filter((x) => !x.archived).map((x) => `<option value="${x.id}">${esc(x.nr)} ${esc(x.material)} ${esc(t(x.colorName || ''))}${x.rfid ? ' (RFID)' : ''}</option>`).join('');
+  return `<div class="newspool big"><span>${BI.spool}</span><div><b>${t('Unbekannter RFID-Tag {t}', { t: esc(p.tag) })}</b>
+    <small>${p.printerName ? t('gelesen an {p}', { p: esc(p.printerName) }) : t('vom Leser gemeldet')} · ${t('welche Spule ist das?')}</small></div>
+    <select class="in" data-tagspool>${opts}</select><button class="b b-sm b-go" data-fact="tagAssign">${t('Zuordnen')}</button><button class="x" data-fact="tagDismiss">${t('Verwerfen')}</button></div>`;
+}
+
+/** Einrichtungshilfe für einen RFID-Leser mit ESPHome */
+function rfidHelpDialog() {
+  const url = `${S.app?.directUrl || location.origin}/api/rfid`;
+  const auth = S.app?.auth?.enabled;
+  const yaml = `# ESPHome: RFID-/NFC-Leser (PN532 über I²C) am Drucker
+http_request:
+  verify_ssl: false
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+pn532_i2c:
+  update_interval: 1s
+  on_tag:
+    then:
+      - http_request.post:
+          url: ${url}
+          request_headers:
+            Content-Type: application/json${auth ? '\n            X-Api-Key: DEIN_API_KEY   # Einstellungen → System → API-Key' : ''}
+          json:
+            tag: !lambda 'return x;'
+            printer: "${esc(S.printers[0]?.name || 'Werkstatt X2D')}"
+            # slot: "AMS 1 · 2"   # optional, sonst der gerade aktive Platz`;
+  openDialog(`<div class="dlg" style="max-width:760px"><h2>${t('RFID-Leser am Drucker')}</h2>
+    <p>${t('Ein kleiner Leser (PN532 oder RC522 an einem ESP32 mit ESPHome) neben dem Drucker: Spule mit Tag auflegen – PrintDock erkennt sie und legt sie in den Platz. Unbekannte Tags fragt PrintDock einmal ab und merkt sie sich.')}</p>
+    <ol style="line-height:1.6;margin:0 0 10px;padding-left:20px"><li>${t('NTAG213/215-Sticker auf die Spulen kleben (oder die vorhandenen Hersteller-Tags nutzen).')}</li>
+      <li>${t('Leser mit ESPHome flashen, Beispiel unten anpassen (Pins, Druckername).')}</li><li>${t('Tag auflegen – beim ersten Mal in PrintDock die passende Spule wählen.')}</li></ol>
+    <pre class="code" style="white-space:pre;overflow:auto;font-size:12px;max-height:320px">${esc(yaml)}</pre>
+    <p class="meta">${t('Schnittstelle: POST {u} mit {"tag": "…", "printer": "…", "slot": "…"} – oder {"spool": "S-012"} statt tag.', { u: esc(url) })}</p>
+    <div class="dlg-actions"><button class="b" type="button" data-act="copy" data-text="${esc(yaml)}">${t('Kopieren')}</button><button class="b" data-close>${t('Schließen')}</button></div></div>`);
+}
+
+// ================================================================ Feuchte
+
+/** Kleiner Verlauf (48 h) als SVG-Linie mit Warn- und Alarmlinie */
+function humSpark(series, st) {
+  if (!series?.length) return '';
+  const w = 160;
+  const h = 34;
+  const t0 = series[0][0];
+  const t1 = series[series.length - 1][0] || t0 + 1;
+  const x = (tt) => (series.length === 1 ? w : ((tt - t0) / Math.max(1, t1 - t0)) * w);
+  const y = (v) => h - (Math.min(100, Math.max(0, v)) / 80) * h;
+  const pts = series.map(([tt, v]) => `${x(tt).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  return `<svg class="hspark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
+    <line x1="0" x2="${w}" y1="${y(st.humWarn)}" y2="${y(st.humWarn)}" class="hw"/><line x1="0" x2="${w}" y1="${y(st.humAlarm)}" y2="${y(st.humAlarm)}" class="ha"/>
+    <polyline points="${pts}" fill="none"/></svg>`;
+}
+
+function humidityHTML(F) {
+  const list = F.humidity || [];
+  if (!list.length) return '';
+  const st = F.settings;
+  return `<div class="humgrid">${list.map((u) => `<div class="humtile ${u.level} ${u.stale ? 'stale' : ''}">
+      <div class="ht-h"><b>${esc(u.printerName)}</b><span class="meta">${esc(t(u.unit))}${u.temp != null ? ` · ${fnum(u.temp, 0)} °C` : ''}</span></div>
+      <div class="ht-v"><span class="num">${fnum(u.pct, 0)}<small> %</small></span>${humSpark(u.series, st)}</div>
+      <div class="meta">${u.level === 'alarm' ? `<b class="vl bad">${t('Filament trocknen')}</b>` : u.level === 'warn' ? `<b class="vl warn">${t('Trockenmittel prüfen')}</b>` : t('trocken genug')}${u.stale ? ` · ${t('kein aktueller Wert')}` : ''}</div></div>`).join('')}</div>`;
 }
 
 // ================================================================ Verbrauch
@@ -362,7 +576,61 @@ function vUsage() {
     <p class="meta">${t('Bei Drucken aus PrintDock kommt die Menge aus der Slicer-Datei (bei Abbruch anteilig). Bei Drucken, die direkt am Drucker gestartet wurden, schätzt PrintDock sie aus der gemeldeten Filamentlänge (Klipper) – Bambu meldet sie nicht; dort bei Bedarf an der Spule über „− g“ nachtragen.')}</p>`;
 }
 
-Object.assign(VIEW_FN, { spools: vSpools, slots: vSlots, usage: vUsage });
+// ================================================================ Einstellungen → Filament
+
+function vFilSettings() {
+  const F = fil();
+  const st = F.settings;
+  const sm = F.spoolman || {};
+  const smState = !sm.enabled ? `<span class="meta">${t('aus')}</span>`
+    : sm.error ? `<span class="vl bad">${esc(t(sm.error))}</span>`
+      : sm.syncedAt ? `<span class="vl ok">${t('verbunden')}</span> <span class="meta">· ${t('{n} Spulen verknüpft', { n: sm.linked })} · ${t('abgeglichen {t}', { t: tfmt(sm.syncedAt) })}${sm.pending ? ` · ${t('{n} Buchungen warten', { n: sm.pending })}` : ''}</span>` : `<span class="meta">${t('noch nicht abgeglichen')}</span>`;
+  const row = (label, hint, control) => `<div class="lrow"><div class="lt"><b>${label}</b>${hint ? `<span>${hint}</span>` : ''}</div><div class="lc">${control}</div></div>`;
+  const num = (key, val, unit, w = '5rem') => `<span class="inu"><input class="in" type="number" min="0" style="width:${w}" value="${esc(val)}" data-fset="${key}"><span>${unit}</span></span>`;
+  return `<div class="page-head"><h1>${NAV_ICON.gear}${t('Filament')}</h1></div>
+    <div class="gen-grid">
+      <div>
+        <h3 class="shead">${t('Warnungen')}</h3>
+        <div class="sbox">
+          ${row(t('Spule wird knapp'), t('Meldung und Markierung, wenn die Restmenge darunter fällt.'), num('lowGrams', st.lowGrams, 'g'))}
+          ${row(t('Feuchte: Warnung ab'), t('AMS, ACE oder Feuchtesensor – gelb markieren.'), num('humWarn', st.humWarn, '%'))}
+          ${row(t('Feuchte: Alarm ab'), t('Rot markieren und melden („Filament zu feucht“).'), num('humAlarm', st.humAlarm, '%'))}
+        </div>
+        <h3 class="shead">${t('Etiketten und RFID')}</h3>
+        <div class="sbox">
+          ${row(t('Spulen-Etiketten'), t('Mit QR-Code – Scannen öffnet die Spule in PrintDock.'), `<button class="b b-sm" data-fact="labels">${t('Etiketten drucken …')}</button>`)}
+          ${row(t('RFID-Leser am Drucker'), t('ESPHome-Leser (PN532/RC522) über Home Assistant – Spule auflegen, PrintDock legt sie in den Platz.'), `<button class="b b-sm" data-fact="rfidHelp">${t('Einrichten …')}</button>`)}
+        </div>
+      </div>
+      <div>
+        <h3 class="shead">Spoolman</h3>
+        <div class="sbox">
+          ${row(t('Spoolman verwenden'), t('Spulenbestand aus Spoolman übernehmen, Verbrauch und Ort zurückmelden.'), `<label class="tgl"><input type="checkbox" data-smset="enabled" ${sm.enabled ? 'checked' : ''}><span class="sw"></span></label>`)}
+          ${row(t('Adresse'), t('z. B. http://homeassistant.local:7912 (Spoolman-Add-on) oder http://nas:7912'), `<input class="in" id="smUrl" value="${esc(sm.url || '')}" placeholder="http://homeassistant.local:7912" style="width:17rem"><button class="b b-sm" data-fact="smTest">${t('Testen')}</button>`)}
+          ${row(t('Status'), '', `${smState}${sm.enabled ? `<button class="b b-sm" data-fact="smSync">${t('Jetzt abgleichen')}</button>` : ''}`)}
+          ${row(t('Ort mitschicken'), t('In Spoolman steht dann, in welchem Drucker und Platz die Spule steckt.'), `<label class="tgl"><input type="checkbox" data-smset="syncLocation" ${sm.syncLocation !== false ? 'checked' : ''}><span class="sw"></span></label>`)}
+          ${row(t('Neue Spulen anlegen'), t('Spulen, die in PrintDock angelegt werden, auch in Spoolman eintragen (Hersteller und Filament werden gesucht oder angelegt).'), `<label class="tgl"><input type="checkbox" data-smset="pushNew" ${sm.pushNew !== false ? 'checked' : ''}><span class="sw"></span></label>`)}
+        </div>
+        <p class="meta">${t('Mit Spoolman bleibt Spoolman die Quelle: Änderungen an Material, Farbe oder Gewicht dort vornehmen. PrintDock gleicht alle 5 Minuten ab; ist Spoolman nicht erreichbar, holt PrintDock die Buchungen nach.')}</p>
+      </div>
+    </div>`;
+}
+
+document.addEventListener('change', async (e) => {
+  const el = e.target;
+  if (el.dataset?.fset) {
+    await run(() => api('filament/settings', { method: 'PUT', body: { [el.dataset.fset]: el.value } }), t('Gespeichert'));
+    return reload('filament');
+  }
+  if (el.dataset?.smset) {
+    const body = { [el.dataset.smset]: el.checked };
+    if (el.dataset.smset === 'enabled') body.url = $('#smUrl')?.value || '';
+    await run(() => api('spoolman', { method: 'PUT', body }), el.dataset.smset === 'enabled' ? (el.checked ? t('Spoolman eingeschaltet') : t('Spoolman ausgeschaltet')) : t('Gespeichert'));
+    return reload('filament');
+  }
+});
+
+Object.assign(VIEW_FN, { spools: vSpools, slots: vSlots, usage: vUsage, filset: vFilSettings });
 
 // ================================================================ Aktionen
 
@@ -379,6 +647,35 @@ document.addEventListener('click', async (e) => {
       const s = spoolById(id);
       await run(() => api('filament/assign', { method: 'POST', body: { printerId: s.slot.printerId, key: s.slot.key, spoolId: null } }), t('{nr} ins Lager', { nr: s.nr }));
       return reload('filament', 'summary');
+    }
+    case 'smTest': {
+      const r = await run(() => api('spoolman/test', { method: 'POST', body: { url: $('#smUrl').value } }));
+      if (r) toast(t('Spoolman erreichbar{v}', { v: r.version ? ` (${r.version})` : '' }));
+      return reload('filament');
+    }
+    case 'smSync': {
+      el.disabled = true;
+      const r = await run(() => api('spoolman/sync', { method: 'POST' }));
+      if (r) toast(t('Abgeglichen: {a} neu, {u} aktualisiert', { a: r.added, u: r.updated }));
+      return reload('filament');
+    }
+    case 'labels': return labelsDialog(id || null);
+    case 'rfidHelp': return rfidHelpDialog();
+    case 'nfcWrite': return nfcWrite(spoolById(id));
+    case 'sheet': return spoolSheet(spoolById(id));
+    case 'tagAssign': {
+      const sel = $('[data-tagspool]');
+      const r = await run(() => api('rfid/assign', { method: 'POST', body: { spoolId: sel.value } }), t('Tag zugeordnet'));
+      if (r) reload('filament');
+      return;
+    }
+    case 'tagDismiss': {
+      await run(() => api('rfid/dismiss', { method: 'POST' }));
+      return reload('filament');
+    }
+    case 'dried': {
+      await run(() => api(`spools/${el.dataset.id}/dried`, { method: 'POST' }), t('Als getrocknet vermerkt'));
+      return reload('filament');
     }
     case 'weigh': {
       const s = spoolById(id);

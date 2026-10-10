@@ -83,6 +83,8 @@ function cardState(p) {
 }
 
 /** Statusleuchte mit Text – Farbe nie allein (Text steht immer daneben). */
+/** Feuchte-Stufe nach den Grenzwerten unter Einstellungen → Filament */
+const humLevelOf = (pct) => { const st = S.fil?.settings || {}; return pct >= (st.humAlarm ?? 55) ? 'alarm' : pct >= (st.humWarn ?? 40) ? 'warn' : 'ok'; };
 const lampHTML = (v) => `<span class="lamp ${v.cls}"><i class="led ${v.cls}"></i>${esc(v.lamp)}</span>`;
 
 function headSummary() {
@@ -244,9 +246,11 @@ function filamentSectionHTML(p) {
   return `<div class="sect">${t('FILAMENT')}<span class="r">${managed ? `<button class="x" data-view="slots" style="font-size:12.5px">${t('Belegung')}</button>` : ''}</span></div><div class="pbody">${prompt}<div class="fil-units">
     ${Object.entries(groups).map(([name, list]) => {
       const u = units.find((x) => x.name === name);
-      const meta = u ? [u.humidityPct != null ? `${BI.drop.replace('<svg', '<svg width="12" height="12" style="vertical-align:-1px"')} ${u.humidityPct} %` : u.humidity != null ? t('Feuchte-Stufe {n}', { n: u.humidity }) : '', u.temp != null ? `${Math.round(u.temp)} °C` : ''].filter(Boolean).join(' · ') : '';
+      const lvl = u?.humidityPct != null ? humLevelOf(u.humidityPct) : '';
+      const meta = u ? [u.humidityPct != null ? `<span class="hum ${lvl}" title="${esc(lvl === 'alarm' ? t('Filament trocknen') : lvl === 'warn' ? t('Trockenmittel prüfen') : t('Luftfeuchte'))}">${BI.drop.replace('<svg', '<svg width="12" height="12" style="vertical-align:-1px"')} ${u.humidityPct} %</span>` : u.humidity != null ? t('Feuchte-Stufe {n}', { n: u.humidity }) : '', u.temp != null ? `${Math.round(u.temp)} °C` : ''].filter(Boolean).join(' · ') : '';
       return `<div class="fu"><div class="fu-h">${esc(t(name))}<span>${meta}</span></div><div class="fu-slots">${list.map(tile).join('')}</div></div>`;
-    }).join('')}</div></div>`;
+    }).join('')}
+    ${(S.fil?.humidity || []).filter((h) => h.printerId === p.id && !units.some((u) => u.name === h.unit)).map((h) => `<div class="fu-ext"><span class="hum ${h.level}">${BI.drop.replace('<svg', '<svg width="12" height="12" style="vertical-align:-1px"')} ${esc(h.unit)}: ${fnum(h.pct, 0)} %</span></div>`).join('')}</div></div>`;
 }
 
 /** HMS-Meldungen (Bambu) mit Klartext, Wiki-Link und „als Wartung eintragen“. */
