@@ -36,7 +36,7 @@ const CHANNELS = {
     async send(cfg, msg, image) {
       if (!CHANNELS.homeassistant.ha) throw new Error('Home Assistant ist nicht verbunden');
       const style = STYLE[msg.event] || STYLE.test;
-      await CHANNELS.homeassistant.ha.notify(cfg.service, { ...msg, title: `${style.emoji} ${msg.title}` }, { image: Boolean(image), priority: style.priority });
+      await CHANNELS.homeassistant.ha.notify(cfg.service, { ...msg, title: `${style.emoji} ${msg.title}` }, { image, priority: style.priority });
     },
   },
 

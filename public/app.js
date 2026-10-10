@@ -1040,16 +1040,25 @@ function vNotify() {
   const rows = S.channels.map((c) => {
     const type = S.notifyTypes.channels.find((x) => x.id === c.type);
     const r = c.lastResult;
-    return `<article class="card"><h3>${esc(c.name)}</h3>
-      <div class="meta">${esc(t(type?.label || c.type))}${c.enabled ? '' : ` · <b>${t('deaktiviert')}</b>`}${c.attachImage ? ` · ${t('mit Kamerabild')}` : ''}</div>
-      <div class="facts" style="margin:8px 0">${c.events.map((e) => `<span class="pill">${esc(t(evLabel[e] || e))}</span>`).join(' ') || `<span>${t('keine Ereignisse gewählt')}</span>`}</div>
-      ${r ? `<div class="meta" style="color:${r.ok ? 'var(--run)' : 'var(--fault)'}">${r.ok ? t('Zuletzt gesendet {t}', { t: tfmt(r.at) }) : t('Fehlgeschlagen: {e}', { e: esc(t(r.error)) })}</div>` : ''}
-      <div class="btns"><button class="b b-sm" data-act="nTest" data-id="${c.id}">${t('Test senden')}</button><button class="b b-sm" data-act="nEdit" data-id="${c.id}">${ICON.edit}${t('Bearbeiten')}</button></div></article>`;
+    const status = r ? `<span class="${r.ok ? 'vl ok' : 'vl bad'}" title="${esc(r.ok ? '' : t(r.error || ''))}">${r.ok ? t('zuletzt {t}', { t: tfmt(r.at) }) : t('Fehler')}</span>` : `<span class="meta">${t('noch nichts gesendet')}</span>`;
+    return `<div class="nrow ${c.enabled ? '' : 'off'}">
+      <div class="lt"><b>${esc(c.name)}</b><span>${esc(t(type?.label || c.type))} · ${c.events.map((e) => esc(t(evLabel[e] || e))).join(', ') || t('keine Ereignisse gewählt')}</span></div>
+      <div class="nstat">${status}</div>
+      <label class="nimg" title="${esc(type?.image ? t('Kamerabild mitschicken') : t('Dieser Dienst kann keine Bilder'))}">${ICON.cam || ''}<span class="tgl"><input type="checkbox" data-n-set="attachImage" data-id="${c.id}" ${c.attachImage && type?.image ? 'checked' : ''} ${type?.image ? '' : 'disabled'}><span class="sw"></span></span></label>
+      <label class="nimg" title="${esc(t('Kanal aktiv'))}"><span class="tgl"><input type="checkbox" data-n-set="enabled" data-id="${c.id}" ${c.enabled ? 'checked' : ''}><span class="sw"></span></span></label>
+      <div class="nbtn"><button class="b b-sm" data-act="nTest" data-id="${c.id}">${t('Test')}</button><button class="b b-sm" data-act="nEdit" data-id="${c.id}" aria-label="${esc(t('Bearbeiten'))}">${ICON.edit}</button></div></div>`;
   }).join('');
-  return `<div class="bar-row"><h2>${t('Benachrichtigungen')}</h2><button class="b b-sm b-go" data-act="nEdit">${ICON.plus}${t('Kanal hinzufügen')}</button></div>
-    <p class="intro">${t('Meldungen bei Druckende, Störung, Pause (z. B. Filament leer) oder fälliger Wartung – auf Wunsch mit Kamerabild. Am schnellsten geht es mit der App ntfy.')}</p>
-    ${S.channels.length ? `<div class="cards">${rows}</div>` : `<div class="list"><div class="empty">${t('Noch kein Kanal eingerichtet.')}</div></div>`}`;
+  return `<div class="page-head"><h1>${NAV_ICON.gear}${t('Benachrichtigungen')}</h1><span class="grow"></span><button class="b b-sm b-go" data-act="nEdit">${ICON.plus}${t('Kanal hinzufügen')}</button></div>
+    <p class="meta" style="margin:-6px 0 12px">${t('Meldungen bei Druckende, Störung, Pause (z. B. Filament leer) oder fälliger Wartung – je Kanal mit oder ohne Kamerabild vom Moment des Ereignisses.')}</p>
+    ${S.channels.length ? `<div class="sbox nlist"><div class="nrow nhead"><span>${t('Kanal')}</span><span>${t('Status')}</span><span>${t('Bild')}</span><span>${t('Aktiv')}</span><span></span></div>${rows}</div>` : `<div class="list"><div class="empty">${t('Noch kein Kanal eingerichtet.')}</div></div>`}`;
 }
+
+document.addEventListener('change', async (e) => {
+  const el = e.target.closest?.('[data-n-set]');
+  if (!el) return;
+  await run(() => api(`notifications/${el.dataset.id}/set`, { method: 'POST', body: { [el.dataset.nSet]: el.checked } }), el.dataset.nSet === 'attachImage' ? (el.checked ? t('Kamerabild wird mitgeschickt') : t('Ohne Kamerabild')) : null);
+  reload('channels');
+});
 
 function channelDialog(c = null) {
   const T = S.notifyTypes;

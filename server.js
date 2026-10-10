@@ -481,6 +481,15 @@ async function handleApi(req, res, url) {
       broadcast('channels', null);
       return sendJson(res, 200, publicChannel(channels[idx]));
     }
+    // Schnellschalter aus der Liste: Kamerabild an/aus, Kanal an/aus
+    if (action === 'set' && req.method === 'POST') {
+      const b = await readBody(req);
+      if (typeof b.attachImage === 'boolean') channels[idx].attachImage = b.attachImage;
+      if (typeof b.enabled === 'boolean') channels[idx].enabled = b.enabled;
+      saveChannels();
+      broadcast('channels', null);
+      return sendJson(res, 200, publicChannel(channels[idx]));
+    }
     if (!action && req.method === 'DELETE') {
       channels.splice(idx, 1);
       channelResults.delete(id);
