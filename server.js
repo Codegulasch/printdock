@@ -150,6 +150,7 @@ ha = new HomeAssistant({
   summary: () => ({ ...production.summary(), ...filament.summary() }),
   port: PORT,
 });
+CHANNELS.homeassistant.ha = ha;
 
 const ACTIVE = new Set(['preparing', 'printing', 'paused']);
 const ENDED = { finished: 'erfolgreich', cancelled: 'abgebrochen', error: 'fehlgeschlagen' };
@@ -324,6 +325,18 @@ async function restartSelf() {
   return 'manual';
 }
 
+const updater = require('./lib/updater');
+/** Neuere Version bekannt? (für den Hinweis in der Oberfläche) */
+function updateAvailable() {
+  const last = updater.settings().last;
+  return last?.latest && updater.cmp(last.latest, require('./package.json').version) > 0 ? last.latest.replace(/^v/, '') : null;
+}
+// Einmal am Tag nach Updates sehen (Fehler still – z. B. privates Repository ohne Token)
+setTimeout(function autoCheck() {
+  updater.check().then(() => broadcast('app', null)).catch(() => {});
+  setTimeout(autoCheck, 24 * 3600_000).unref();
+}, 90_000).unref();
+
 function sendJson(res, status, data) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(data));
@@ -385,7 +398,7 @@ async function handleApi(req, res, url) {
   const [, resource, id, action] = parts;
 
   // ---- App-Einstellungen und Login (ohne Anmeldung erreichbar)
-  if (resource === 'app' && !id && req.method === 'GET') return sendJson(res, 200, { ...app.publicSettings(req), directUrl: ha.directUrl });
+  if (resource === 'app' && !id && req.method === 'GET') return sendJson(res, 200, { ...app.publicSettings(req), directUrl: ha.directUrl, update: updateAvailable() });
   if (resource === 'login' && req.method === 'POST') {
     app.login(req, res, await readBody(req));
     return sendJson(res, 200, { ok: true });
@@ -404,7 +417,7 @@ async function handleApi(req, res, url) {
       app.save(await readBody(req));
       if (before !== app.moduleOn('homeassistant')) ha.init().catch(() => {});
       broadcast('app', null);
-      return sendJson(res, 200, { ...app.publicSettings(req), directUrl: ha.directUrl });
+      return sendJson(res, 200, { ...app.publicSettings(req), directUrl: ha.directUrl, update: updateAvailable() });
     }
     if (id === 'key' && req.method === 'GET') return sendJson(res, 200, { apiKey: app.apiKey });
   }
@@ -500,6 +513,7 @@ async function handleApi(req, res, url) {
     }
     if (id === 'test' && req.method === 'POST') return sendJson(res, 200, await ha.test());
     if (id === 'entities' && req.method === 'GET') return sendJson(res, 200, await ha.entities());
+    if (id === 'notify-services' && req.method === 'GET') return sendJson(res, 200, await ha.notifyServices());
     if (id === 'restart' && req.method === 'POST') return sendJson(res, 200, await ha.restartCore());
     if (id === 'card' && req.method === 'POST') {
       if (ha.publicSettings().addon) {
@@ -509,6 +523,18 @@ async function handleApi(req, res, url) {
       }
       return sendJson(res, 200, await ha.registerCardResource());
     }
+  }
+
+  // ---- Updates
+  if (resource === 'update') {
+    if (!id && req.method === 'GET') return sendJson(res, 200, updater.settings());
+    if (!id && req.method === 'PUT') return sendJson(res, 200, updater.saveSettings(await readBody(req)));
+    if (id === 'check' && req.method === 'POST') {
+      const r = await updater.check();
+      broadcast('app', null);
+      return sendJson(res, 200, r);
+    }
+    if (id === 'install' && req.method === 'POST') return sendJson(res, 200, await updater.install(restartSelf));
   }
 
   // ---- Datensicherung
@@ -575,6 +601,12 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, { ok: true });
     }
     if (id === 'settings' && req.method === 'PUT') return sendJson(res, 200, filament.saveSettings(await readBody(req)));
+    if (id === 'mapping' && req.method === 'GET') {
+      const cfg = printerConfigs.find((p) => p.id === url.searchParams.get('printerId'));
+      const item = production.getItem(url.searchParams.get('queueId'));
+      if (!cfg || !item) throw httpError(404, 'Drucker oder Eintrag nicht gefunden');
+      return sendJson(res, 200, filament.mappingFor(cfg, files.get(item.fileId), item.options));
+    }
     if (id === 'check' && req.method === 'GET') {
       const cfg = printerConfigs.find((p) => p.id === url.searchParams.get('printerId'));
       const item = production.getItem(url.searchParams.get('queueId'));
@@ -658,6 +690,16 @@ async function handleApi(req, res, url) {
     if (action === 'start' && req.method === 'POST') {
       const body = await readBody(req);
       if (app.plateCheck && body.plateConfirmed !== true) throw httpError(409, 'Bitte bestätigen, dass die Druckplatte geräumt ist');
+      // Filament-Zuordnung aus dem Startdialog übernehmen (Bambu: als ams_mapping an den Drucker)
+      if (Array.isArray(body.slotMap) && body.slotMap.length) {
+        const item = production.getItem(id);
+        const cfg = printerConfigs.find((p) => p.id === body.printerId);
+        if (item && cfg) {
+          const options = { ...(item.options || {}), slotMap: body.slotMap };
+          if (filament.canMap(cfg)) options.amsMapping = filament.amsMappingFor(files.get(item.fileId), body.slotMap.map(String));
+          production.updateItem(id, { options });
+        }
+      }
       if (body.printerId && body.plateConfirmed) production.setPlateClear(body.printerId, true);
       return sendJson(res, 200, await production.start(id, body.printerId, { manual: true }));
     }

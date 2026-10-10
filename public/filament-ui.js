@@ -59,6 +59,56 @@ function filamentCheckHTML(list) {
   return `<div class="chks">${rows}</div>`;
 }
 
+// ================================================================ Filament-Zuordnung beim Druckstart
+
+const hexRgb = (h) => (/^#[0-9a-f]{6}$/i.test(h || '') ? [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) : null);
+function colorDist(a, b) {
+  const x = hexRgb(a);
+  const y = hexRgb(b);
+  return x && y ? Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) : null;
+}
+const matKey = (m) => String(m || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+
+/** Zustand einer Zeile: passt / andere Farbe / anderes Material / zu wenig / leer */
+function fmapState(f, sl) {
+  if (!sl) return `<span class="vl warn">${t('kein Filament gewählt')}</span>`;
+  if (sl.spool && f.grams && sl.spool.remaining < f.grams) return `<span class="vl bad">${t('zu wenig: {g} g da', { g: Math.round(sl.spool.remaining) })}</span>`;
+  if (f.type && sl.material && matKey(f.type) !== matKey(sl.material)) return `<span class="vl warn">${t('Material: {a} statt {b}', { a: esc(sl.material), b: esc(f.type) })}</span>`;
+  const d = colorDist(f.color, sl.color);
+  if (d != null && d > 70) return `<span class="vl warn">${t('andere Farbe')}</span>`;
+  return `<span class="vl ok">${t('passt')}</span>`;
+}
+
+function filamentMapHTML(map) {
+  if (!map?.filaments?.length || !map.slots?.length) return '';
+  const slotLabel = (sl) => `${t(sl.label)} – ${sl.material || '?'}${sl.spool ? ` · ${sl.spool.nr}${sl.spool.colorName ? ` ${sl.spool.colorName}` : ''} (${Math.round(sl.spool.remaining)} g)` : ''}`;
+  const rows = map.filaments.map((f, i) => {
+    const key = map.suggested[i];
+    const sl = map.slots.find((x) => x.key === key);
+    const target = map.mappable
+      ? `<select class="in" data-fm="${i}">${map.slots.map((x) => `<option value="${esc(x.key)}" ${x.key === key ? 'selected' : ''}>${esc(slotLabel(x))}</option>`).join('')}</select>`
+      : `<span class="meta">${sl ? esc(slotLabel(sl)) : t('kein Filament')}</span>`;
+    return `<div class="fm-row" data-i="${i}">
+      <span class="swatch" style="background:${esc(f.color || 'transparent')}" title="${esc(t('Farbe im Slice'))}"></span>
+      <span class="fm-need"><b>${esc(f.type || t('Filament {n}', { n: i + 1 }))}</b>${f.grams ? ` <span class="meta">${Math.round(f.grams)} g</span>` : ''}</span>
+      <span class="fm-arrow">→</span>
+      <span class="swatch" data-fm-sw style="background:${esc(sl?.color || 'transparent')}" title="${esc(t('Farbe im Drucker'))}"></span>
+      <span class="fm-target">${target}</span>
+      <span class="fm-state" data-fm-st>${fmapState(f, sl)}</span></div>`;
+  }).join('');
+  return `<div class="fmap"><div class="meta" style="margin-bottom:6px">${map.mappable ? t('Filament – vorgewählt nach Farbe und Material aus dem Slice, bei Bedarf ändern:') : t('Filament laut Slice – der Drucker nimmt die Werkzeuge so, wie im Slicer zugeordnet:')}</div>${rows}</div>`;
+}
+
+/** Nach Änderung einer Auswahl Farbe und Zustand der Zeile aktualisieren. */
+function filamentMapUpdate(box, map, sel) {
+  const i = Number(sel.dataset.fm);
+  const row = sel.closest('.fm-row');
+  const sl = map.slots.find((x) => x.key === sel.value);
+  map.suggested[i] = sel.value;
+  $('[data-fm-sw]', row).style.background = sl?.color || 'transparent';
+  $('[data-fm-st]', row).innerHTML = fmapState(map.filaments[i], sl);
+}
+
 // ================================================================ Spulen
 
 function vSpools() {

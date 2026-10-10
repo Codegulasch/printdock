@@ -251,6 +251,7 @@ function vGeneral() {
     <div class="sbox">
       ${srow(t('Sprache'), t('Oberfläche, Benachrichtigungen und Home Assistant'), `<div class="chips">${[['de', 'Deutsch'], ['en', 'English']].map(([k, l]) => `<button class="chip" data-gact="lang" data-v="${k}" aria-pressed="${a.lang === k}">${l}</button>`).join('')}</div>`)}
       ${srow(t('Erscheinungsbild'), '', themePicker(themeGet(), 'data-g-theme'))}
+      ${srow(t('Größe'), t('Schrift und Abstände der ganzen Oberfläche'), `<div class="chips">${[['compact', 'Kompakt'], ['standard', 'Standard'], ['large', 'Groß']].map(([k, l]) => `<button class="chip" data-gact="density" data-v="${k}" aria-pressed="${(a.density || 'standard') === k}">${t(l)}</button>`).join('')}</div>`)}
       ${srow(t('Akzentfarbe'), t('Statusfarben bleiben immer gleich'), accentPicker(a.accent, 'data-g-accent'))}
       ${srow(t('Druckplatte'), t('Vor jedem Start aus Warteschlange oder Auftrag fragen, ob die Platte geräumt ist'), `<label class="tgl"><input type="checkbox" data-g-plate ${a.plateCheck ? 'checked' : ''}><span class="sw"></span></label>`)}
     </div>
@@ -263,7 +264,22 @@ function vSystem() {
   const a = S.app;
   if (!a) return `<div class="empty">${t('Lade …')}</div>`;
   const demoLoaded = S.printers.some((p) => p.demo);
+  const U = S.upd || {};
+  const L = U.result || U.last || null;
+  const modeTxt = { addon: t('Home-Assistant-Add-on'), docker: t('Docker'), node: t('Node.js') }[U.mode] || '';
+  const newer = L?.newer && L.latest;
   return `<div class="page-head"><h1>${NAV_ICON.gear}${t('System')}</h1></div>
+    <h3 class="shead">${t('Updates')}</h3>
+    <div class="sbox">
+      ${srow(t('Version'), modeTxt, `<b>PrintDock ${esc(a.version)}</b>${newer ? ` <span class="vl warn">${t('{v} verfügbar', { v: esc(String(L.latest).replace(/^v/, '')) })}</span>` : L ? ` <span class="vl ok">${t('aktuell')}</span>` : ''}`)}
+      ${srow(t('Nach Updates suchen'), L?.at ? t('Zuletzt geprüft: {d}', { d: new Date(L.at).toLocaleString() }) : t('PrintDock sieht außerdem einmal am Tag nach.'), `<button class="b b-sm" data-gact="updCheck">${t('Jetzt prüfen')}</button>${newer && U.mode !== 'docker' ? `<button class="b b-sm b-go" data-gact="updInstall">${t('Auf {v} aktualisieren', { v: esc(String(L.latest).replace(/^v/, '')) })}</button>` : ''}`)}
+      ${newer && L.notes ? `<div class="srow"><div class="sl"><b>${t('Neu in dieser Version')}</b></div><div class="sc"><pre class="notes">${esc(L.notes)}</pre></div></div>` : ''}
+      ${newer && U.mode === 'docker' ? srow(t('Docker'), t('Im Container das Image aktualisieren:'), '<span class="code">docker compose pull &amp;&amp; docker compose up -d</span>') : ''}
+      <details class="adv srow-adv"><summary>${t('Update-Quelle')}</summary>
+        ${srow(t('GitHub-Repository'), t('Besitzer/Name'), `<input class="in" id="uRepo" value="${esc(U.repo || '')}" style="max-width:22rem">`)}
+        ${srow(t('Zugangstoken'), t('Nur für private Repositories: GitHub → Settings → Developer settings → Fine-grained token, Zugriff nur auf dieses Repository, Berechtigung „Contents: Read-only“.'), `<input class="in" id="uToken" type="password" value="${esc(U.token || '')}" autocomplete="off" style="max-width:22rem"><button class="b b-sm b-done" data-gact="updSave">${t('Speichern')}</button>`)}
+      </details>
+    </div>
     <h3 class="shead">${t('Datensicherung')}</h3>
     <div class="sbox">
       ${srow(t('Sicherung herunterladen'), t('Eine Datei mit allem: Einstellungen, Drucker, Warteschlange, Aufträge, Spulen, Wartung, Verlauf und Druckdateien.'), `<a class="b b-sm b-done" href="api/backup" download>${t('Herunterladen')}</a>`)}
@@ -282,7 +298,6 @@ function vSystem() {
     </div>
     <h3 class="shead">${t('Einrichtung')}</h3>
     <div class="sbox">
-      ${srow(t('Version'), '', `<b>PrintDock ${esc(a.version)}</b>${a.addon ? ` · ${t('Home-Assistant-Add-on')}` : ''}`)}
       ${srow(t('Einrichtungsassistent'), t('Erneut durchlaufen, z. B. um Funktionen neu auszuwählen.'), `<button class="b b-sm" data-gact="wizard">${t('Assistent starten')}</button>`)}
       ${on('demo') ? srow(t('Demo-Daten'), t('5 simulierte Drucker mit Dateien, Spulen, Aufträgen und Verlauf – zum Ausprobieren. Eigene Daten bleiben unberührt.'), demoLoaded
         ? `<button class="b b-sm b-fault" data-hact="demoRemove">${t('Demo-Daten entfernen')}</button>`
@@ -291,6 +306,16 @@ function vSystem() {
 }
 
 VIEW_FN.system = vSystem;
+// Update-Einstellungen laden, wenn die System-Seite offen ist
+const _renderSys = render;
+// eslint-disable-next-line no-global-assign
+render = function renderWithUpdate() {
+  _renderSys();
+  if (S.view === 'system' && !S.upd && !S.updLoading) {
+    S.updLoading = true;
+    api('update').then((u) => { S.upd = u; S.updLoading = false; if (S.view === 'system') _renderSys(); }).catch(() => (S.updLoading = false));
+  }
+};
 VIEW_FN.general = vGeneral;
 
 async function saveApp(body, okText = t('Gespeichert')) {
@@ -315,6 +340,41 @@ document.addEventListener('click', async (e) => {
   const el = e.target.closest('[data-gact]');
   if (!el) return;
   const act = el.dataset.gact;
+  if (act === 'density') return saveApp({ density: el.dataset.v });
+  if (act === 'updSave') {
+    S.upd = await run(() => api('update', { method: 'PUT', body: { repo: $('#uRepo').value, token: $('#uToken').value } }), t('Gespeichert'));
+    return render();
+  }
+  if (act === 'updCheck') {
+    el.disabled = true;
+    const r = await run(() => api('update/check', { method: 'POST' }));
+    if (r) S.upd = { ...r, result: r };
+    return render();
+  }
+  if (act === 'updInstall') {
+    const v = String(S.upd?.result?.latest || S.upd?.last?.latest || '').replace(/^v/, '');
+    if (!(await confirmBox(t('Update installieren'), S.upd?.mode === 'addon' ? t('PrintDock {v} wird geladen und von Home Assistant neu gebaut. Das dauert einige Minuten (auf dem Raspberry Pi bis zu 10). Deine Daten bleiben erhalten.', { v }) : t('PrintDock {v} wird geladen und installiert, danach startet PrintDock neu. Deine Daten bleiben erhalten.', { v }), t('Aktualisieren')))) return;
+    overlay(`<div class="wizard" style="max-width:480px"><h2>${t('Update auf {v} …', { v: esc(v) })}</h2><p class="intro" data-rs>${t('Wird heruntergeladen …')}</p></div>`);
+    const msg = (txt) => { const x = document.querySelector('#overlay [data-rs]'); if (x) x.textContent = txt; };
+    let r;
+    try {
+      r = await api('update/install', { method: 'POST' });
+    } catch (err) {
+      closeOverlay();
+      return toast(t(err.message), true);
+    }
+    if (r.restart === 'manual') return msg(t('Installiert. Bitte PrintDock jetzt neu starten.'));
+    msg(r.restart === 'supervisor' ? t('Home Assistant baut PrintDock {v} – die Seite lädt sich danach selbst neu.', { v: r.version }) : t('PrintDock startet neu …'));
+    // Warten, bis die neue Version antwortet
+    for (let i = 0; i < 300; i++) {
+      await new Promise((res) => setTimeout(res, 3000));
+      try {
+        const x = await fetch('api/app', { cache: 'no-store' });
+        if (x.ok && (await x.json()).version === r.version) return location.reload();
+      } catch {}
+    }
+    return msg(t('Das dauert ungewöhnlich lange. Bitte im Add-on-Protokoll nachsehen.'));
+  }
   if (act === 'lang') {
     try { localStorage.removeItem('pd-lang'); } catch {}
     return saveApp({ lang: el.dataset.v });

@@ -104,6 +104,10 @@ On your home network PrintDock runs without login. For access from outside, enab
 
 Passwords are stored with scrypt, sessions use HttpOnly cookies, 5 wrong attempts lock for a minute. Never forward port 3080 directly on your router.
 
+## Updates
+
+*Settings → System → Updates* checks GitHub for a new version (also automatically once a day) and installs it with one click: as an add-on Home Assistant rebuilds PrintDock, on PC and Raspberry Pi PrintDock replaces its files and restarts. For a private repository enter a read-only GitHub token under “Update source”. Docker: `docker compose pull && docker compose up -d`.
+
 ## Backup and moving
 
 *Settings → System → Backup* downloads a single `.zip` with everything: settings, printers, queue, orders, spools, maintenance, history and print files. Restore it on the same page or directly in the setup wizard of a fresh installation (e.g. a new Home Assistant). PrintDock restarts by itself as add-on, Docker container or systemd service; otherwise restart it manually. The previous state is kept in `before-restore-…` inside the data folder. As an add-on, PrintDock is also part of every Home Assistant backup.
@@ -121,6 +125,7 @@ Passwords are stored with scrypt, sessions use HttpOnly cookies, 5 wrong attempt
 type: custom:printdock-card
 entity: sensor.workshop_x2d_status
 show_camera: true      # camera button (camera_open: true = shown initially)
+height: 560            # optional: equal height for all cards, content scrolls
 
 type: custom:printdock-overview-card
 sections: [printers, queue, orders, spools, maintenance]

@@ -187,6 +187,16 @@ function formError(d, msg) {
 
 /** Formularfeld aus Treiber-/Kanal-Feldbeschreibung. */
 function fieldHtml(f, value) {
+  if (f.type === 'haNotify') {
+    // Ziele aus Home Assistant (Companion-Apps, Meldungsglocke); ohne Verbindung von Hand eintragen
+    const list = S.haNotify || [];
+    if (list.length) {
+      const cur = value || list.find((x) => x.id.startsWith('notify.mobile_app_'))?.id || list[0].id;
+      return `<label>${esc(t(f.label))}<select name="cfg_${esc(f.key)}">${list.map((o) => `<option value="${esc(o.id)}" ${o.id === cur ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}${cur && !list.some((o) => o.id === cur) ? `<option value="${esc(cur)}" selected>${esc(cur)}</option>` : ''}</select></label>`;
+    }
+    return `<label>${esc(t(f.label))}<input name="cfg_${esc(f.key)}" required value="${esc(value ?? '')}" placeholder="notify.mobile_app_mein_handy" autocomplete="off">
+      <span class="meta">${S.haNotify === null ? t('Ziele werden aus Home Assistant geladen …') : t('Keine Verbindung zu Home Assistant – Ziel von Hand eintragen oder unter Einstellungen → Home Assistant verbinden.')}</span></label>`;
+  }
   if (f.type === 'select') {
     const cur = value ?? f.default;
     return `<label>${esc(t(f.label))}<select name="cfg_${esc(f.key)}">${f.options.map((o) => `<option value="${esc(o.value)}" ${o.value === cur ? 'selected' : ''}>${esc(t(o.label))}</option>`).join('')}</select></label>`;
@@ -258,6 +268,7 @@ function langPref() {
 function applyAppearance() {
   const a = S.app || {};
   document.documentElement.dataset.accent = a.accent || 'cobalt';
+  document.documentElement.dataset.density = a.density || 'standard';
   setLang(langPref() || a.lang || 'de');
   applyTheme();
 }
@@ -278,6 +289,7 @@ function badges() {
     orders: s.ordersLate ? `<span class="badge">${s.ordersLate}</span>` : '',
     maint: s.maintDue ? `<span class="badge warn">${s.maintDue}</span>` : '',
     spools: s.spoolsLow ? `<span class="badge warn">${s.spoolsLow}</span>` : '',
+    system: S.app?.update ? `<span class="badge info" title="${esc(t('Update verfügbar'))}">↑</span>` : '',
   };
 }
 
@@ -590,15 +602,22 @@ async function startItem(itemId, printerId = null) {
     <div class="dlg-actions"><button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-go" data-ok ${mustConfirm ? 'disabled' : ''}>${ICON.play}${t('Jetzt starten')}</button></div></form>`);
   const form = $('form', d);
   const okBtn = $('[data-ok]', d);
+  let fmap = null;
   const loadCheck = async () => {
     const box = $('[data-fcheck]', d);
     box.innerHTML = '';
-    if (!on('filament') || typeof filamentCheckHTML !== 'function') return;
+    fmap = null;
+    if (typeof filamentMapHTML !== 'function') return;
     try {
-      const check = await api(`filament/check?printerId=${encodeURIComponent(form.printerId.value)}&queueId=${encodeURIComponent(itemId)}`);
-      box.innerHTML = filamentCheckHTML(check);
-    } catch { /* ohne Prüfung */ }
+      // Welches Filament aus dem Slice kommt aus welchem Platz? Vorschlag nach Farbe und Material
+      fmap = await api(`filament/mapping?printerId=${encodeURIComponent(form.printerId.value)}&queueId=${encodeURIComponent(itemId)}`);
+      box.innerHTML = filamentMapHTML(fmap);
+    } catch { /* ohne Zuordnung */ }
   };
+  $('[data-fcheck]', d).addEventListener('change', (e) => {
+    const sel = e.target.closest('[data-fm]');
+    if (sel && fmap) filamentMapUpdate($('[data-fcheck]', d), fmap, sel);
+  });
   form.printerId.addEventListener('change', loadCheck);
   form.plate?.addEventListener('change', () => (okBtn.disabled = !form.plate.checked));
   loadCheck();
@@ -609,7 +628,7 @@ async function startItem(itemId, printerId = null) {
     okBtn.disabled = true;
     try {
       toast(t('Wird an {p} übertragen …', { p: p?.name }));
-      await api(`queue/${itemId}/start`, { method: 'POST', body: { printerId: pid, plateConfirmed: mustConfirm ? form.plate.checked : true } });
+      await api(`queue/${itemId}/start`, { method: 'POST', body: { printerId: pid, plateConfirmed: mustConfirm ? form.plate.checked : true, slotMap: fmap?.mappable && fmap.filaments.length ? fmap.suggested : undefined } });
       d.close();
       toast(t('Druck auf {p} gestartet', { p: p?.name }));
       reload('queue', 'summary', 'orders');
@@ -932,18 +951,21 @@ function vHistory() {
 // ================================================================ Einstellungen: Drucker
 
 function vPrinters() {
-  const cards = S.printers.map((p) => {
+  const rows = S.printers.map((p) => {
     const drv = S.drivers.find((x) => x.id === p.driver);
     const st = S.maint?.stats?.[p.id];
     const v = pView(p);
-    return `<article class="card"><h3>${esc(p.name)}</h3>
-      <div class="facts" style="margin-bottom:10px"><span>${t('Anbindung')} <b>${esc(t(drv?.label || p.driver))}</b></span><span>${t('Modell')} <b>${esc(p.settings?.model || '–')}</b></span>
-      ${on('queue') ? `<span>${t('Auto-Start')} <b>${p.settings?.autoStart ? t('an') : t('aus')}</b></span>` : ''}<span>${t('Betrieb')} <b>${fnum(st?.hours, 1)} h</b></span>
-      <span class="lampi ${v.cls}"><i class="led ${v.cls}"></i><b>${esc(v.lamp)}</b></span></div>
-      <button class="b b-sm" data-act="editPrinter" data-id="${p.id}">${ICON.edit}${t('Einstellen')}</button></article>`;
+    return `<div class="prow" data-act="editPrinter" data-id="${p.id}" role="button" tabindex="0" title="${esc(t('Einstellen'))}">
+      <span class="lampi ${v.cls}"><i class="led ${v.cls}"></i></span>
+      <b class="pr-name">${esc(p.name)}</b>
+      <span class="meta">${esc(p.settings?.model || t(drv?.label || p.driver))}</span>
+      <span class="meta">${esc(v.lamp)}</span>
+      <span class="meta num">${on('maintenance') ? `${fnum(st?.hours, 1)} h` : ''}</span>
+      <span class="meta">${on('queue') && p.settings?.autoStart ? t('Auto-Start') : ''}${on('homeassistant') && p.settings?.powerEntity ? `${on('queue') && p.settings?.autoStart ? ' · ' : ''}${t('Steckdose')}` : ''}</span>
+      <span class="pr-edit">${ICON.edit}</span></div>`;
   }).join('');
-  return `<div class="bar-row"><h2>${t('Drucker#pl')}</h2><button class="b b-sm b-go" data-act="editPrinter">${ICON.plus}${t('Drucker hinzufügen')}</button></div>
-    ${S.printers.length ? `<div class="cards">${cards}</div>` : `<div class="list"><div class="empty">${t('Noch kein Drucker angelegt.')}</div></div>`}`;
+  return `<div class="page-head"><h1>${NAV_ICON.gear}${t('Drucker#pl')}</h1><span class="grow"></span><button class="b b-sm b-go" data-act="editPrinter">${ICON.plus}${t('Drucker hinzufügen')}</button></div>
+    ${S.printers.length ? `<div class="sbox plist">${rows}</div>` : `<div class="list"><div class="empty">${t('Noch kein Drucker angelegt.')}</div></div>`}`;
 }
 
 function printerDialog(p = null) {
@@ -1050,6 +1072,13 @@ function channelDialog(c = null) {
   };
   renderFields(c?.config);
   form.type.addEventListener('change', () => renderFields());
+  // Home-Assistant-Ziele einmal laden, dann die Felder neu zeichnen
+  if (S.haNotify === undefined) {
+    S.haNotify = null;
+    api('ha/notify-services').then((l) => (S.haNotify = l)).catch(() => (S.haNotify = [])).finally(() => {
+      if (d.open && form.type.value === 'homeassistant') renderFields({ ...(c?.config || {}), ...readFields(form) });
+    });
+  }
   $('[data-del]', d)?.addEventListener('click', async () => {
     await run(() => api(`notifications/${c.id}`, { method: 'DELETE' }), t('Kanal entfernt'));
     d.close();

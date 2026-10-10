@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.7
+- **Updates from within PrintDock:** *Settings → System → Updates* checks GitHub for a newer version (also automatically once a day) and installs it with one click – as a Home Assistant add-on Home Assistant rebuilds the add-on, on a PC/Raspberry Pi PrintDock replaces its files and restarts. For a private repository enter a read-only GitHub token. The add-on now asks for supervisor "manager" rights and access to the add-on folder for this
+- **Leaner interface:** everything is sized relative to one base size; new setting *Size* (compact / standard / large), standard is noticeably smaller than before. Printer settings as a compact list, smaller feature tiles and printer cards
+- **Dashboard cards:** new option `height` (px) for equal card heights – longer content scrolls inside the card. In the sections view the cards can be resized freely and fill their cell. Wide cards show two columns, narrow cards get more compact
+
+## 0.7.6
+- **Notifications via Home Assistant:** new channel "Home Assistant (Companion app)" – to the phone app (with camera image via Home Assistant, also on the go; tapping opens PrintDock) or as a notification in the Home Assistant sidebar. No setup needed as an add-on
+- **Filament assignment when starting a print:** the start dialog shows each filament of the slice with its colour and preselects the best matching slot (material and colour). On Bambu printers it can be changed and is sent to the printer as AMS mapping; spool booking follows the choice
+
 ## 0.7.5
 - After an update the browser or the Home Assistant app could keep using the old interface (old settings layout, no camera fallback). PrintDock now loads its scripts with the version number, lets the browser revalidate every file and reloads the page by itself when the server is newer
 - Slicer: the "Device" tab in OrcaSlicer/Snapmaker Orca showed `{"error":"Nicht gefunden"}` – it now opens PrintDock

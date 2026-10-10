@@ -11,7 +11,7 @@
  * https://github.com/Codegulasch/printdock
  */
 (() => {
-  const VERSION = '0.7.5';
+  const VERSION = '0.7.7';
 
   // ------------------------------------------------------------------ texts
   const TXT = {
@@ -22,7 +22,7 @@
       empty: 'leer', printers: 'Drucker', queue: 'Warteschlange', orders: 'Aufträge', spools: 'Spulen knapp', maintenance: 'Wartung',
       nothing: 'Nichts eingeplant', noOrders: 'Keine offenen Aufträge', noSpools: 'Alle Spulen ausreichend', noMaint: 'Keine Wartung fällig',
       due: 'fällig', soon: 'bald', late: 'überfällig', of: 'von', free: 'frei', run: 'druckt', wait: 'wartet', fault: 'Störung', off: 'offline',
-      notFound: 'PrintDock-Entität nicht gefunden. Sind in PrintDock die MQTT-Geräte eingeschaltet?', messages: 'Meldungen', camera: 'Kamera', camShow: 'Kamera zeigen', camHide: 'Kamera ausblenden', cameraOpen: 'Kamera anfangs zeigen',
+      notFound: 'PrintDock-Entität nicht gefunden. Sind in PrintDock die MQTT-Geräte eingeschaltet?', messages: 'Meldungen', camera: 'Kamera', camShow: 'Kamera zeigen', camHide: 'Kamera ausblenden', cameraOpen: 'Kamera anfangs zeigen', height: 'Höhe (px, 0 = automatisch)',
       entity: 'Drucker (Status-Sensor)', showCamera: 'Kamera', showTemps: 'Temperaturen', showFans: 'Lüfter', showFilament: 'Filament', showControls: 'Steuerung', compact: 'Kompakt',
       overviewEntity: 'PrintDock-Übersicht', title: 'Titel', sections: 'Bereiche', maxItems: 'Einträge je Bereich', more: 'weitere',
     },
@@ -33,7 +33,7 @@
       empty: 'empty', printers: 'Printers', queue: 'Queue', orders: 'Orders', spools: 'Spools low', maintenance: 'Maintenance',
       nothing: 'Nothing scheduled', noOrders: 'No open orders', noSpools: 'All spools sufficient', noMaint: 'No maintenance due',
       due: 'due', soon: 'soon', late: 'overdue', of: 'of', free: 'idle', run: 'printing', wait: 'waiting', fault: 'fault', off: 'offline',
-      notFound: 'PrintDock entity not found. Are MQTT devices enabled in PrintDock?', messages: 'messages', camera: 'Camera', camShow: 'Show camera', camHide: 'Hide camera', cameraOpen: 'Show camera initially',
+      notFound: 'PrintDock entity not found. Are MQTT devices enabled in PrintDock?', messages: 'messages', camera: 'Camera', camShow: 'Show camera', camHide: 'Hide camera', cameraOpen: 'Show camera initially', height: 'Height (px, 0 = automatic)',
       entity: 'Printer (status sensor)', showCamera: 'Camera', showTemps: 'Temperatures', showFans: 'Fans', showFilament: 'Filament', showControls: 'Controls', compact: 'Compact',
       overviewEntity: 'PrintDock overview', title: 'Title', sections: 'Sections', maxItems: 'Items per section', more: 'more',
     },
@@ -65,10 +65,22 @@
   const svg = (p, s = 18) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" aria-hidden="true"><path fill="currentColor" d="${p}"/></svg>`;
 
   // ------------------------------------------------------------------ shared styles
+  /** Feste Höhe aus der Konfiguration (Zahl = px, sonst CSS-Wert), leer = automatisch */
+  const heightStyle = (h) => {
+    if (h == null || h === '' || Number(h) === 0) return '';
+    const v = /^\d+(\.\d+)?$/.test(String(h)) ? `${h}px` : String(h).replace(/[^\w.%()+\- ]/g, '');
+    return `height:${v};`;
+  };
+
   const BASE_CSS = `
     :host{--pd-free:#22C55E;--pd-run:#3B82F6;--pd-run2:#93C5FD;--pd-wait:#EAB308;--pd-fault:#EF4444;--pd-off:#94A3B8;
       --pd-panel:var(--secondary-background-color,rgba(127,127,127,.1));--pd-muted:var(--secondary-text-color);--pd-line:var(--divider-color,rgba(127,127,127,.25));--pd-accent:var(--primary-color)}
-    ha-card{overflow:hidden;position:relative}
+    :host{display:block;height:100%}
+    /* Karte füllt die Höhe, die das Dashboard vorgibt (Abschnitte-Ansicht) oder die feste Höhe aus der Konfiguration */
+    ha-card{overflow:hidden;position:relative;height:100%;box-sizing:border-box;display:flex;flex-direction:column;container-type:inline-size}
+    ha-card.auto{height:auto}
+    ha-card > .body{flex:1 1 auto;min-height:0;overflow:auto;scrollbar-width:thin}
+    ha-card > .bar{flex:none}
     .bar{height:5px;background:var(--c,var(--pd-off))}
     .free{--c:var(--pd-free)} .run{--c:var(--pd-run)} .wait{--c:var(--pd-wait)} .fault{--c:var(--pd-fault)} .off{--c:var(--pd-off)}
     .bar.free{box-shadow:0 0 12px 1px var(--pd-free)}
@@ -145,12 +157,23 @@
       this.render();
     }
 
+    /** Home Assistant setzt layout = 'grid' in der Abschnitte-Ansicht – dann füllt die Karte ihre Zelle. */
+    set layout(v) {
+      const g = v === 'grid';
+      if (g === this.inGrid) return;
+      this.inGrid = g;
+      this.sig = null;
+      if (this._hass) this.render();
+    }
+
     getCardSize() {
+      if (this.config?.height) return Math.max(2, Math.round(parseInt(this.config.height, 10) / 50) || 6);
       return this.config?.compact ? 3 : 8;
     }
 
+    /** Abschnitte-Ansicht: frei in Breite und Höhe veränderbar; bei fester Zeilenzahl füllt die Karte die Höhe. */
     getGridOptions() {
-      return { columns: 12, min_columns: 6 };
+      return { columns: 6, min_columns: 3, rows: 'auto', min_rows: 2 };
     }
 
     render() {
@@ -221,11 +244,12 @@
           ${showCtrls && active ? (a.printer_state === 'paused' ? `<button class="btn go" data-act="resume">${svg(ICON.play)}${esc(t.resume)}</button>` : `<button class="btn" data-act="pause">${svg(ICON.pause)}${esc(t.pause)}</button>`) + `<button class="btn danger" data-act="cancel">${svg(ICON.stop)}${esc(t.stop)}</button>` : ''}
         </div>` : '';
 
-      this.shadowRoot.innerHTML = `<style>${BASE_CSS}${CARD_CSS}</style><ha-card class="${c.compact ? 'compact' : ''}">
+      const fixed = heightStyle(c.height);
+      this.shadowRoot.innerHTML = `<style>${BASE_CSS}${CARD_CSS}</style><ha-card class="${c.compact ? 'compact' : ''} ${fixed || this.inGrid ? '' : 'auto'} ${a.online ? '' : 'offline'}" style="${fixed}">
         <div class="bar ${cat}"></div>
         <div class="body">${head}${hms}
-          <div class="status">${status}${msg}${next}</div>
-          ${temps}${fans}${fil}${ctrls}${camImg}
+          <div class="cols"><div class="c1"><div class="status">${status}${msg}${next}</div>${camImg}</div>
+          <div class="c2">${temps}${fans}${fil}</div></div>${ctrls}
         </div></ha-card>`;
     }
 
@@ -264,6 +288,22 @@
 
   const CARD_CSS = `
     .body{padding:12px 16px 14px}
+    .cols{display:flex;flex-direction:column}
+    .c1,.c2{min-width:0}
+    /* Breite Karte: links Auftrag und Kamera, rechts Temperaturen und Filament */
+    @container (min-width:640px){
+      .cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 14px;align-items:start}
+    }
+    /* Schmale Karte: kleiner und dichter */
+    @container (max-width:320px){
+      .body{padding:10px 11px 11px}
+      .name{font-size:17px!important}
+      .temps{grid-template-columns:repeat(auto-fit,minmax(64px,1fr))!important}
+      .tv{font-size:16px!important}
+      .slots{grid-template-columns:repeat(auto-fill,minmax(50px,1fr))!important}
+      .slot small{display:none}
+      .fans{display:none}
+    }
     .head{display:flex;align-items:center;gap:8px}
     .ttl{flex:1;min-width:0}
     .name{font-size:20px;font-weight:700;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -340,8 +380,20 @@
       this.render();
     }
 
+    set layout(v) {
+      const g = v === 'grid';
+      if (g === this.inGrid) return;
+      this.inGrid = g;
+      if (this._hass) this.render();
+    }
+
     getCardSize() {
+      if (this.config?.height) return Math.max(2, Math.round(parseInt(this.config.height, 10) / 50) || 6);
       return 6;
+    }
+
+    getGridOptions() {
+      return { columns: 6, min_columns: 3, rows: 'auto', min_rows: 2 };
     }
 
     entityId() {
@@ -379,7 +431,8 @@
       const orders = block('orders', t.orders, a.orders, t.noOrders, (o) => `<div class="mr"><b>${esc(o.nr)}</b><span>${esc(o.title)}</span><span class="${o.late ? 'bad' : 'muted'}">${o.done}/${o.qty}${o.due ? ` · ${new Date(`${o.due}T12:00`).toLocaleDateString(hass.locale?.language, { day: '2-digit', month: '2-digit' })}` : ''}${o.late ? ` · ${esc(t.late)}` : ''}</span></div>`);
       const spools = block('spools', t.spools, a.spools_low, t.noSpools, (s) => `<div class="mr"><span class="sw" style="background:${esc(s.color || 'transparent')}"></span><b>${esc(s.nr)}</b><span>${esc(s.material)} ${esc(s.color_name || '')}</span><span class="warnc">${s.remaining} g</span></div>`);
       const maint = block('maintenance', t.maintenance, a.maintenance, t.noMaint, (m) => `<div class="mr"><b>${esc(m.printer)}</b><span>${esc(m.title)}</span><span class="${m.due ? 'bad' : 'warnc'}">${esc(m.due ? t.due : t.soon)}</span></div>`);
-      this.shadowRoot.innerHTML = `<style>${BASE_CSS}${OV_CSS}</style><ha-card>
+      const fixed = heightStyle(this.config.height);
+      this.shadowRoot.innerHTML = `<style>${BASE_CSS}${OV_CSS}</style><ha-card class="${fixed || this.inGrid ? '' : 'auto'}" style="${fixed}">
         <div class="body"><div class="top"><span class="ic">${svg(ICON.printer, 22)}</span><b class="title">${esc(this.config.title || 'PrintDock')}</b>
           <a class="ibtn" href="${esc(a.url)}" target="_blank" rel="noopener" title="${esc(t.open)}">${svg(ICON.open)}</a></div>
           <div class="sum">${sum}</div>${printers}${queue}${orders}${spools}${maint}</div></ha-card>`;
@@ -448,7 +501,7 @@
 
     labels() {
       const t = tx(this._hass);
-      return { entity: t.entity, name: 'Name', show_camera: t.showCamera, camera_open: t.cameraOpen, show_temps: t.showTemps, show_fans: t.showFans, show_filament: t.showFilament, show_controls: t.showControls, compact: t.compact };
+      return { entity: t.entity, name: 'Name', show_camera: t.showCamera, camera_open: t.cameraOpen, height: t.height, show_temps: t.showTemps, show_fans: t.showFans, show_filament: t.showFilament, show_controls: t.showControls, compact: t.compact };
     }
 
     schema() {
@@ -456,6 +509,7 @@
       return [
         { name: 'entity', required: true, selector: { entity: { include_entities: ids, domain: 'sensor' } } },
         { name: 'name', selector: { text: {} } },
+        { name: 'height', selector: { number: { min: 0, max: 1500, step: 10, mode: 'box', unit_of_measurement: 'px' } } },
         { type: 'grid', name: '', schema: ['show_camera', 'camera_open', 'show_temps', 'show_fans', 'show_filament', 'show_controls', 'compact'].map((n) => ({ name: n, selector: { boolean: {} } })) },
       ];
     }
@@ -468,7 +522,7 @@
 
     labels() {
       const t = tx(this._hass);
-      return { entity: t.overviewEntity, title: t.title, sections: t.sections, max_items: t.maxItems };
+      return { entity: t.overviewEntity, title: t.title, sections: t.sections, max_items: t.maxItems, height: t.height };
     }
 
     schema() {
@@ -477,6 +531,7 @@
         { name: 'title', selector: { text: {} } },
         { name: 'sections', selector: { select: { multiple: true, options: [['printers', t.printers], ['queue', t.queue], ['orders', t.orders], ['spools', t.spools], ['maintenance', t.maintenance]].map(([value, label]) => ({ value, label })) } } },
         { name: 'max_items', selector: { number: { min: 1, max: 20, mode: 'box' } } },
+        { name: 'height', selector: { number: { min: 0, max: 1500, step: 10, mode: 'box', unit_of_measurement: 'px' } } },
         { name: 'entity', selector: { entity: { domain: 'sensor' } } },
       ];
     }
