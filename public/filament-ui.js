@@ -692,7 +692,7 @@ function stationHelpDialog(sensor = false) {
       <li><b>${t('Firmware flashen')}</b> – ${t('Datei …factory.bin aus „Firmware herunterladen“ im Browser über web.esphome.io („Connect“) aufspielen, oder mit esptool.')}</li>
       <li><b>${t('WLAN')}</b> – ${t('Das Gerät öffnet beim ersten Start das WLAN „PrintDock-Station“. Damit verbinden, Heim-WLAN wählen und als PrintDock-Adresse eintragen:')}
         <div class="copyline"><code>${esc(addr)}</code><button class="b b-sm" data-act="copy" data-text="${esc(addr)}">${t('Kopieren')}</button></div></li>
-      <li><b>${t('Koppeln')}</b> – ${sensor ? t('Der Code vom Display (ohne Display: einfach den neuen Eintrag) erscheint unter Einstellungen → Feuchte & Trocknen – „Koppeln“ drücken und danach einer Messstelle zuordnen.') : t('Die Station zeigt einen sechsstelligen Code. Er erscheint hier unter „PrintDock Station“ – vergleichen und „Koppeln“ drücken.')}</li>
+      <li><b>${t('Koppeln')}</b> – ${sensor ? t('Der Code vom Display (ohne Display: einfach den neuen Eintrag) erscheint unter Einstellungen → Drucker & Filament → Feuchte & Trocknen – „Koppeln“ drücken und danach einer Messstelle zuordnen.') : t('Die Station zeigt einen sechsstelligen Code. Er erscheint hier unter „PrintDock Station“ – vergleichen und „Koppeln“ drücken.')}</li>
       ${sensor ? '' : `<li><b>${t('Waage kalibrieren')}</b> – ${t('„Tara“ mit leerer Waage, dann ein bekanntes Gewicht (z. B. eine volle 1-kg-Spule mit bekanntem Leergewicht oder ein Paket Mehl) auflegen und „Kalibrieren“.')}</li>`}
     </ol>
     ${sensor ? '' : `<p class="meta">${t('Tags: NTAG215 oder NTAG216 (Format „PrintDock + OpenSpool“), NTAG213 für „Nur Link“ oder „Anycubic ACE“. Bambu- und Snapmaker-Original-Tags werden an ihrer Kennung erkannt.')}</p>`}
@@ -766,7 +766,7 @@ function vStationSettings() {
         <li>${t('Mit Waage: Restmenge wird gebucht, bei neuen Spulen lernt PrintDock das Leergewicht.')}</li>
         <li>${t('Spule in einen Drucker einlegen – PrintDock ordnet sie dem Fach zu (Bambu: Material und Farbe gehen ans AMS).')}</li>
         <li>${t('Leere NFC-Tags lassen sich aus der Spulenansicht beschreiben.')}</li></ol></div>
-        <p class="meta">${t('Feuchtesensoren ohne NFC-Leser findest du unter Einstellungen → Feuchte & Trocknen.')}</p></div></div>`;
+        <p class="meta">${t('Feuchtesensoren ohne NFC-Leser findest du unter Einstellungen → Drucker & Filament → Feuchte & Trocknen.')}</p></div></div>`;
 }
 
 Object.assign(VIEW_FN, { spools: vSpools, slots: vSlots, usage: vUsage, filset: vFilSettings, station: vStationSettings });

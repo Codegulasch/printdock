@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.0
+- **New connection Anycubic (LAN mode)** for Kobra S1 / S1 Max, Kobra 3 and Kobra 2 Pro with the stock firmware – no Rinkhals needed. Enable LAN mode on the printer, then pick *Anycubic (LAN mode)*: status, temperatures, fans, pause/resume/cancel, light, camera, ACE Pro slots with material and colour, and **ACE drying at the push of a button**. Starting prints from PrintDock is not supported with this connection yet
+- **Drying now reports back:** after *Start*, PrintDock waits for the device to confirm ("Starting …"). If the printer refuses or does not react, the reason is shown at the measuring point instead of a timer that runs without anything happening. Bambu: the drying command now matches the format of the Bambu app; LAN mode with developer mode is required for commands from PrintDock
+- **Updates install by themselves again:** after downloading, PrintDock waits until Home Assistant has picked up the new version and then starts the update – no more detour through the add-on page. The update dialog shows each step and, if Home Assistant refuses, the reason
+- **Settings with their own navigation** (left on large screens, a row at the top on phones), each entry with a short description. *Printers & filament* brings together printers, print start (plate check, auto-start), filament (warnings, labels, Spoolman) and humidity & drying on one page with jump links. The PrintDock Station has its own entry
+- Fix: the printer view no longer jumps to the top while scrolling – live updates keep the scroll position and the page height while images reload
+
 ## 0.11.0
 - **Drying at the push of a button** under *Filament → Humidity & drying*, for as many devices as possible: Bambu AMS 2 Pro and AMS HT directly (model detected from the printer), Klipper/Moonraker printers via a G-code macro (template for the ACE Pro with the Klipper ACE driver), and anything Home Assistant can control – a dry box on a smart plug or a dryer with its own integration (start/stop buttons, number entities for temperature and duration, e.g. Anycubic ACE via the Anycubic integration). PrintDock suggests temperature and time from the loaded spools, caps them at the device limit, shows the remaining time on the printer card, sends "Drying finished" and records the drying date on the spools
 - **New page Filament → Humidity & drying** with every measuring point, its 48 h history and the dryer controls. *Slots* only shows a hint when something is too humid

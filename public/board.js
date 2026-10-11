@@ -336,12 +336,15 @@ function updateTile(id) {
   if (!el || !p) return;
   // Offene Auswahlfelder nicht unter dem Finger austauschen
   if (el.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return;
-  const tmp = document.createElement('div');
-  tmp.innerHTML = cardHTML(p);
-  el.replaceWith(tmp.firstElementChild);
-  attachCameras();
-  const hs = $('#headsum');
-  if (hs) hs.innerHTML = headSummary();
+  holdScroll(() => {
+    // Nur Geändertes austauschen statt die ganze Karte: Bilder und Höhe bleiben stehen
+    const tpl = document.createElement('template');
+    tpl.innerHTML = cardHTML(p);
+    morphNode(el, tpl.content.firstElementChild);
+    attachCameras();
+    const hs = $('#headsum');
+    if (hs) morph(hs, headSummary());
+  });
 }
 
 VIEW_FN.board = vBoard;

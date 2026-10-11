@@ -45,7 +45,7 @@ class MoonrakerDriver extends BaseDriver {
   static meta = {
     id: 'moonraker',
     label: 'Klipper / Moonraker',
-    hint: 'Snapmaker U1, Anycubic mit Rinkhals, Voron und alle anderen Klipper-Drucker',
+    hint: 'Snapmaker U1, Anycubic mit Rinkhals, Voron und alle anderen Klipper-Drucker (Anycubic ohne Rinkhals: „Anycubic (LAN-Modus)“ wählen)',
     fields: [
       { key: 'host', label: 'IP-Adresse oder Hostname', required: true },
       { key: 'port', label: 'Port', default: 7125, type: 'number' },

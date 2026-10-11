@@ -4,6 +4,7 @@
 const drivers = [
   require('./moonraker'),
   require('./bambu'),
+  require('./anycubic'),
   require('./octoprint'),
   require('./demo'),
 ];

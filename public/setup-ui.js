@@ -276,10 +276,6 @@ function vGeneral() {
           ${lrow(t('Größe'), '', seg([['compact', 'A<sub>−</sub>'], ['standard', 'A'], ['large', 'A<sup>+</sup>']], a.density || 'standard', 'data-gact="density" data-v'))}
           ${lrow(t('Akzentfarbe'), esc(t(ACCENTS.find((x) => x[0] === a.accent)?.[1] || 'Kobalt')), `<div class="swatches">${ACCENTS.map(([k, l]) => `<button type="button" class="swb" style="--c:${ACCENT_HEX[k]}" data-g-accent="${k}" aria-pressed="${a.accent === k}" title="${esc(t(l))}" aria-label="${esc(t(l))}"></button>`).join('')}</div>`)}
         </div>
-        <h3 class="shead">${t('Druckstart')}</h3>
-        <div class="sbox">
-          ${lrow(t('Druckplatte abfragen'), t('Vor jedem Start aus Warteschlange oder Auftrag bestätigen, dass die Platte geräumt ist.'), `<label class="tgl"><input type="checkbox" data-g-plate ${a.plateCheck ? 'checked' : ''}><span class="sw"></span></label>`)}
-        </div>
       </div>
       <div>
         <h3 class="shead">${t('Funktionen')} <span class="meta" style="text-transform:none;letter-spacing:0;font-weight:400">· ${t('{n} von {m} an', { n: MODULE_INFO.filter(([k]) => mods[k] !== false).length, m: MODULE_INFO.length })}</span></h3>
@@ -394,12 +390,19 @@ document.addEventListener('click', async (e) => {
     }
     if (r.restart === 'manual') return msg(t('Installiert. Bitte PrintDock jetzt neu starten.'));
     msg(r.restart === 'supervisor' ? t('Home Assistant baut PrintDock {v} – die Seite lädt sich danach selbst neu.', { v: r.version }) : t('PrintDock startet neu …'));
-    // Warten, bis die neue Version antwortet
+    // Warten, bis die neue Version antwortet; solange PrintDock noch läuft, den Stand des Supervisor-Updates zeigen
     for (let i = 0; i < 300; i++) {
       await new Promise((res) => setTimeout(res, 3000));
       try {
         const x = await fetch('api/app', { cache: 'no-store' });
         if (x.ok && (await x.json()).version === r.version) return location.reload();
+        if (r.restart === 'supervisor') {
+          const u = await fetch('api/update', { cache: 'no-store' }).then((y) => (y.ok ? y.json() : null)).catch(() => null);
+          const st = u?.installing;
+          if (st?.version === r.version && st.state === 'failed') return msg(t(st.error));
+          if (st?.version === r.version && st.state === 'waiting') msg(t('Home Assistant liest die neue Version ein …'));
+          if (st?.version === r.version && st.state === 'updating') msg(t('Home Assistant baut PrintDock {v} – die Seite lädt sich danach selbst neu.', { v: r.version }));
+        }
       } catch {}
     }
     return msg(t('Das dauert ungewöhnlich lange. Bitte im Add-on-Protokoll nachsehen.'));

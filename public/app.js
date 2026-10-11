@@ -37,10 +37,10 @@ const NAV_ALL = [
   { g: 'fil', l: 'Filament', icon: 'spool', sec: 'Material', v: [['spools', 'Spulen', 'filament'], ['slots', 'Belegung', 'filament'], ['hum', 'Feuchte & Trocknen', 'filament'], ['usage', 'Verbrauch', 'filament']] },
   { g: 'maint', l: 'Wartung', icon: 'wrench', sec: 'Werkstatt', v: [['maint', 'Wartungsplan', 'maintenance']] },
   { g: 'ana', l: 'Auswertung', icon: 'chart', v: [['stats', 'Statistik', 'stats'], ['history', 'Verlauf', 'history']] },
-  { g: 'set', l: 'Einstellungen', icon: 'gear', sep: true, v: [
-    ['general', 'Allgemein', null, 'PrintDock'], ['system', 'System', null, 'PrintDock'],
-    ['printers', 'Drucker#pl', null, 'Werkstatt'], ['filset', 'Filament', 'filament', 'Werkstatt'], ['humset', 'Feuchte & Trocknen', 'filament', 'Werkstatt'], ['station', 'PrintDock Station', 'filament', 'Werkstatt'],
-    ['ha', 'Home Assistant', 'homeassistant', 'Anbindungen'], ['slicer', 'Slicer', 'slicer', 'Anbindungen'], ['notify', 'Benachrichtigungen', 'notifications', 'Anbindungen'],
+  // Einstellungen: eigene Navigation in der Seite (wie eine Einstellungs-App), daher ohne Reiter oben
+  { g: 'set', l: 'Einstellungen', icon: 'gear', sep: true, inline: true, v: [
+    ['general', 'Allgemein'], ['workshop', 'Drucker & Filament'], ['station', 'PrintDock Station', 'filament'],
+    ['notify', 'Benachrichtigungen', 'notifications'], ['ha', 'Home Assistant', 'homeassistant'], ['slicer', 'Slicer', 'slicer'], ['system', 'System'],
   ] },
 ];
 const on = (m) => !m || S.app?.modules?.[m] !== false;
@@ -308,7 +308,7 @@ function renderHead() {
   }).join('');
   const grp = groups.find((g) => g.g === cur);
   let lastSec = null;
-  $('#subtabs').innerHTML = grp && grp.v.length > 1 ? grp.v.map(([k, l, , sec]) => {
+  $('#subtabs').innerHTML = grp && grp.v.length > 1 && !grp.inline ? grp.v.map(([k, l, , sec]) => {
     const head = sec && sec !== lastSec ? `<span class="tab-sec">${esc(t(sec))}</span>` : '';
     lastSec = sec;
     return `${head}<button role="tab" data-view="${k}" aria-selected="${S.view === k}">${esc(t(l))}${b[k] || ''}</button>`;
@@ -328,13 +328,19 @@ function renderHead() {
   $('#menuBtn').setAttribute('aria-label', t('Menü öffnen'));
 }
 
+/** Alte bzw. zusammengelegte Einstellungsseiten → Abschnitt auf „Drucker & Filament“ */
+const VIEW_ALIAS = { printers: ['workshop', 'ws-printers'], filset: ['workshop', 'ws-fil'], humset: ['workshop', 'ws-hum'] };
+
 function setView(v) {
+  let anchor = null;
+  if (VIEW_ALIAS[v]) [v, anchor] = VIEW_ALIAS[v];
   S.view = v;
   $('#side').classList.remove('open');
   $('#scrim').classList.remove('on');
   history.replaceState(null, '', `#${v}`);
   render();
   window.scrollTo(0, 0);
+  if (anchor) requestAnimationFrame(() => document.getElementById(anchor)?.scrollIntoView({ block: 'start' }));
   // Reiterleiste (Handy): gewählten Reiter sichtbar machen
   const tab = $('#subtabs [aria-selected="true"]');
   if (tab) tab.parentElement.scrollLeft = Math.max(0, tab.offsetLeft - 16);
@@ -978,7 +984,10 @@ function vPrinters() {
       <span class="pr-edit">${ICON.edit}</span></div>`;
   }).join('');
   return `<div class="page-head"><h1>${NAV_ICON.gear}${t('Drucker#pl')}</h1><span class="grow"></span><button class="b b-sm b-go" data-act="editPrinter">${ICON.plus}${t('Drucker hinzufügen')}</button></div>
-    ${S.printers.length ? `<div class="sbox plist">${rows}</div>` : `<div class="list"><div class="empty">${t('Noch kein Drucker angelegt.')}</div></div>`}`;
+    ${printerListHTML(rows)}`;
+}
+function printerListHTML(rows) {
+  return S.printers.length ? `<div class="sbox plist">${rows}</div>` : `<div class="list"><div class="empty">${t('Noch kein Drucker angelegt.')}</div></div>`;
 }
 
 function printerDialog(p = null) {
@@ -1167,6 +1176,7 @@ function readSlicerRows() {
 const VIEW_FN = { queue: vQueue, orders: vOrders, files: vFiles, maint: vMaint, history: vHistory, printers: vPrinters, notify: vNotify, slicer: vSlicer };
 
 function render() {
+  if (VIEW_ALIAS[S.view]) S.view = VIEW_ALIAS[S.view][0];
   if (!viewsAvailable().includes(S.view)) S.view = 'board';
   renderHead();
   const app = $('#app');
@@ -1175,12 +1185,30 @@ function render() {
   const html = (VIEW_FN[S.view] || VIEW_FN.board)();
   // Gleiche Ansicht: nur Geändertes austauschen. So bleiben Bilder, Kamera, Scrollposition und
   // offene Auswahllisten stehen (vorher sprang die Druckeransicht bei Live-Updates teils nach oben).
-  if (render.last === S.view && S.view !== 'files') morph(app, html);
+  if (render.last === S.view && S.view !== 'files') holdScroll(() => morph(app, html));
   else app.innerHTML = html;
   render.last = S.view;
   attachCameras();
   if (S.view === 'files') bindFileView();
 }
+
+/** Live-Updates dürfen die Ansicht nicht verschieben: Scrollposition merken und wiederherstellen,
+    die Seitenhöhe kurz halten, bis nachladende Bilder wieder ihre Größe haben (sonst kürzt der
+    Browser die Seite und die Ansicht springt nach oben – vor allem in der Home-Assistant-App). */
+function holdScroll(fn) {
+  const se = document.scrollingElement || document.documentElement;
+  const app = $('#app');
+  const y = se.scrollTop;
+  if (y > 0 && app) {
+    app.style.minHeight = `${app.offsetHeight}px`;
+    clearTimeout(holdScroll.t);
+    holdScroll.t = setTimeout(() => { app.style.minHeight = ''; }, 2500);
+  }
+  fn();
+  if (y > 0 && Math.abs(se.scrollTop - y) > 2 && Date.now() - (holdScroll.user || 0) > 400) se.scrollTop = y;
+}
+// Eigenes Scrollen des Nutzers nicht zurückdrehen
+for (const ev of ['wheel', 'touchmove', 'keydown']) window.addEventListener(ev, () => { holdScroll.user = Date.now(); }, { passive: true });
 
 /** DOM schonend aktualisieren: gleiche Knoten bleiben erhalten, nur Abweichungen werden ersetzt. */
 function morph(target, html) {
@@ -1395,7 +1423,11 @@ function connect() {
     if (S.view === 'board') {
       updateTile(id);
       const strip = $('.strip');
-      if (strip) strip.outerHTML = stripHTML();
+      if (strip) {
+        const tpl = document.createElement('template');
+        tpl.innerHTML = stripHTML();
+        holdScroll(() => morphNode(strip, tpl.content.firstElementChild));
+      }
     }
     if (stateChanged) {
       renderHead();
@@ -1433,7 +1465,7 @@ document.addEventListener('click', (e) => {
 
 window.addEventListener('hashchange', () => {
   const v = location.hash.slice(1);
-  if (viewsAvailable().includes(v) && v !== S.view) setView(v);
+  if ((viewsAvailable().includes(v) || VIEW_ALIAS[v]) && v !== S.view) setView(v);
 });
 
 /** Start: Einstellungen holen → ggf. Einrichtung oder Anmeldung → Daten laden. */
