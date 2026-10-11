@@ -219,7 +219,13 @@ class BambuDriver extends BaseDriver {
         humidity: u.humidity != null ? Number(u.humidity) : null,
         humidityPct: u.humidity_raw != null ? Number(u.humidity_raw) : null,
         temp: u.temp != null ? Number(u.temp) : null,
-        dryer: canDry ? { maxTemp: model === 'AMS HT' || id >= 128 ? 85 : 65, minTemp: 45, maxHours: 24, active: remain > 0, remainMin: remain || null, targetTemp: Number(u.dry_setting?.dry_temperature) > 0 ? Number(u.dry_setting.dry_temperature) : null } : null,
+        dryer: canDry ? {
+          maxTemp: model === 'AMS HT' || id >= 128 ? 85 : 65, minTemp: 45, maxHours: 24, active: remain > 0, remainMin: remain || null,
+          targetTemp: Number(u.dry_setting?.dry_temperature) > 0 ? Number(u.dry_setting.dry_temperature) : null,
+          // Bambu trocknet nicht, solange Filament aus dieser Einheit geladen ist (steckt im AMS-Ausgang)
+          loaded: this.loadedFrom(p, id).length > 0,
+          preparing: Boolean(this.dryPrep?.[id]),
+        } : null,
       };
     });
     units.forEach((u, ui) => {
@@ -237,6 +243,65 @@ class BambuDriver extends BaseDriver {
     let activeSlot = null;
     if (Number.isFinite(now) && now !== 255) activeSlot = now === 254 ? 'ext' : `ams${Math.floor(now / 4)}-${now % 4}`;
     return { filament: slots, activeSlot, filamentUnits: unitInfo };
+  }
+
+  /**
+   * Fächer einer AMS-Einheit, deren Filament gerade geladen ist (bis zur Düse bzw. im AMS-Ausgang).
+   * ams.tray_now = global (AMS-Nr. × 4 + Fach); Zwei-Düsen-Modelle melden je Extruder "snow" = AMS-Nr. × 256 + Fach.
+   */
+  loadedFrom(p, amsId) {
+    const out = new Set();
+    const now = Number(p.ams?.tray_now);
+    if (Number.isFinite(now) && now < 254) {
+      if (amsId < 128 && Math.floor(now / 4) === amsId) out.add(now % 4);
+      if (amsId >= 128 && now === amsId) out.add(0);
+    }
+    const info = p.device?.extruder?.info;
+    if (Array.isArray(info)) {
+      for (const e of info) {
+        const v = Number(e.snow);
+        if (!Number.isFinite(v) || v === 0xffff) continue;
+        if (v >> 8 === amsId) out.add(v & 0xff);
+      }
+    }
+    return [...out];
+  }
+
+  /** Filament ins AMS zurückziehen, warten bis frei, dann trocknen (Bambu lässt sonst nicht trocknen) */
+  async unloadThenDry(amsId, dryCmd) {
+    this.dryPrep ||= {};
+    this.dryPrep[amsId] = Date.now();
+    this.publishStatus();
+    const fail = (reason) => {
+      this.cmdResults ||= {};
+      this.cmdResults.ams_filament_drying = { result: 'fail', reason, at: Date.now() };
+    };
+    try {
+      const slot = this.loadedFrom(this.raw, amsId)[0];
+      const unit = (this.raw.ams?.ams || []).find((u, i) => Number(u.id ?? i) === amsId);
+      const tr = (unit?.tray || []).find((x, i) => Number(x.id ?? i) === slot);
+      const temp = Math.max(190, Math.min(300, Number(tr?.nozzle_temp_max) || 250));
+      this.send({ command: 'ams_change_filament', ams_id: 255, slot_id: 255, target: 255, curr_temp: temp, tar_temp: temp });
+      const until = Date.now() + 4 * 60_000;
+      while (Date.now() < until) {
+        await new Promise((r) => setTimeout(r, 5000));
+        if (!this.dryPrep?.[amsId]) return; // in PrintDock abgebrochen
+        if (!this.client?.connected) return fail('offline');
+        if (!this.loadedFrom(this.raw, amsId).length) {
+          await new Promise((r) => setTimeout(r, 3000));
+          this.send(dryCmd);
+          setTimeout(() => this.pushAll(), 3000);
+          return;
+        }
+        if (Date.now() % 20_000 < 5000) this.pushAll();
+      }
+      fail('unload_failed');
+    } catch (err) {
+      fail(err.message);
+    } finally {
+      delete this.dryPrep[amsId];
+      this.publishStatus();
+    }
   }
 
   /** Filament-Index im Druck → Platz-Schlüssel (für die Abbuchung). */
@@ -365,6 +430,7 @@ class BambuDriver extends BaseDriver {
       const amsId = Number(args.unitId);
       if (!Number.isInteger(amsId)) throw new Error('Unbekannte AMS-Einheit');
       if (args.stop) {
+        if (this.dryPrep) delete this.dryPrep[amsId];
         this.send({ command: 'ams_filament_drying', ams_id: amsId, temp: 0, cooling_temp: 0, duration: 0, humidity: 0, mode: 0, rotate_tray: false, filament: '', close_power_conflict: false });
         setTimeout(() => this.pushAll(), 3000);
         return;
@@ -374,7 +440,16 @@ class BambuDriver extends BaseDriver {
       const h = Math.round(Number(args.hours));
       if (!(t >= 45 && t <= max)) throw new Error(`Temperatur ${t} °C geht nicht (45–${max} °C)`);
       if (!(h >= 1 && h <= 24)) throw new Error('Dauer 1–24 Stunden');
-      this.send({ command: 'ams_filament_drying', ams_id: amsId, temp: t, cooling_temp: 45, duration: h, humidity: 0, mode: 1, rotate_tray: Boolean(args.rotate), filament: '', close_power_conflict: false });
+      const dryCmd = { command: 'ams_filament_drying', ams_id: amsId, temp: t, cooling_temp: 45, duration: h, humidity: 0, mode: 1, rotate_tray: Boolean(args.rotate), filament: '', close_power_conflict: false };
+      if (this.loadedFrom(this.raw || {}, amsId).length) {
+        // Geladenes Filament blockiert das Trocknen – im Leerlauf zuerst zurückziehen
+        const st = STATE_MAP[this.raw?.gcode_state] || 'idle';
+        if (st === 'printing' || st === 'paused') throw new Error('Filament aus dieser Einheit ist gerade im Druck geladen – Bambu trocknet dann nicht. Nach dem Druck erneut starten.');
+        if (this.dryPrep?.[amsId]) return;
+        this.unloadThenDry(amsId, dryCmd);
+        return;
+      }
+      this.send(dryCmd);
       // gleich nachfragen, damit der neue Zustand (dry_time) schnell ankommt
       setTimeout(() => this.pushAll(), 3000);
       return;
