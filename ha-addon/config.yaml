@@ -1,5 +1,5 @@
 name: PrintDock
-version: "0.12.6"
+version: "0.12.8"
 slug: printdock
 description: Manage and monitor all your 3D printers – Bambu Lab, Snapmaker, Anycubic, Klipper, OctoPrint
 url: https://github.com/Codegulasch/printdock
@@ -25,6 +25,9 @@ map:
     read_only: false
   # Update aus PrintDock heraus (lokales Add-on): neue Version in den eigenen Add-on-Ordner schreiben
   - type: addons
+    read_only: false
+  # Eingangsordner /share/printdock: Exporte aus Bambu Studio (Samba-Freigabe „share“) werden übernommen
+  - type: share
     read_only: false
 services:
   - mqtt:want

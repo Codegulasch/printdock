@@ -15,7 +15,7 @@ Inspired by [BamBuddy](https://github.com/maziggy/bambuddy), but not limited to 
 - **Print queue** with mandatory *"build plate is clear"* confirmation and optional auto start per printer
 - **Orders** (file × quantity, due date, priority, progress) – start the next print of an order with one click
 - **File library**: G-code and 3MF with detected print time, filament, printer model and preview
-- **Slicer integration**: send from OrcaSlicer, PrusaSlicer & co. (OctoPrint-compatible endpoint), open files in your slicer
+- **Slicer integration**: send from OrcaSlicer, PrusaSlicer & co. (OctoPrint-compatible endpoint); from Bambu Studio via the inbox folder (*Export plate sliced file* into `\\homeassistant\share\printdock`, subfolder `warteschlange` = queue); open files in your slicer
 - **Filament management** built in (no Spoolman needed): spools, remaining amounts, AMS/ACE/toolhead slots, RFID auto-assign, automatic deduction after every print, cost, low-stock warnings
 - **Maintenance planner** by operating hours, prints or days
 - **Statistics**: prints, success rate, print hours, material and cost, printers compared
@@ -67,7 +67,7 @@ Then open `http://<ip>:3080`. The setup wizard asks for language, look, features
 
 Notes:
 - **Snapmaker U1** – Moonraker is enabled out of the box; add it as *Klipper / Moonraker*.
-- **Anycubic Kobra S1 / Kobra 3** – with the stock firmware, enable *LAN mode* on the printer and add it as *Anycubic (LAN mode)*: status, pause/resume/cancel, light, camera, ACE slots (material and colour) and ACE drying. Starting prints is not supported yet. With the community firmware Rinkhals you can use *Klipper / Moonraker* instead. The LAN protocol follows [anycubic-lan](https://github.com/Nino6689/anycubic-lan).
+- **Anycubic Kobra S1 / Kobra 3** – with the stock firmware, enable *LAN mode* on the printer and add it as *Anycubic (LAN mode)*: status, pause/resume/cancel, light, camera, ACE slots (material and colour) and ACE drying. To start prints, install Rinkhals and also enter its Moonraker port (usually 7125): status, ACE and drying stay on LAN mode, prints go through Moonraker. Without Rinkhals, start prints on the printer or from the slicer. With the community firmware Rinkhals you can use *Klipper / Moonraker* instead. The LAN protocol follows [anycubic-lan](https://github.com/Nino6689/anycubic-lan).
 - **Bambu Lab** – enable LAN mode; the access code is in the network menu. Starting prints and the second nozzle of H2D/X2D are **experimental** – feedback from real devices is welcome.
 
 ## Status lights

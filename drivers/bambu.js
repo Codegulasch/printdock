@@ -400,6 +400,7 @@ class BambuDriver extends BaseDriver {
     const opts = job.options || {};
     const remoteName = job.name.replace(/[^\w.\-]+/g, '_');
     const client = new ftp.Client(60_000);
+    let remotePath = remoteName;
     try {
       await client.access({
         host,
@@ -409,7 +410,27 @@ class BambuDriver extends BaseDriver {
         secure: 'implicit',
         secureOptions: { rejectUnauthorized: false },
       });
-      await client.uploadFrom(job.path, remoteName);
+      try {
+        await client.uploadFrom(job.path, remoteName);
+      } catch (err) {
+        // 553 „Could not create file“: Wurzel nicht beschreibbar (je nach Modell/Firmware) – bekannte Ordner probieren
+        if (!/^55[03]/.test(String(err.code || err.message))) throw err;
+        const dirs = (await client.list('/').catch(() => [])).filter((x) => x.isDirectory).map((x) => x.name);
+        const tryDirs = ['cache', 'sdcard', 'usb', 'udisk', 'model'].filter((d) => dirs.includes(d));
+        let ok = false;
+        for (const d of tryDirs) {
+          try {
+            await client.uploadFrom(job.path, `/${d}/${remoteName}`);
+            remotePath = `${d}/${remoteName}`;
+            ok = true;
+            break;
+          } catch {}
+        }
+        if (!ok) {
+          const e = new Error(`${err.message} – der Drucker lässt keine Datei anlegen. Steckt eine SD-Karte bzw. ein USB-Stick und ist noch Platz frei?${dirs.length ? ` (Ordner auf dem Drucker: ${dirs.slice(0, 8).join(', ')})` : ''}`);
+          throw e;
+        }
+      }
     } catch (err) {
       throw new Error(`Übertragung zum Drucker fehlgeschlagen: ${err.message}`);
     } finally {
@@ -427,7 +448,7 @@ class BambuDriver extends BaseDriver {
     this.send({
       command: 'project_file',
       param: `Metadata/plate_${plate}.gcode`,
-      url: `ftp:///${remoteName}`,
+      url: `ftp:///${remotePath}`,
       md5,
       subtask_name: job.name.replace(/\.gcode\.3mf$|\.3mf$/i, ''),
       project_id: '0',

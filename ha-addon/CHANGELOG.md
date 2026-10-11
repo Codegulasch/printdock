@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.8
+- **Inbox folder for Bambu Studio** (and any other slicer): files saved into it are picked up within seconds – into the library, or from the subfolder `warteschlange` straight into the queue. As add-on the folder is `/share/printdock`, reachable over the network as `\\homeassistant\share\printdock` with the Samba add-on. In Bambu Studio: slice, *Export plate sliced file* (Ctrl+G), save into the folder. Paths are shown under *Settings → Slicer*
+- **Bambu: "553 Could not create file" when starting a print.** If the printer does not allow writing to the root folder, PrintDock now tries its storage folders (e.g. `sdcard`, `usb`, `cache`). If that fails too, the message says what to check (SD card/USB stick inserted, free space) and lists the folders the printer offers
+
+## 0.12.7
+- **Anycubic: start prints from PrintDock (two-track).** With Rinkhals on the printer, enter the Moonraker port (usually 7125) in the *Anycubic (LAN mode)* connection: status, ACE and drying keep running over LAN mode, prints are sent and started through Moonraker – including the colour assignment at start (ACE slots, tools renumbered in the G-code)
+
 ## 0.12.6
 - **Choose colours when starting from the queue – now also on Klipper and OctoPrint printers** (e.g. Snapmaker U1, Voron with several toolheads, ACE/MMU via Klipper). The start dialog suggests which tool or slot prints which filament of the slice by material and colour, and every row can be changed. If the assignment differs from the slice, PrintDock renumbers the tools in the G-code before sending it (T0 → T2, swapping works too) – including tool temperatures and Klipper `EXTRUDER=` / `TOOL=` parameters. Bambu keeps using the AMS mapping as before
 

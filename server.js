@@ -128,6 +128,12 @@ const production = new Production({
   },
 });
 
+// Eingangsordner: Dateien aus Slicern ohne Druck-Host (Bambu Studio) automatisch übernehmen
+const { Inbox } = require('./lib/inbox');
+const inbox = new Inbox({ production, broadcast });
+inbox.start();
+
+
 const filament = new Filament({
   printers: () => printerConfigs,
   runtime,
@@ -840,7 +846,7 @@ async function handleApi(req, res, url) {
           const options = { ...(item.options || {}), slotMap: body.slotMap };
           const file = files.get(item.fileId);
           if (filament.canMap(cfg, file)) {
-            if (['moonraker', 'octoprint'].includes(cfg.driver)) options.toolMap = filament.toolMapFor(cfg, file, body.slotMap.map(String));
+            if (['moonraker', 'octoprint', 'anycubic'].includes(cfg.driver)) options.toolMap = filament.toolMapFor(cfg, file, body.slotMap.map(String));
             else options.amsMapping = filament.amsMappingFor(file, body.slotMap.map(String));
           }
           production.updateItem(id, { options });
@@ -884,9 +890,12 @@ async function handleApi(req, res, url) {
     }
   }
 
+  // ---- Eingangsordner (z. B. Export aus Bambu Studio)
+  if (resource === 'inbox' && req.method === 'GET') return sendJson(res, 200, inbox.view());
+
   // ---- Einstellungen (Slicer)
   if (resource === 'settings') {
-    if (req.method === 'GET') return sendJson(res, 200, slicer.getSettings());
+    if (req.method === 'GET') return sendJson(res, 200, { ...slicer.getSettings(), inbox: inbox.view() });
     if (req.method === 'PUT') {
       const s2 = slicer.saveSettings(await readBody(req));
       broadcast('settings', null);

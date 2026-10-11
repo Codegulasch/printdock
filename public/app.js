@@ -1159,14 +1159,30 @@ function vSlicer() {
         <span class="code" data-slshow>${esc(targets[0][0])}</span><button class="b b-sm" data-act="copy" data-text="${esc(targets[0][0])}" data-slcopy>${t('Kopieren')}</button>`)}
       ${urlRowS(t('API-Schlüssel / Passwort'), '', `<span class="code">${esc(st.slicerKey)}</span><button class="b b-sm" data-act="copy" data-text="${esc(st.slicerKey)}">${t('Kopieren')}</button><button class="b b-sm" data-act="newKey">${t('Neu erzeugen')}</button>`)}
     </div>
-    <p class="meta">${t('Die Adresse muss die IP des Rechners sein, auf dem PrintDock läuft (als Add-on: die IP von Home Assistant) mit Port 3080 – nicht die Adresse aus der Browserzeile von Home Assistant.')}
-      ${t('Bambu Studio spricht kein OctoPrint: dort die Platte als .gcode.3mf exportieren und unter Dateien hochladen.')}</p>
+    <p class="meta">${t('Die Adresse muss die IP des Rechners sein, auf dem PrintDock läuft (als Add-on: die IP von Home Assistant) mit Port 3080 – nicht die Adresse aus der Browserzeile von Home Assistant.')}</p>
+    ${inboxHTML(st.inbox)}
     <h3 class="shead" style="margin-top:26px">${t('Dateien im Slicer öffnen')}</h3><section>
       <p class="intro">${t('„Öffnen in …“ bei einer Datei startet den Slicer auf diesem Rechner und lädt die Datei aus PrintDock. Weitere Slicer lassen sich mit ihrem Link-Schema ergänzen; {url} steht für die Download-Adresse.')}</p>
       <div class="list" data-slicers>${st.slicers.map((s, i) => `<div class="row" style="grid-template-columns:minmax(140px,1fr) 2fr auto"><input class="in" data-sn="${i}" value="${esc(s.name)}" aria-label="${t('Name')}"><input class="in" data-su="${i}" value="${esc(s.url)}" aria-label="${t('Link-Schema')}"><button class="x del" data-act="slRemove" data-i="${i}" aria-label="${t('Entfernen')}">${ICON.trash}</button></div>`).join('')}</div>
       <div class="btns"><button class="b b-sm" data-act="slAdd">${ICON.plus}${t('Slicer ergänzen')}</button><button class="b b-sm b-done" data-act="slSave">${t('Speichern')}</button></div>
       <p class="meta">${t('Manche Slicer öffnen nur Dateien von bestimmten Webseiten. Klappt das nicht, „Herunterladen“ wählen und die Datei im Slicer öffnen.')}</p>
     </section>`;
+}
+
+/** Eingangsordner – der Weg für Bambu Studio (kann Bambu-Drucker nicht über OctoPrint ansprechen) */
+function inboxHTML(ib) {
+  if (!ib) return '';
+  const share = ib.share ? `${ib.share}` : ib.dir;
+  const shareQ = ib.share ? `${ib.share}\\warteschlange` : ib.queueDir;
+  return `<h3 class="shead" style="margin-top:26px">${t('Bambu Studio: Eingangsordner')}</h3>
+    <p class="meta" style="margin:-4px 0 10px">${t('Bambu Studio schickt an Bambu-Drucker nur über die Bambu-Cloud bzw. den eigenen LAN-Weg, nicht an PrintDock. Darum: Platte slicen, dann „Geslicte Platte exportieren“ (Strg+G) und die Datei in diesen Ordner speichern – PrintDock übernimmt sie nach wenigen Sekunden.')}</p>
+    <div class="sbox">
+      ${urlRowS(t('In die Bibliothek'), '', `<span class="code">${esc(share)}</span><button class="b b-sm" data-act="copy" data-text="${esc(share)}">${t('Kopieren')}</button>`)}
+      ${on('queue') ? urlRowS(t('In die Warteschlange'), t('passender Drucker'), `<span class="code">${esc(shareQ)}</span><button class="b b-sm" data-act="copy" data-text="${esc(shareQ)}">${t('Kopieren')}</button>`) : ''}
+      ${ib.recent?.length ? urlRowS(t('Zuletzt übernommen'), '', `<span class="meta">${ib.recent.map((r) => `${esc(r.name)}${r.queued ? ' → ' + t('Warteschlange') : ''}`).join(' · ')}</span>`) : ''}
+      ${ib.error ? urlRowS(t('Fehler'), '', `<span class="warn-txt">${esc(ib.error)}</span>`) : ''}
+    </div>
+    <p class="meta">${ib.share ? t('Die Freigabe „share“ gibt es mit dem Samba-Add-on von Home Assistant (Einstellungen → Add-ons → Samba share). Im Explorer \\\\homeassistant\\share öffnen; den Ordner printdock legt PrintDock selbst an.') : t('Den Ordner kannst du im Netzwerk freigeben oder mit dem Ordner abgleichen, in den Bambu Studio exportiert.')}</p>`;
 }
 
 const urlRowS = (label, hint, control) => `<div class="srow"><div class="sl"><b>${label}</b>${hint ? `<span>${hint}</span>` : ''}</div><div class="sc">${control}</div></div>`;

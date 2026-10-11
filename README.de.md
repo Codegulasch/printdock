@@ -101,7 +101,7 @@ Passwörter werden mit scrypt gespeichert, Sitzungen per HttpOnly-Cookie, nach 5
 
 **Snapmaker U1** – Moonraker ist ab Werk aktiv. IP am Touchscreen nachsehen und als Anbindung *Klipper / Moonraker* wählen.
 
-**Anycubic Kobra S1 / Kobra 3** – Mit der Original-Firmware am Drucker den *LAN-Modus* einschalten und als *Anycubic (LAN-Modus)* einbinden: Status, Pause/Weiter/Abbrechen, Licht, Kamera, ACE-Fächer (Material und Farbe) und ACE-Trocknen. Drucke starten geht damit noch nicht.
+**Anycubic Kobra S1 / Kobra 3** – Mit der Original-Firmware am Drucker den *LAN-Modus* einschalten und als *Anycubic (LAN-Modus)* einbinden: Status, Pause/Weiter/Abbrechen, Licht, Kamera, ACE-Fächer (Material und Farbe) und ACE-Trocknen. Drucke starten: Mit Rinkhals zusätzlich den Moonraker-Port (meist 7125) beim Drucker eintragen – Status, ACE und Trocknen laufen dann über den LAN-Modus, Drucke über Moonraker. Ohne Rinkhals am Drucker oder im Slicer starten.
 Alternativ die Community-Firmware [Rinkhals](https://github.com/rinkhals-community/Rinkhals) – sie ergänzt Moonraker, dann als *Klipper / Moonraker* einbinden. Das LAN-Protokoll folgt [anycubic-lan](https://github.com/Nino6689/anycubic-lan).
 
 **Bambu Lab** – Am Drucker LAN-Modus aktivieren; der Access Code steht im Netzwerkmenü. Seit den Firmware-Änderungen 2025 lassen neuere Modelle Steuerbefehle von Drittsoftware nur im Entwicklermodus zu.
@@ -222,7 +222,7 @@ Auftrag anlegen (Datei × Stückzahl) ───┤ „Einplanen“
    - `http://<printdock>:3080/slicer/<Drucker-ID>` – in die Warteschlange eines bestimmten Druckers
 4. *Test* drücken. Danach landet „Hochladen“ bzw. „Hochladen und drucken“ direkt in PrintDock (letzteres ganz oben in der Warteschlange).
 
-Bambu Studio kann Bambu-Drucker nicht über OctoPrint ansprechen. Dort die Platte als `.gcode.3mf` exportieren und hochladen.
+**Bambu Studio** kann Bambu-Drucker nicht über OctoPrint ansprechen. Dafür gibt es den **Eingangsordner**: Platte slicen, *Geslicte Platte exportieren* (Strg+G) und in den Ordner speichern – als Add-on `\\homeassistant\share\printdock` (Samba-Add-on nötig), der Unterordner `warteschlange` legt die Datei gleich in die Warteschlange. PrintDock übernimmt sie nach wenigen Sekunden. Pfade stehen unter *Einstellungen → Slicer*.
 
 **Im Slicer öffnen.** Bei jeder Datei öffnet „Öffnen in …“ den Slicer auf dem eigenen Rechner (`orcaslicer://`, `bambustudio://`, `prusaslicer://`). Weitere Slicer lassen sich mit ihrem Link-Schema ergänzen. Manche Slicer akzeptieren nur Links bestimmter Webseiten – dann „Herunterladen“ nutzen.
 

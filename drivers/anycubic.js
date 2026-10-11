@@ -13,7 +13,7 @@
 // ACE: Belegung, Temperatur, Trocknen (an/aus mit Temperatur und Dauer), Material/Farbe eines Fachs setzen.
 const crypto = require('crypto');
 const mqtt = require('mqtt');
-const { BaseDriver, temp, netError } = require('./base');
+const { BaseDriver, temp, netError, fileBlob, postForm } = require('./base');
 
 const PREFIX = 'anycubic/anycubicCloud/v1';
 const QUERIES = { info: 'query', tempature: 'query', fan: 'query', light: 'query', multiColorBox: 'getInfo', print: 'query', peripherie: 'query' };
@@ -62,8 +62,12 @@ class AnycubicDriver extends BaseDriver {
   static meta = {
     id: 'anycubic',
     label: 'Anycubic (LAN-Modus)',
-    hint: 'Kobra S1, Kobra X und weitere mit LAN-Modus – am Drucker unter Einstellungen → Netzwerk → LAN-Modus einschalten. Ohne Cloud, mit ACE (Belegung, Trocknen) und Kamera.',
-    fields: [{ key: 'host', label: 'IP-Adresse des Druckers', required: true }],
+    hint: 'Kobra S1, Kobra X und weitere mit LAN-Modus – am Drucker unter Einstellungen → Netzwerk → LAN-Modus einschalten. Ohne Cloud, mit ACE (Belegung, Trocknen) und Kamera. Drucke starten: mit Rinkhals den Moonraker-Port eintragen.',
+    fields: [
+      { key: 'host', label: 'IP-Adresse des Druckers', required: true },
+      // Zweigleisig: Status, ACE und Trocknen über den LAN-Modus, Drucke über Moonraker (Rinkhals)
+      { key: 'moonrakerPort', label: 'Drucken über Moonraker (Rinkhals): Port, z. B. 7125 – leer = aus', type: 'number' },
+    ],
   };
 
   async start() {
@@ -273,8 +277,23 @@ class AnycubicDriver extends BaseDriver {
     return { type: 'ffmpeg', input: url, inputArgs: ['-fflags', 'nobuffer'] };
   }
 
-  canPrint() {
-    return 'Druckstart aus PrintDock ist bei Anycubic im LAN-Modus noch nicht möglich – bitte am Drucker oder im Slicer starten';
+  canPrint(file) {
+    if (!this.config.moonrakerPort) return 'Druckstart braucht Moonraker (Rinkhals) – beim Drucker unter „Drucken über Moonraker“ den Port eintragen (meist 7125). Ohne Rinkhals bitte am Drucker oder im Slicer starten.';
+    if (file?.kind !== 'gcode') return 'Anycubic über Moonraker braucht eine .gcode-Datei';
+    return null;
+  }
+
+  /** Druck über Moonraker (Rinkhals) hochladen und starten – Status, ACE und Trocknen bleiben im LAN-Modus */
+  async startPrint(job) {
+    const form = new FormData();
+    form.append('root', 'gcodes');
+    form.append('print', 'true');
+    form.append('file', await fileBlob(job.path), job.name);
+    try {
+      await postForm(`http://${this.config.host}:${Number(this.config.moonrakerPort)}/server/files/upload`, form, {});
+    } catch (err) {
+      throw new Error(`Moonraker (Rinkhals) auf Port ${this.config.moonrakerPort} nicht erreichbar: ${err.message}`);
+    }
   }
 
   async diagnostics() {
