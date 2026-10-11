@@ -16,7 +16,7 @@ const MODULE_INFO = [
   ['slicer', 'Slicer-Anbindung', 'Aus OrcaSlicer & Co. direkt an PrintDock senden.'],
   ['demo', 'Demo-Daten', 'Simulierte Drucker zum Ausprobieren.'],
 ];
-const ACCENTS = [['cobalt', 'Kobalt'], ['violet', 'Violett'], ['petrol', 'Petrol'], ['orange', 'Orange'], ['magenta', 'Magenta'], ['graphite', 'Graphit']];
+const ACCENTS = [['cobalt', 'Kobalt'], ['violet', 'Violett'], ['petrol', 'Petrol'], ['green', 'Grün'], ['orange', 'Orange'], ['magenta', 'Magenta'], ['graphite', 'Graphit']];
 
 /** Abhängigkeiten: Aufträge brauchen Warteschlange und Dateien, Warteschlange braucht Dateien. */
 function fixModules(m, changed) {
@@ -252,7 +252,7 @@ const MODULE_GROUPS = [
   ['Anbindungen', ['camera', 'notifications', 'homeassistant', 'slicer']],
   ['Sonstiges', ['demo']],
 ];
-const ACCENT_HEX = { cobalt: '#3F5BD8', violet: '#7C3AED', petrol: '#0E7490', orange: '#D9531E', magenta: '#BE185D', graphite: '#475569' };
+const ACCENT_HEX = { cobalt: '#3F5BD8', violet: '#7C3AED', petrol: '#0E7490', green: '#15803D', orange: '#D9531E', magenta: '#BE185D', graphite: '#475569' };
 const seg = (items, cur, attr) => `<div class="seg" role="group">${items.map(([k, l]) => `<button type="button" ${attr}="${k}" aria-pressed="${cur === k}">${l}</button>`).join('')}</div>`;
 const lrow = (label, hint, control) => `<div class="lrow"><div class="lt"><b>${label}</b>${hint ? `<span>${hint}</span>` : ''}</div><div class="lc">${control}</div></div>`;
 
@@ -266,7 +266,6 @@ function vGeneral() {
     return `<label class="mrow ${mods[k] ? 'on' : ''}"><span class="lt"><b>${esc(t(l))}</b><span>${esc(t(d))}${deps ? ` <i>${esc(t('braucht: {d}', { d: deps.map(name).join(', ') }))}</i>` : ''}</span></span>
       <span class="tgl"><input type="checkbox" data-g-mod="${k}" ${mods[k] ? 'checked' : ''}><span class="sw"></span></span></label>`;
   }).join('')}`).join('');
-  const prev = [['free', 'Frei'], ['run', 'Druckt'], ['wait', 'Wartet'], ['fault', 'Störung']].map(([c, l]) => `<span class="lamp ${c}"><i class="led ${c}"></i>${t(l)}</span>`).join('');
   return `<div class="page-head"><h1>${NAV_ICON.gear}${t('Allgemein')}</h1></div>
     <div class="gen-grid">
       <div>
@@ -276,7 +275,6 @@ function vGeneral() {
           ${lrow(t('Erscheinungsbild'), '', seg([['auto', t('Auto')], ['light', t('Hell')], ['dark', t('Dunkel')]], themeGet(), 'data-g-theme'))}
           ${lrow(t('Größe'), '', seg([['compact', 'A<sub>−</sub>'], ['standard', 'A'], ['large', 'A<sup>+</sup>']], a.density || 'standard', 'data-gact="density" data-v'))}
           ${lrow(t('Akzentfarbe'), esc(t(ACCENTS.find((x) => x[0] === a.accent)?.[1] || 'Kobalt')), `<div class="swatches">${ACCENTS.map(([k, l]) => `<button type="button" class="swb" style="--c:${ACCENT_HEX[k]}" data-g-accent="${k}" aria-pressed="${a.accent === k}" title="${esc(t(l))}" aria-label="${esc(t(l))}"></button>`).join('')}</div>`)}
-          <div class="gprev"><span class="meta">${t('Vorschau')}</span>${prev}<button type="button" class="b b-sm b-go" tabindex="-1">${t('Aktion')}</button></div>
         </div>
         <h3 class="shead">${t('Druckstart')}</h3>
         <div class="sbox">

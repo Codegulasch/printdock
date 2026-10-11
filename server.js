@@ -167,6 +167,18 @@ stations.ctx.envTarget = (stationId) => {
   return [cfg?.name, src.target.unit].filter(Boolean).join(' · ');
 };
 filament.migrateHumidityEntities(savePrinters);
+
+// Trocknen per Knopf (Bambu AMS 2 Pro/HT, Klipper-Makro, Home Assistant)
+const { Drying } = require('./lib/drying');
+const drying = new Drying({
+  db: require('./lib/filament').db,
+  filament,
+  printers: () => printerConfigs,
+  runtime,
+  ha: () => ha,
+  broadcast,
+  notify: (event, who, entry) => notifier.dispatch(event, who, null, entry).catch((err) => console.warn(err.message)),
+});
 // Belegung an den Drucker übertragen (Bambu-AMS: Material und Farbe des Fachs)
 filament.ctx.pushSlot = async (cfg, key, spool) => {
   const rt = runtime.get(cfg.id);
@@ -556,7 +568,10 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, r);
     }
     if (id === 'test' && req.method === 'POST') return sendJson(res, 200, await ha.test());
-    if (id === 'entities' && req.method === 'GET') return sendJson(res, 200, await ha.entities());
+    if (id === 'entities' && req.method === 'GET') {
+      const kind = url.searchParams.get('kind');
+      return sendJson(res, 200, await ha.entities(kind === 'dryer' ? ['switch', 'input_boolean', 'button', 'input_button', 'script', 'number', 'input_number', 'climate', 'fan'] : undefined));
+    }
     if (id === 'humidity-sensors' && req.method === 'GET') return sendJson(res, 200, await ha.humiditySensors());
     if (id === 'notify-services' && req.method === 'GET') return sendJson(res, 200, await ha.notifyServices());
     if (id === 'restart' && req.method === 'POST') return sendJson(res, 200, await ha.restartCore());
@@ -647,7 +662,17 @@ async function handleApi(req, res, url) {
     }
   }
   if (resource === 'filament') {
-    if (!id && req.method === 'GET') return sendJson(res, 200, { ...filament.view(), spoolman: spoolman.publicSettings(), stations: stations.view() });
+    if (!id && req.method === 'GET') return sendJson(res, 200, { ...filament.view(), spoolman: spoolman.publicSettings(), stations: stations.view(), dryers: drying.view() });
+    if (id === 'dryers') {
+      const b = ['POST', 'PUT'].includes(req.method) ? await readBody(req) : {};
+      if (!action && req.method === 'POST') return sendJson(res, 201, drying.saveDryer(b));
+      if (action && req.method === 'PUT') return sendJson(res, 200, drying.saveDryer(b, action));
+      if (action && req.method === 'DELETE') { drying.deleteDryer(action); return sendJson(res, 200, { ok: true }); }
+    }
+    if (id === 'dry' && req.method === 'POST') {
+      const b = await readBody(req);
+      return sendJson(res, 200, b.stop ? await drying.stop(b.key) : await drying.start(b.key, b));
+    }
     if (id === 'disarm' && req.method === 'POST') { filament.disarm(); return sendJson(res, 200, { ok: true }); }
     // Feuchte-Messstellen (Sensor aus Home Assistant oder PrintDock Station → AMS/ACE-Einheit, Drucker oder Trockenbox)
     if (id === 'hum-sources') {
