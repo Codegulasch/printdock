@@ -250,24 +250,26 @@ class BambuDriver extends BaseDriver {
    * ams.tray_now = global (AMS-Nr. × 4 + Fach); Zwei-Düsen-Modelle melden je Extruder "snow" = AMS-Nr. × 256 + Fach.
    */
   loadedFrom(p, amsId) {
-    const out = new Set();
-    const now = Number(p.ams?.tray_now);
-    if (Number.isFinite(now) && now < 254) {
-      if (amsId < 128 && Math.floor(now / 4) === amsId) out.add(now % 4);
-      if (amsId >= 128 && now === amsId) out.add(0);
-    }
+    const out = [];
     const info = p.device?.extruder?.info;
-    if (Array.isArray(info)) {
+    if (Array.isArray(info) && info.length > 1) {
+      // Zwei Düsen (H2D, X2D): tray_now ist hier unzuverlässig, je Extruder zählt "snow"
       for (const e of info) {
         const v = Number(e.snow);
         if (!Number.isFinite(v) || v === 0xffff) continue;
-        if (v >> 8 === amsId) out.add(v & 0xff);
+        if (v >> 8 === amsId) out.push({ slot: v & 0xff, extruder: Number(e.id) });
       }
+      return out;
     }
-    return [...out];
+    const now = Number(p.ams?.tray_now);
+    if (Number.isFinite(now) && now < 254) {
+      if (amsId < 128 && Math.floor(now / 4) === amsId) out.push({ slot: now % 4, extruder: null });
+      if (amsId >= 128 && now === amsId) out.push({ slot: 0, extruder: null });
+    }
+    return out;
   }
 
-  /** Filament ins AMS zurückziehen, warten bis frei, dann trocknen (Bambu lässt sonst nicht trocknen) */
+  /** Filament ins AMS zurückziehen (je Düse), warten bis frei, dann trocknen (Bambu lässt sonst nicht trocknen) */
   async unloadThenDry(amsId, dryCmd) {
     this.dryPrep ||= {};
     this.dryPrep[amsId] = Date.now();
@@ -276,26 +278,39 @@ class BambuDriver extends BaseDriver {
       this.cmdResults ||= {};
       this.cmdResults.ams_filament_drying = { result: 'fail', reason, at: Date.now() };
     };
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     try {
-      const slot = this.loadedFrom(this.raw, amsId)[0];
-      const unit = (this.raw.ams?.ams || []).find((u, i) => Number(u.id ?? i) === amsId);
-      const tr = (unit?.tray || []).find((x, i) => Number(x.id ?? i) === slot);
-      const temp = Math.max(190, Math.min(300, Number(tr?.nozzle_temp_max) || 250));
-      this.send({ command: 'ams_change_filament', ams_id: 255, slot_id: 255, target: 255, curr_temp: temp, tar_temp: temp });
-      const until = Date.now() + 4 * 60_000;
-      while (Date.now() < until) {
-        await new Promise((r) => setTimeout(r, 5000));
-        if (!this.dryPrep?.[amsId]) return; // in PrintDock abgebrochen
-        if (!this.client?.connected) return fail('offline');
-        if (!this.loadedFrom(this.raw, amsId).length) {
-          await new Promise((r) => setTimeout(r, 3000));
-          this.send(dryCmd);
-          setTimeout(() => this.pushAll(), 3000);
-          return;
+      for (let round = 0; round < 3; round++) {
+        const cur = this.loadedFrom(this.raw, amsId)[0];
+        if (!cur) break;
+        const unit = (this.raw.ams?.ams || []).find((u, i) => Number(u.id ?? i) === amsId);
+        const tr = (unit?.tray || []).find((x, i) => Number(x.id ?? i) === cur.slot);
+        const temp = Math.max(190, Math.min(300, Number(tr?.nozzle_temp_max) || 250));
+        // wie Bambu Studio: Entladen = target/slot_id 255, ams_id der Einheit, bei zwei Düsen extruder_id;
+        // der Drucker heizt die Düse dafür selbst auf curr_temp/tar_temp
+        const cmd = { command: 'ams_change_filament', ams_id: amsId, slot_id: 255, target: 255, curr_temp: temp, tar_temp: temp };
+        if (cur.extruder != null) cmd.extruder_id = cur.extruder;
+        const sentAt = Date.now();
+        this.send(cmd);
+        console.log(`[${this.config.name || 'Bambu'}] Trocknen: Filament aus ${amsId < 128 ? `AMS ${amsId + 1}` : 'AMS HT'} Fach ${cur.slot + 1} wird entladen${cur.extruder != null ? ` (Düse ${cur.extruder + 1})` : ''}`);
+        const until = Date.now() + 4 * 60_000;
+        let freed = false;
+        while (Date.now() < until) {
+          await sleep(5000);
+          if (!this.dryPrep?.[amsId]) return; // in PrintDock abgebrochen
+          if (!this.client?.connected) return fail('offline');
+          const r = this.cmdResults?.ams_change_filament;
+          if (r && r.at >= sentAt && /fail/i.test(r.result)) return fail(r.reason ? `unload_refused:${r.reason}` : 'unload_refused');
+          const still = this.loadedFrom(this.raw, amsId);
+          if (!still.some((x) => x.extruder === cur.extruder && x.slot === cur.slot)) { freed = true; break; }
+          if (Date.now() % 20_000 < 5000) this.pushAll();
         }
-        if (Date.now() % 20_000 < 5000) this.pushAll();
+        if (!freed) return fail('unload_failed');
       }
-      fail('unload_failed');
+      if (this.loadedFrom(this.raw, amsId).length) return fail('unload_failed');
+      await sleep(3000);
+      this.send(dryCmd);
+      setTimeout(() => this.pushAll(), 3000);
     } catch (err) {
       fail(err.message);
     } finally {

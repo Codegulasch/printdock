@@ -680,8 +680,8 @@ const STATION_REPO = 'https://github.com/Codegulasch/printdock-station';
 function stationHelpDialog(sensor = false) {
   const addr = stationAddress();
   const build = sensor
-    ? t('ESP32 (z. B. D1 Mini ESP32) und ein Feuchtesensor-Modul (SHT31, SHT40, AHT20 oder HTU21D) an GPIO 21 (SDA) und 22 (SCL), optional ein 0,96″-OLED am selben Bus. Der Sensor gehört in die Box, das ESP32 kann außen bleiben.')
-    : t('ESP32 (WROOM-Devkit oder D1 Mini ESP32), PN532-NFC-Modul, HX711 mit 5-kg-Wägezelle, 0,96″-OLED (SSD1306), optional WS2812-LED und Taster.');
+    ? t('ESP32 (z. B. D1 Mini ESP32: GPIO 21 = SDA, 22 = SCL) oder D1 Mini ESP8266 (D2 = SDA, D1 = SCL) und ein Feuchtesensor-Modul (SHT31, SHT40, AHT20 oder HTU21D), optional ein 0,96″-OLED am selben Bus. Der Sensor gehört in die Box, das Board kann außen bleiben.')
+    : t('ESP32 (WROOM-Devkit oder D1 Mini ESP32) oder D1 Mini ESP8266 (PN532 dann im I²C-Modus), PN532-NFC-Modul, HX711 mit 5-kg-Wägezelle, 0,96″-OLED (SSD1306), optional WS2812-LED und Taster.');
   openDialog(`<div class="dlg" style="max-width:720px"><h2>${sensor ? t('PrintDock Sensor einrichten') : t('PrintDock Station einrichten')}</h2>
     <p style="margin:0">${t('Station und Sensor sind ein eigenes Projekt mit Firmware, Stückliste und Verdrahtung – eine Firmware für beide:')}</p>
     <div class="copyline"><a class="b b-sm" href="${STATION_REPO}" target="_blank" rel="noopener">github.com/Codegulasch/printdock-station ↗</a>

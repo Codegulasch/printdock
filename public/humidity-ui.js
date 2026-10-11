@@ -308,6 +308,10 @@ function humSourceDialog({ printerId = null, unit = null, storage = false, src =
 /** Grund, warum ein Trockner nicht gestartet ist */
 function dryErrorText(e) {
   if (e.code === 'refused' && e.reason === 'unload_failed') return t('Das Filament ließ sich nicht ins AMS zurückziehen. Bitte am Drucker entladen und erneut starten.');
+  if (e.code === 'refused' && /^unload_refused/.test(e.reason)) {
+    const why = e.reason.split(':').slice(1).join(':');
+    return why ? t('Der Drucker hat das Entladen abgelehnt: {why}. Bitte am Drucker entladen und erneut starten.', { why }) : t('Der Drucker hat das Entladen abgelehnt. Bitte am Drucker entladen und erneut starten.');
+  }
   if (e.code === 'refused' && e.reason === 'offline') return t('Die Verbindung zum Drucker ist abgerissen, bevor das Trocknen starten konnte.');
   if (e.code === 'refused') return e.reason ? t('Der Drucker lehnt das Trocknen ab: {why}', { why: e.reason }) : t('Der Drucker lehnt das Trocknen ab. Häufige Ursachen: Filament steckt noch im AMS-Ausgang, es läuft ein Druck, oder das Netzteil reicht nicht für Druck und Trocknen gleichzeitig.');
   return t('Das Gerät hat nicht reagiert. Bei Bambu muss für Befehle aus PrintDock der LAN-Modus mit Entwicklermodus aktiv sein; während eines Drucks trocknet manches AMS nicht.');

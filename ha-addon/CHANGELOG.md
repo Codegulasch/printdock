@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.2
+- **Bambu: filament is really retracted before drying now.** The unload command now matches Bambu Studio (AMS number of the unit, and on two-nozzle printers like the X2D/H2D the nozzle that holds the filament). The printer heats the nozzle itself; each nozzle with filament from that AMS is unloaded in turn. If the printer refuses to unload, PrintDock shows its reason
+- PrintDock Station: the D1 Mini with ESP8266 is supported from station firmware 0.3.0 (PN532 in I²C mode)
+
 ## 0.12.1
 - **Bambu: drying with loaded filament.** Bambu refuses to dry while filament from that AMS is loaded (it sits in the AMS outlet). PrintDock now retracts it into the AMS first – the nozzle heats up briefly for this – and starts drying as soon as the slot is free ("Unloading filament …"). During a print this is not possible; PrintDock then says so straight away. Clearer reasons when the printer still refuses
 
