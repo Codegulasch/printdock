@@ -1,6 +1,6 @@
 {
   "name": "printdock",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Manage and monitor 3D printers from any vendor (Bambu Lab, Klipper/Moonraker, OctoPrint, …) – queue, orders, filament, maintenance, Home Assistant",
   "main": "server.js",
   "type": "commonjs",

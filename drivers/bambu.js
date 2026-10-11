@@ -77,6 +77,12 @@ class BambuDriver extends BaseDriver {
       try {
         const msg = JSON.parse(payload.toString());
         if (msg.print) {
+          // Antwort auf einen Befehl merken (z. B. Trocknen abgelehnt) – für Rückmeldungen in der Oberfläche
+          if (msg.print.command && msg.print.result) {
+            this.cmdResults ||= {};
+            this.cmdResults[msg.print.command] = { result: String(msg.print.result), reason: msg.print.reason ? String(msg.print.reason) : null, at: Date.now() };
+            if (/fail/i.test(msg.print.result)) console.warn(`[${this.config.name || 'Bambu'}] ${msg.print.command}: ${msg.print.result}${msg.print.reason ? ` (${msg.print.reason})` : ''}`);
+          }
           deepMerge(this.raw, msg.print);
           this.publishStatus();
         }
@@ -358,13 +364,19 @@ class BambuDriver extends BaseDriver {
       // AMS 2 Pro / AMS HT trocknen (wie in Bambu Studio bzw. am Drucker); mode 0 = beenden
       const amsId = Number(args.unitId);
       if (!Number.isInteger(amsId)) throw new Error('Unbekannte AMS-Einheit');
-      if (args.stop) return this.send({ command: 'ams_filament_drying', ams_id: amsId, temp: 0, cooling_temp: 0, duration: 0, humidity: 0, mode: 0, rotate_tray: false, filament: '', close_power_conflict: false });
+      if (args.stop) {
+        this.send({ command: 'ams_filament_drying', ams_id: amsId, temp: 0, cooling_temp: 0, duration: 0, humidity: 0, mode: 0, rotate_tray: false, filament: '', close_power_conflict: false });
+        setTimeout(() => this.pushAll(), 3000);
+        return;
+      }
       const max = amsId >= 128 ? 85 : 65;
       const t = Math.round(Number(args.temp));
       const h = Math.round(Number(args.hours));
       if (!(t >= 45 && t <= max)) throw new Error(`Temperatur ${t} °C geht nicht (45–${max} °C)`);
       if (!(h >= 1 && h <= 24)) throw new Error('Dauer 1–24 Stunden');
-      this.send({ command: 'ams_filament_drying', ams_id: amsId, temp: t, cooling_temp: 45, duration: h, humidity: 0, mode: 1, rotate_tray: Boolean(args.rotate), filament: String(args.material || ''), close_power_conflict: false });
+      this.send({ command: 'ams_filament_drying', ams_id: amsId, temp: t, cooling_temp: 45, duration: h, humidity: 0, mode: 1, rotate_tray: Boolean(args.rotate), filament: '', close_power_conflict: false });
+      // gleich nachfragen, damit der neue Zustand (dry_time) schnell ankommt
+      setTimeout(() => this.pushAll(), 3000);
       return;
     }
     if (cmd === 'filament_setting') {

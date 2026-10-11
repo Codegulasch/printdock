@@ -61,7 +61,9 @@ function vHum() {
       : !v ? `<span class="meta">${t('kein aktueller Wert')}</span>`
         : pt.level === 'alarm' ? `<b class="vl bad">${t('Filament trocknen')}</b>` : pt.level === 'warn' ? `<b class="vl warn">${t('Trockenmittel prüfen')}</b>` : `<span class="vl ok">${t('trocken genug')}</span>`;
     const dry = dr
-      ? (dr.active
+      ? (dr.pending
+        ? `<div class="hd-run"><span class="hd-anim">♨</span><div><b>${t('Wird gestartet …')}</b><small>${t('warte auf Rückmeldung des Geräts')}</small></div><button class="b b-sm" data-hact="dryStop" data-key="${esc(dr.key)}">${t('Abbrechen')}</button></div>`
+        : dr.active
         ? `<div class="hd-run"><span class="hd-anim">♨</span><div><b>${t('Trocknet')}${dr.temp ? ` · ${dr.temp} °C` : ''}</b><small>${dr.until ? t('noch {t}', { t: leftTxt(dr.until) }) : ''}</small></div><button class="b b-sm" data-hact="dryStop" data-key="${esc(dr.key)}">${t('Stopp')}</button></div>`
         : `<button class="b b-sm ${pt.level === 'alarm' || pt.level === 'warn' ? 'b-go' : ''}" data-hact="dry" data-key="${esc(dr.key)}">♨ ${t('Trocknen …')}</button>`)
       : '';
@@ -70,6 +72,7 @@ function vHum() {
       <div class="hc-h"><div><b>${esc(humPointName(pt))}</b><small>${pt.builtin ? t('misst selbst') : pt.source ? (pt.source.kind === 'station' ? t('PrintDock Sensor') : esc(pt.source.name || pt.source.entity)) : t('ohne Sensor')}${dr?.model ? ` · ${esc(dr.model)}` : ''}</small></div>
         ${v ? `<div class="hc-v"><span class="num">${fnum(v.pct, 0)}<i> %</i></span>${v.temp != null ? `<small>${fnum(v.temp, 0)} °C</small>` : ''}</div>` : ''}</div>
       ${ser?.series?.length ? humSpark(ser.series, st) : ''}
+      ${dr?.error ? `<div class="hd-err">⚠ ${esc(dryErrorText(dr.error))}</div>` : ''}
       <div class="hc-f"><div>${state}${spools.length ? `<small class="meta" style="display:block">${t('Spulen: {s}', { s: esc(spools.join(', ')) })}</small>` : ''}</div>
         <div class="hc-a">${dry}${!has ? `<button class="b b-sm" data-fact="humAdd" data-printer="${esc(pt.printerId || '')}" data-unit="${esc(pt.unit || '')}" ${pt.type === 'storage' ? 'data-storage="1"' : ''}>${t('Sensor zuordnen')}</button>` : ''}</div></div>
     </article>`;
@@ -79,7 +82,7 @@ function vHum() {
       <span class="meta">${t('Warnung ab {w} %, Alarm ab {a} %', { w: st.humWarn, a: st.humAlarm })}${running ? ` · ${t('{n} Trockner laufen', { n: running })}` : ''}</span>
       <button class="b b-sm" data-view="humset">${NAV_ICON.gear}${t('Einrichten')}</button></div>
     ${pts.length ? `<div class="humcards">${tiles}</div>` : `<div class="list"><div class="empty"><h3>${t('Noch keine Messstellen')}</h3><p>${t('Sobald Drucker angelegt sind, erscheinen hier ihre AMS/ACE-Einheiten.')}</p></div></div>`}
-    <p class="meta">${t('Trocknen per Knopf: Bambu AMS 2 Pro und AMS HT direkt, Klipper-Drucker über ein Makro (z. B. ACE Pro), alles andere über Home Assistant – Trockenbox an einer Steckdose oder ein Trockner mit eigener Integration. Einrichten unter Einstellungen → Feuchte & Trocknen.')}</p>`;
+    <p class="meta">${t('Trocknen per Knopf: Bambu AMS 2 Pro und AMS HT sowie Anycubic ACE Pro (LAN-Modus) direkt, Klipper-Drucker über ein Makro (z. B. ACE Pro), alles andere über Home Assistant – Trockenbox an einer Steckdose oder ein Trockner mit eigener Integration. Einrichten unter Einstellungen → Drucker & Filament → Feuchte & Trocknen.')}</p>`;
 }
 
 /** Trocknen starten – Temperatur und Dauer mit Vorschlag nach Material */
@@ -101,15 +104,16 @@ function dryDialog(key) {
     try {
       await api('filament/dry', { method: 'POST', body: { key, temp: f.temp?.value, hours: f.hours.value } });
       d.close();
-      toast(t('Trocknen gestartet'));
+      toast(t('Trocknen gestartet – warte auf Rückmeldung des Geräts'));
       reload('filament');
+      for (const ms of [10000, 25000, 50000, 85000]) setTimeout(() => reload('filament'), ms);
     } catch (err) {
       formError(d, err.message);
     }
   });
 }
 
-// ================================================================ Einstellungen → Feuchte & Trocknen
+// ================================================================ Einstellungen → Drucker & Filament → Feuchte & Trocknen
 
 function vHumSettings() {
   const F = fil();
@@ -299,3 +303,9 @@ function humSourceDialog({ printerId = null, unit = null, storage = false, src =
   });
 }
 
+
+/** Grund, warum ein Trockner nicht gestartet ist */
+function dryErrorText(e) {
+  if (e.code === 'refused') return e.reason ? t('Der Drucker lehnt das Trocknen ab: {why}', { why: e.reason }) : t('Der Drucker lehnt das Trocknen ab');
+  return t('Das Gerät hat nicht reagiert. Bei Bambu muss für Befehle aus PrintDock der LAN-Modus mit Entwicklermodus aktiv sein; während eines Drucks trocknet manches AMS nicht.');
+}

@@ -182,7 +182,7 @@ const drying = new Drying({
 // Belegung an den Drucker übertragen (Bambu-AMS: Material und Farbe des Fachs)
 filament.ctx.pushSlot = async (cfg, key, spool) => {
   const rt = runtime.get(cfg.id);
-  if (!rt || !(cfg.driver === 'bambu' || (cfg.driver === 'demo' && /^(ams|ext)/.test(key)))) return;
+  if (!rt || !(cfg.driver === 'bambu' || (cfg.driver === 'anycubic' && /^ace/.test(key)) || (cfg.driver === 'demo' && /^(ams|ext)/.test(key)))) return;
   const [tempMin, tempMax] = tags.tempsFor(spool.material);
   await rt.driver.command('filament_setting', { key, material: spool.material, color: spool.color, tempMin, tempMax });
   console.log(`[${cfg.name}] ${key}: ${spool.material} ${spool.color} gesetzt (${spool.nr})`);
