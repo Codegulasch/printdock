@@ -29,6 +29,8 @@ function humSeriesFor(F, pt) {
   return list.find((h) => h.printerId === pt.printerId && (h.unit === unit || (pt.builtin && h.unit === pt.unit)));
 }
 
+/** Ausgeblendete Messstellen (z. B. Drucker ohne AMS und ohne Trockner) */
+const humHidden = (F, pt) => (F.settings?.humHidden || []).includes(humKey(pt));
 const dryerFor = (F, pt) => (F.dryers || []).find((d) => d.key === humKey(pt));
 const leftTxt = (iso) => {
   const m = Math.max(0, Math.round((Date.parse(iso) - Date.now()) / 60_000));
@@ -37,7 +39,7 @@ const leftTxt = (iso) => {
 
 /** Hinweis in der Belegung, wenn etwas zu feucht ist */
 function humAlertHTML(F) {
-  const bad = (F.humPoints || []).filter((pt) => pt.level === 'warn' || pt.level === 'alarm');
+  const bad = (F.humPoints || []).filter((pt) => !humHidden(F, pt) && (pt.level === 'warn' || pt.level === 'alarm'));
   if (!bad.length) return '';
   const alarm = bad.some((pt) => pt.level === 'alarm');
   return `<div class="newspool hum-alert ${alarm ? 'alarm' : ''}"><span>${BI.drop}</span><div><b>${bad.length === 1 ? t('{n} ist zu feucht', { n: esc(humPointName(bad[0])) }) : t('{n} Messstellen zu feucht', { n: bad.length })}</b>
@@ -50,7 +52,7 @@ function humAlertHTML(F) {
 function vHum() {
   const F = fil();
   const st = F.settings;
-  const pts = (F.humPoints || []);
+  const pts = (F.humPoints || []).filter((pt) => !humHidden(F, pt));
   const tiles = pts.map((pt) => {
     const has = pt.builtin || pt.source;
     const ser = humSeriesFor(F, pt);
@@ -142,7 +144,9 @@ function vHumSettings() {
 }
 
 function humPointsHTML(F) {
-  const pts = F.humPoints || [];
+  const all = F.humPoints || [];
+  const pts = all.filter((pt) => !humHidden(F, pt));
+  const hidden = all.filter((pt) => humHidden(F, pt));
   const srcLabel = (src) => src.kind === 'station'
     ? `${t('PrintDock Sensor')} „${esc((F.stations?.list || []).find((x) => x.id === src.stationId)?.name || '?')}“`
     : `${esc(src.name || src.entity)} <span class="meta">(${t('Home Assistant')})</span>`;
@@ -154,14 +158,15 @@ function humPointsHTML(F) {
     const name = pt.type === 'storage' ? `<b>${esc(pt.name)}</b><small>${t('Trockenbox / Lagerort')}${pt.spools?.length ? ` · ${pt.spools.length === 1 ? t('1 Spule') : t('{n} Spulen', { n: pt.spools.length })}` : ''}</small>`
       : `<b>${esc(pt.printerName)}${pt.unit ? ` · ${esc(t(pt.unit))}` : ''}</b>`;
     return `<div class="hp-row2">
-      <div class="hp-n">${name}</div><div class="hp-v">${pt.builtin || pt.source ? val(pt) : ''}</div>
+      <div class="hp-n">${name}</div><div class="hp-v">${pt.builtin || pt.source ? val(pt) : ''}<button class="x" data-hact="humHide" data-key="${esc(humKey(pt))}" title="${esc(t('Ausblenden – z. B. Drucker ohne AMS und ohne Trockner'))}">✕</button></div>
       <div class="hp-line"><span class="hp-k">💧</span><span class="hp-t">${sens}</span>
         ${pt.builtin ? '' : pt.source ? `<button class="x" data-fact="humEdit" data-id="${esc(pt.source.id)}" title="${t('Sensor ändern')}">${ICON.edit}</button>` : `<button class="b b-sm" data-fact="humAdd" data-printer="${esc(pt.printerId || '')}" data-unit="${esc(pt.unit || '')}">${t('Sensor zuordnen')}</button>`}</div>
       <div class="hp-line"><span class="hp-k">♨</span><span class="hp-t ${dr ? '' : 'meta'}">${dry}</span>
         ${dr?.kind === 'builtin' ? '' : `<button class="${dr ? 'x' : 'b b-sm'}" data-hact="dryerSetup" data-key="${esc(humKey(pt))}" title="${t('Trockner einrichten')}">${dr ? ICON.edit : t('Trockner einrichten')}</button>`}</div>
     </div>`;
   }).join('');
-  return `<div class="sbox hp-box">${rows || `<div class="st-empty"><span>${t('Noch keine Drucker.')}</span></div>`}
+  const hid = hidden.length ? `<div class="hp-hidden"><span class="meta">${t('Ausgeblendet:')}</span> ${hidden.map((pt) => `<button class="chip" data-hact="humShow" data-key="${esc(humKey(pt))}" title="${esc(t('Wieder einblenden'))}">${esc(humPointName(pt))} ＋</button>`).join(' ')}</div>` : '';
+  return `<div class="sbox hp-box">${rows || `<div class="st-empty"><span>${t('Keine Messstellen.')}</span></div>`}${hid}
     <div class="st-foot"><button class="b b-sm" data-fact="humAdd" data-storage="1">${ICON.plus}${t('Trockenbox / Lagerort')}</button></div></div>
     <p class="meta">${t('Nicht jedes AMS, ACE oder jede Trockenbox misst selbst oder trocknet selbst. Fehlt die Messung, einen Feuchtesensor zuordnen (Home Assistant oder PrintDock Sensor). Zum Trocknen per Knopf einen Trockner einrichten: G-Code-Makro bei Klipper-Druckern oder eine Entität aus Home Assistant (Steckdose, Taste, Skript).')}</p>`;
 }
@@ -246,6 +251,10 @@ document.addEventListener('click', async (e) => {
   const { hact, key } = el.dataset;
   if (hact === 'dry') return dryDialog(key);
   if (hact === 'dryerSetup') return dryerSetupDialog(key);
+  if (hact === 'humHide' || hact === 'humShow') {
+    await run(() => api('filament/settings', { method: 'PUT', body: { [hact]: key } }), hact === 'humHide' ? t('Ausgeblendet') : t('Wieder eingeblendet'));
+    return reload('filament');
+  }
   if (hact === 'dryStop') {
     el.disabled = true;
     await run(() => api('filament/dry', { method: 'POST', body: { key, stop: true } }), t('Trocknen beendet'));

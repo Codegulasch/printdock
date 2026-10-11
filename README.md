@@ -53,6 +53,8 @@ npm install && npm start
 
 Then open `http://<ip>:3080`. The setup wizard asks for language, look, features and access and can load demo data. Everything can be changed later under **Settings → General**.
 
+**Assign colours at print start:** when starting from the queue, PrintDock suggests which slot or tool prints which filament of the slice by material and colour – every row can be changed. Bambu gets it as AMS mapping; on Klipper and OctoPrint printers PrintDock renumbers the tools in the G-code (e.g. T0 → T2).
+
 ## Supported printers
 
 | Connection | Printers | Requirements |
@@ -117,7 +119,7 @@ Passwords are stored with scrypt, sessions use HttpOnly cookies, 5 wrong attempt
 
 ## Updates
 
-*Settings → System → Updates* checks GitHub for a new version (also automatically once a day) and installs it with one click: as an add-on Home Assistant rebuilds PrintDock, on PC and Raspberry Pi PrintDock replaces its files and restarts. For a private repository enter a read-only GitHub token under “Update source”. Docker: `docker compose pull && docker compose up -d`.
+*Settings → System → Updates* checks GitHub for a new version (also automatically every 6 hours) and installs it with one click: as an add-on Home Assistant rebuilds PrintDock, on PC and Raspberry Pi PrintDock replaces its files and restarts. For a private repository enter a read-only GitHub token under “Update source”. Docker: `docker compose pull && docker compose up -d`.
 
 ## Backup and moving
 

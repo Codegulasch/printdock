@@ -12,6 +12,7 @@ const EVENTS = [
   { id: 'filamentLow', label: 'Spule wird knapp', defaultOn: true },
   { id: 'humidity', label: 'Filament zu feucht (AMS/ACE/Sensor)', defaultOn: true },
   { id: 'dryingDone', label: 'Trocknen fertig', defaultOn: true },
+  { id: 'update', label: 'PrintDock-Update verfügbar', defaultOn: true },
 ];
 
 const STYLE = {
@@ -25,6 +26,7 @@ const STYLE = {
   filamentLow: { emoji: '🧵', tag: 'thread', priority: 3 },
   humidity: { emoji: '💧', tag: 'droplet', priority: 3 },
   dryingDone: { emoji: '♨️', tag: 'hotsprings', priority: 3 },
+  update: { emoji: '⬆️', tag: 'arrow_up', priority: 2 },
   test: { emoji: '🔔', tag: 'bell', priority: 3 },
 };
 
@@ -252,6 +254,10 @@ function buildMessage(event, printer, status, entry) {
       if (entry?.spools?.length) lines.push(entry.spools.join(', '));
       break;
     }
+    case 'update':
+      title = tr('PrintDock {v} ist verfügbar', { v: entry?.version || '' });
+      lines.push(tr('Installieren unter Einstellungen → System → Updates.'));
+      break;
     case 'maintenance':
       title = tr('{p}: Wartung fällig', { p: name });
       for (const t of entry?.tasks || []) lines.push(`• ${tr(t)}`);
@@ -300,7 +306,7 @@ class Notifier {
 
     const msg = buildMessage(event, printer, status, entry);
     const wantsImage = channels.some((c) => c.attachImage && CHANNELS[c.type]?.image);
-    const image = wantsImage && status?.camera && !['maintenance', 'filamentLow', 'humidity', 'dryingDone'].includes(event) ? await this.getSnapshot(printer.id) : null;
+    const image = wantsImage && status?.camera && !['maintenance', 'filamentLow', 'humidity', 'dryingDone', 'update'].includes(event) ? await this.getSnapshot(printer.id) : null;
     await Promise.allSettled(channels.map((c) => this.sendTo(c, msg, c.attachImage ? image : null)));
   }
 

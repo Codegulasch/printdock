@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.6
+- **Choose colours when starting from the queue – now also on Klipper and OctoPrint printers** (e.g. Snapmaker U1, Voron with several toolheads, ACE/MMU via Klipper). The start dialog suggests which tool or slot prints which filament of the slice by material and colour, and every row can be changed. If the assignment differs from the slice, PrintDock renumbers the tools in the G-code before sending it (T0 → T2, swapping works too) – including tool temperatures and Klipper `EXTRUDER=` / `TOOL=` parameters. Bambu keeps using the AMS mapping as before
+
+## 0.12.5
+- **Smart plugs via Home Assistant are reliable again:** if Home Assistant closes a connection or answers late, PrintDock now retries once and then looks at the plug state – instead of "Home Assistant not reachable" while the plug had switched anyway. Longer timeout for slow plugs (cloud, Zigbee)
+- **Hide measuring points** under *Settings → Printers & filament → Humidity & drying* (✕), e.g. a printer without AMS and without dryer like the Snapmaker U1. Hidden points can be shown again with one click
+- **Updates are checked every 6 hours** (was once a day). A new version is announced once – with the new notification event "PrintDock update available" (switch it on per channel under *Notifications*). If the check fails (e.g. private repository without token), *System → Updates* now says why
+
 ## 0.12.4
 - **Bambu: unloading before drying is now opt-in and heats the nozzle first.** Cold filament sticks in the nozzle and can snap when it is pulled back. If filament from the unit is loaded, the drying dialog offers "Unload filament first": PrintDock heats the nozzle to the filament's upper print temperature, waits until it is hot, unloads, switches the heater off again and then starts drying ("Nozzle heating up …" → "Unloading filament …"). Without the option PrintDock asks you to unload on the printer
 

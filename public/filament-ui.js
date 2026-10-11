@@ -96,7 +96,8 @@ function filamentMapHTML(map) {
       <span class="fm-target">${target}</span>
       <span class="fm-state" data-fm-st>${fmapState(f, sl)}</span></div>`;
   }).join('');
-  return `<div class="fmap"><div class="meta" style="margin-bottom:6px">${map.mappable ? t('Filament – vorgewählt nach Farbe und Material aus dem Slice, bei Bedarf ändern:') : t('Filament laut Slice – der Drucker nimmt die Werkzeuge so, wie im Slicer zugeordnet:')}</div>${rows}</div>`;
+  const hint = map.method === 'gcode' ? `<div class="meta" style="margin-top:6px">${t('Weicht die Zuordnung vom Slice ab, stellt PrintDock die Werkzeuge im G-code um (z. B. T0 → T2) – im Slicer muss nichts geändert werden.')}</div>` : '';
+  return `<div class="fmap"><div class="meta" style="margin-bottom:6px">${map.mappable ? t('Filament – vorgewählt nach Farbe und Material aus dem Slice, bei Bedarf ändern:') : t('Filament laut Slice – der Drucker nimmt die Werkzeuge so, wie im Slicer zugeordnet:')}</div>${rows}${hint}</div>`;
 }
 
 /** Nach Änderung einer Auswahl Farbe und Zustand der Zeile aktualisieren. */

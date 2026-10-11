@@ -378,10 +378,20 @@ function updateAvailable() {
   const last = updater.settings().last;
   return last?.latest && updater.cmp(last.latest, require('./package.json').version) > 0 ? last.latest.replace(/^v/, '') : null;
 }
-// Einmal am Tag nach Updates sehen (Fehler still – z. B. privates Repository ohne Token)
+// Alle 6 Stunden nach Updates sehen (Fehler still – z. B. privates Repository ohne Token).
+// Eine neue Version wird einmal gemeldet (Oberfläche und – wenn eingeschaltet – Benachrichtigung „Update verfügbar“).
+const updNote = require('./lib/store').store('update-notice.json', { notified: null });
 setTimeout(function autoCheck() {
-  updater.check().then(() => broadcast('app', null)).catch(() => {});
-  setTimeout(autoCheck, 24 * 3600_000).unref();
+  updater.check().then((r) => {
+    broadcast('app', null);
+    if (r?.newer && r.latest && updNote.data.notified !== r.latest) {
+      updNote.data.notified = r.latest;
+      updNote.save();
+      console.log(`Update verfügbar: ${r.latest}`);
+      notifier.dispatch('update', { id: 'printdock', name: 'PrintDock' }, null, { version: String(r.latest).replace(/^v/, '') }).catch(() => {});
+    }
+  }).catch((err) => console.warn(`Update-Prüfung: ${err.message}`));
+  setTimeout(autoCheck, 6 * 3600_000).unref();
 }, 90_000).unref();
 
 function sendJson(res, status, data) {
@@ -828,7 +838,11 @@ async function handleApi(req, res, url) {
         const cfg = printerConfigs.find((p) => p.id === body.printerId);
         if (item && cfg) {
           const options = { ...(item.options || {}), slotMap: body.slotMap };
-          if (filament.canMap(cfg)) options.amsMapping = filament.amsMappingFor(files.get(item.fileId), body.slotMap.map(String));
+          const file = files.get(item.fileId);
+          if (filament.canMap(cfg, file)) {
+            if (['moonraker', 'octoprint'].includes(cfg.driver)) options.toolMap = filament.toolMapFor(cfg, file, body.slotMap.map(String));
+            else options.amsMapping = filament.amsMappingFor(file, body.slotMap.map(String));
+          }
           production.updateItem(id, { options });
         }
       }

@@ -692,6 +692,7 @@ body.has-overlay{overflow:hidden}
   .sn-i small{display:none}
   .sn-i b{font-size:0.875rem;white-space:nowrap}
 }
+.warn-txt{color:var(--warn-ink)}
 .st-pair small.warn-txt{display:block;color:var(--warn-ink);margin-top:0.125rem;white-space:normal;overflow:visible}
 .hd-err{font-size:0.8125rem;color:var(--fault);background:var(--fault-bg);border-radius:0.375rem;padding:0.375rem 0.5rem;line-height:1.35}
 .hd-anim{font-size:1.1rem;animation:stpulse 1.6s ease-in-out infinite}
@@ -700,7 +701,9 @@ body.has-overlay{overflow:hidden}
 .newspool.hum-alert.alarm{background:var(--fault-bg);border-color:color-mix(in srgb,var(--fault) 45%,transparent)}.newspool.hum-alert.alarm>span{color:var(--fault)}
 .hp-row2{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0.25rem 0.75rem;padding:0.6rem 1rem;border-bottom:1px solid var(--line)}
 .hp-row2 .hp-n b{display:block;font-size:0.875rem}.hp-row2 .hp-n small{display:block;color:var(--muted);font-size:0.75rem}
-.hp-row2 .hp-v{text-align:right}
+.hp-row2 .hp-v{text-align:right;display:flex;align-items:center;justify-content:flex-end;gap:0.375rem}
+.hp-row2 .hp-v .x{opacity:.55}.hp-row2 .hp-v .x:hover{opacity:1}
+.hp-hidden{display:flex;flex-wrap:wrap;align-items:center;gap:0.375rem;padding:0.5rem 1rem;border-bottom:1px solid var(--line)}
 .hp-line{grid-column:1/-1;display:flex;align-items:center;gap:0.5rem;font-size:0.8125rem;min-height:1.875rem}
 .hp-line .hp-k{width:1.25rem;text-align:center;flex:none}
 .hp-line .hp-t{flex:1;min-width:0}

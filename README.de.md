@@ -85,6 +85,8 @@ Im Heimnetz läuft PrintDock ohne Anmeldung. Für den Zugriff von außen unter *
 
 Passwörter werden mit scrypt gespeichert, Sitzungen per HttpOnly-Cookie, nach 5 Fehlversuchen eine Minute Sperre. Access Codes, API-Keys und Bot-Tokens liegen im Klartext in `data/`; die Oberfläche zeigt sie nie an.
 
+**Farben beim Druckstart zuordnen:** Beim Start aus der Warteschlange schlägt PrintDock nach Material und Farbe vor, welches Fach bzw. Werkzeug welches Filament aus dem Slice druckt – jede Zeile lässt sich ändern. Bambu bekommt die Zuordnung als AMS-Mapping, bei Klipper- und OctoPrint-Druckern nummeriert PrintDock die Werkzeuge im G-code um (z. B. T0 → T2).
+
 ## Unterstützte Drucker
 
 | Anbindung | Drucker | Was der Drucker braucht |
@@ -134,7 +136,7 @@ Oben fasst eine Zeile zusammen, wie viele Drucker frei sind, drucken, warten ode
 
 ## Updates
 
-*Einstellungen → System → Updates* sieht auf GitHub nach einer neuen Version (auch automatisch einmal am Tag) und installiert sie per Klick: als Add-on baut Home Assistant PrintDock neu, auf PC und Raspberry Pi ersetzt PrintDock seine Dateien und startet neu. Für ein privates Repository unter „Update-Quelle“ einen GitHub-Token mit Leserecht eintragen. Docker: `docker compose pull && docker compose up -d`.
+*Einstellungen → System → Updates* sieht auf GitHub nach einer neuen Version (auch automatisch alle 6 Stunden, auf Wunsch mit Benachrichtigung) und installiert sie per Klick: als Add-on baut Home Assistant PrintDock neu, auf PC und Raspberry Pi ersetzt PrintDock seine Dateien und startet neu. Für ein privates Repository unter „Update-Quelle“ einen GitHub-Token mit Leserecht eintragen. Docker: `docker compose pull && docker compose up -d`.
 
 ## Datensicherung und Umzug
 

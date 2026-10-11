@@ -297,7 +297,7 @@ function vSystem() {
     <h3 class="shead">${t('Updates')}</h3>
     <div class="sbox">
       ${srow(t('Version'), modeTxt, `<b>PrintDock ${esc(a.version)}</b>${newer ? ` <span class="vl warn">${t('{v} verfügbar', { v: esc(String(L.latest).replace(/^v/, '')) })}</span>` : L ? ` <span class="vl ok">${t('aktuell')}</span>` : ''}`)}
-      ${srow(t('Nach Updates suchen'), L?.at ? t('Zuletzt geprüft: {d}', { d: new Date(L.at).toLocaleString() }) : t('PrintDock sieht außerdem einmal am Tag nach.'), `<button class="b b-sm" data-gact="updCheck">${t('Jetzt prüfen')}</button>${newer && U.mode !== 'docker' ? `<button class="b b-sm b-go" data-gact="updInstall">${t('Auf {v} aktualisieren', { v: esc(String(L.latest).replace(/^v/, '')) })}</button>` : ''}`)}
+      ${srow(t('Nach Updates suchen'), U.checkError ? `<span class="warn-txt">${t('Letzte Prüfung fehlgeschlagen: {e}', { e: esc(U.checkError.msg) })}</span>` : L?.at ? t('Zuletzt geprüft: {d} · automatisch alle 6 Stunden', { d: new Date(L.at).toLocaleString() }) : t('PrintDock sieht außerdem alle 6 Stunden nach.'), `<button class="b b-sm" data-gact="updCheck">${t('Jetzt prüfen')}</button>${newer && U.mode !== 'docker' ? `<button class="b b-sm b-go" data-gact="updInstall">${t('Auf {v} aktualisieren', { v: esc(String(L.latest).replace(/^v/, '')) })}</button>` : ''}`)}
       ${newer && L.notes ? `<div class="srow"><div class="sl"><b>${t('Neu in dieser Version')}</b></div><div class="sc"><pre class="notes">${esc(L.notes)}</pre></div></div>` : ''}
       ${newer && U.mode === 'docker' ? srow(t('Docker'), t('Im Container das Image aktualisieren:'), '<span class="code">docker compose pull &amp;&amp; docker compose up -d</span>') : ''}
       <details class="adv srow-adv"><summary>${t('Update-Quelle')}</summary>
