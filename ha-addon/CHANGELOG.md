@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.12.1
+- **Bambu: drying with loaded filament.** Bambu refuses to dry while filament from that AMS is loaded (it sits in the AMS outlet). PrintDock now retracts it into the AMS first – the nozzle heats up briefly for this – and starts drying as soon as the slot is free ("Unloading filament …"). During a print this is not possible; PrintDock then says so straight away. Clearer reasons when the printer still refuses
+
 ## 0.12.0
 - **New connection Anycubic (LAN mode)** for Kobra S1 / S1 Max, Kobra 3 and Kobra 2 Pro with the stock firmware – no Rinkhals needed. Enable LAN mode on the printer, then pick *Anycubic (LAN mode)*: status, temperatures, fans, pause/resume/cancel, light, camera, ACE Pro slots with material and colour, and **ACE drying at the push of a button**. Starting prints from PrintDock is not supported with this connection yet
 - **Drying now reports back:** after *Start*, PrintDock waits for the device to confirm ("Starting …"). If the printer refuses or does not react, the reason is shown at the measuring point instead of a timer that runs without anything happening. Bambu: the drying command now matches the format of the Bambu app; LAN mode with developer mode is required for commands from PrintDock

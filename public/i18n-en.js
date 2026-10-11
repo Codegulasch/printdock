@@ -1437,6 +1437,13 @@
     'Updates, Sicherung, Zugang': 'Updates, backup, access',
     'Der Drucker lehnt das Trocknen ab: {why}': 'The printer refused to dry: {why}',
     'NFC-Leser und Waage': 'NFC reader and scale',
+    'Filament wird entladen …': 'Unloading filament …',
+    'danach startet das Trocknen': 'drying starts afterwards',
+    'Aus dieser Einheit ist gerade Filament geladen – Bambu trocknet dann nicht. PrintDock zieht es vorher ins AMS zurück (die Düse heizt dafür kurz auf) und startet danach das Trocknen.': 'Filament from this unit is currently loaded – Bambu does not dry then. PrintDock first retracts it into the AMS (the nozzle heats up briefly for this) and then starts drying.',
+    'Das Filament ließ sich nicht ins AMS zurückziehen. Bitte am Drucker entladen und erneut starten.': 'The filament could not be retracted into the AMS. Please unload it on the printer and start again.',
+    'Die Verbindung zum Drucker ist abgerissen, bevor das Trocknen starten konnte.': 'The connection to the printer dropped before drying could start.',
+    'Der Drucker lehnt das Trocknen ab. Häufige Ursachen: Filament steckt noch im AMS-Ausgang, es läuft ein Druck, oder das Netzteil reicht nicht für Druck und Trocknen gleichzeitig.': 'The printer refused to dry. Common causes: filament is still in the AMS outlet, a print is running, or the power supply cannot handle printing and drying at the same time.',
+    'Filament aus dieser Einheit ist gerade im Druck geladen – Bambu trocknet dann nicht. Nach dem Druck erneut starten.': 'Filament from this unit is loaded for the current print – Bambu does not dry then. Start again after the print.',
     'Der Drucker lehnt das Trocknen ab': 'The printer refused to dry',
     'Das Gerät hat nicht reagiert. Bei Bambu muss für Befehle aus PrintDock der LAN-Modus mit Entwicklermodus aktiv sein; während eines Drucks trocknet manches AMS nicht.': 'The device did not respond. On Bambu printers, LAN mode with developer mode must be on for commands from PrintDock; some AMS units do not dry while printing.',
   };
