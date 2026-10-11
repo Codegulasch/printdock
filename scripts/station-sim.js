@@ -39,6 +39,10 @@ function newTag(kind = 'ntag215', uid) {
   return { uid: u.toString('hex').toUpperCase(), kind: 'ntag', mem };
 }
 
+if (typeof WebSocket !== 'function') {
+  console.error('Der Simulator braucht Node 22 oder neuer (eingebautes WebSocket).');
+  process.exit(1);
+}
 const ws = new WebSocket(url);
 const send = (m) => ws.readyState === 1 && ws.send(JSON.stringify(m));
 const log = (...a) => !quiet && console.log(...a);
