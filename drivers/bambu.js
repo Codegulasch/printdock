@@ -224,7 +224,8 @@ class BambuDriver extends BaseDriver {
           targetTemp: Number(u.dry_setting?.dry_temperature) > 0 ? Number(u.dry_setting.dry_temperature) : null,
           // Bambu trocknet nicht, solange Filament aus dieser Einheit geladen ist (steckt im AMS-Ausgang)
           loaded: this.loadedFrom(p, id).length > 0,
-          preparing: Boolean(this.dryPrep?.[id]),
+          unloadTemp: this.loadedFrom(p, id).length ? this.unloadTemp(p, id, this.loadedFrom(p, id)[0].slot) : null,
+          preparing: this.dryPrep?.[id]?.step || false,
         } : null,
       };
     });
@@ -269,10 +270,32 @@ class BambuDriver extends BaseDriver {
     return out;
   }
 
+  /** Ist-Temperatur einer Düse (bei zwei Düsen aus device.extruder.info) */
+  nozzleTemp(p, extruder) {
+    const info = p.device?.extruder?.info;
+    if (extruder != null && Array.isArray(info)) {
+      const e = info.find((x, i) => Number(x.id ?? i) === extruder);
+      const packed = Number(e?.temp);
+      return Number.isFinite(packed) ? packed & 0xffff : 0;
+    }
+    return Number(p.nozzle_temper) || 0;
+  }
+
+  /** Temperatur zum Entladen: obere Drucktemperatur des Filaments laut AMS (190–300 °C) */
+  unloadTemp(p, amsId, slot) {
+    const unit = (p.ams?.ams || []).find((u, i) => Number(u.id ?? i) === amsId);
+    const tr = (unit?.tray || []).find((x, i) => Number(x.id ?? i) === slot);
+    return Math.max(190, Math.min(300, Number(tr?.nozzle_temp_max) || 250));
+  }
+
+  coolDown(extruder) {
+    try { this.send({ command: 'gcode_line', param: `M104 ${extruder != null ? `T${extruder} ` : ''}S0\n` }); } catch {}
+  }
+
   /** Filament ins AMS zurückziehen (je Düse), warten bis frei, dann trocknen (Bambu lässt sonst nicht trocknen) */
   async unloadThenDry(amsId, dryCmd) {
     this.dryPrep ||= {};
-    this.dryPrep[amsId] = Date.now();
+    this.dryPrep[amsId] = { at: Date.now(), step: 'heating' };
     this.publishStatus();
     const fail = (reason) => {
       this.cmdResults ||= {};
@@ -283,11 +306,26 @@ class BambuDriver extends BaseDriver {
       for (let round = 0; round < 3; round++) {
         const cur = this.loadedFrom(this.raw, amsId)[0];
         if (!cur) break;
-        const unit = (this.raw.ams?.ams || []).find((u, i) => Number(u.id ?? i) === amsId);
-        const tr = (unit?.tray || []).find((x, i) => Number(x.id ?? i) === cur.slot);
-        const temp = Math.max(190, Math.min(300, Number(tr?.nozzle_temp_max) || 250));
+        const temp = this.unloadTemp(this.raw, amsId, cur.slot);
         // wie Bambu Studio: Entladen = target/slot_id 255, ams_id der Einheit, bei zwei Düsen extruder_id;
         // der Drucker heizt die Düse dafür selbst auf curr_temp/tar_temp
+        // Erst die Düse heizen und abwarten: kaltes Filament klebt in der Düse und reißt beim Zurückziehen
+        const heat = `M104 ${cur.extruder != null ? `T${cur.extruder} ` : ''}S${temp}\n`;
+        this.send({ command: 'gcode_line', param: heat });
+        this.dryPrep[amsId] = { at: this.dryPrep[amsId]?.at || Date.now(), step: 'heating', temp };
+        this.publishStatus();
+        const heatUntil = Date.now() + 5 * 60_000;
+        while (this.nozzleTemp(this.raw, cur.extruder) < temp - 5) {
+          if (Date.now() > heatUntil) return fail('heat_timeout');
+          await sleep(3000);
+          if (!this.dryPrep?.[amsId]) return this.coolDown(cur.extruder);
+          if (!this.client?.connected) return fail('offline');
+          if (Date.now() % 15_000 < 3000) this.pushAll();
+        }
+        await sleep(10_000); // kurz durchwärmen lassen
+        if (!this.dryPrep?.[amsId]) return this.coolDown(cur.extruder);
+        this.dryPrep[amsId] = { ...this.dryPrep[amsId], step: 'unloading' };
+        this.publishStatus();
         const cmd = { command: 'ams_change_filament', ams_id: amsId, slot_id: 255, target: 255, curr_temp: temp, tar_temp: temp };
         if (cur.extruder != null) cmd.extruder_id = cur.extruder;
         const sentAt = Date.now();
@@ -297,7 +335,7 @@ class BambuDriver extends BaseDriver {
         let freed = false;
         while (Date.now() < until) {
           await sleep(5000);
-          if (!this.dryPrep?.[amsId]) return; // in PrintDock abgebrochen
+          if (!this.dryPrep?.[amsId]) return this.coolDown(cur.extruder); // in PrintDock abgebrochen
           if (!this.client?.connected) return fail('offline');
           const r = this.cmdResults?.ams_change_filament;
           if (r && r.at >= sentAt && /fail/i.test(r.result)) return fail(r.reason ? `unload_refused:${r.reason}` : 'unload_refused');
@@ -306,6 +344,7 @@ class BambuDriver extends BaseDriver {
           if (Date.now() % 20_000 < 5000) this.pushAll();
         }
         if (!freed) return fail('unload_failed');
+        this.coolDown(cur.extruder);
       }
       if (this.loadedFrom(this.raw, amsId).length) return fail('unload_failed');
       await sleep(3000);
@@ -459,8 +498,9 @@ class BambuDriver extends BaseDriver {
       if (this.loadedFrom(this.raw || {}, amsId).length) {
         // Geladenes Filament blockiert das Trocknen – im Leerlauf zuerst zurückziehen
         const st = STATE_MAP[this.raw?.gcode_state] || 'idle';
-        if (st === 'printing' || st === 'paused') throw new Error('Filament aus dieser Einheit ist gerade im Druck geladen – Bambu trocknet dann nicht. Nach dem Druck erneut starten.');
+        if (st === 'printing' || st === 'paused') throw new Error('Aus dieser Einheit wird gerade gedruckt – Bambu trocknet eine Einheit nicht, während ihr Filament im Druckkopf steckt. Eine andere AMS-Einheit lässt sich während des Drucks trocknen, wenn der Drucker das unterstützt; diese nach dem Druck.');
         if (this.dryPrep?.[amsId]) return;
+        if (!args.unload) throw new Error('Aus dieser Einheit ist Filament geladen – Bambu trocknet dann nicht. Bitte am Drucker entladen oder „Filament vorher entladen“ wählen.');
         this.unloadThenDry(amsId, dryCmd);
         return;
       }

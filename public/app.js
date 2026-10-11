@@ -233,7 +233,17 @@ const loaders = {
   orders: async () => (S.orders = await api('orders')),
   files: async () => (S.files = await api('files')),
   maint: async () => (S.maint = await api('maintenance')),
-  filament: async () => (S.fil = await api('filament')),
+  filament: async () => {
+    S.fil = await api('filament');
+    // Neues Gerät will sich koppeln → Hinweis, egal auf welcher Seite man gerade ist
+    const seen = (S.pairSeen ||= new Set());
+    for (const p of S.fil?.stations?.pairing || []) {
+      if (seen.has(p.id)) continue;
+      seen.add(p.id);
+      if (!['station', 'workshop'].includes(S.view)) toast(t('Neues Gerät möchte sich koppeln (Code {c}) – Einstellungen → PrintDock Station', { c: p.code }));
+    }
+    return S.fil;
+  },
   history: async () => (S.history = await api('history?limit=300')),
   channels: async () => (S.channels = await api('notifications')),
   settings: async () => (S.settings = await api('settings')),

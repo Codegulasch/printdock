@@ -637,17 +637,21 @@ function vFilSettings() {
  */
 function stationsHTML(F, mode = 'station') {
   const S0 = F.stations || { list: [], pairing: [] };
-  const isSensor = (x) => x.caps?.nfc === false;
+  // reiner Feuchtesensor nur, wenn auch ein Sensor da ist – ein nacktes Board (noch nichts angeschlossen) gilt als Station
+  const isSensor = (x) => x.caps?.nfc === false && x.caps?.scale !== true && x.caps?.humidity === true;
+  const bare = (c = {}) => !c.nfc && !c.scale && !c.humidity;
   const mine = (x) => (mode === 'sensor' ? isSensor(x) : !isSensor(x));
   const pr = (id) => F.printers.find((p) => p.id === id);
   const pair = S0.pairing.filter(mine).map((p) => `<div class="st-pair"><span class="st-dot run"></span><div><b>${mode === 'sensor' ? t('Neuer Feuchtesensor möchte sich koppeln') : t('Neue Station möchte sich koppeln')}</b>
-      <small>${esc(p.name || p.id)} · ${esc(p.ip || '')}${p.fw ? ` · Firmware ${esc(p.fw)}` : ''}</small></div>
+      <small>${esc(p.name || p.id)} · ${esc(p.ip || '')}${p.fw ? ` · Firmware ${esc(p.fw)}` : ''}${p.hw ? ` · ${esc(p.hw)}` : ''}</small>
+      ${bare(p.caps) ? `<small class="warn-txt">${t('Kein NFC-Leser, keine Waage und kein Feuchtesensor erkannt – Koppeln geht trotzdem, die Module kannst du später anschließen (danach neu starten).')}</small>` : ''}</div>
       <div class="st-code num">${esc(p.code)}</div>
       <button class="b b-sm b-go" data-fact="stPair" data-hw="${esc(p.id)}">${t('Koppeln')}</button><button class="x" data-fact="stReject" data-hw="${esc(p.id)}">${t('Ablehnen')}</button></div>`).join('');
   const rows = S0.list.filter(mine).map((x) => {
     const humPt = (F.humPoints || []).find((pt) => pt.source?.kind === 'station' && pt.source.stationId === x.id);
     const humWhere = humPt ? (humPt.type === 'storage' ? humPt.name : `${humPt.printerName}${humPt.unit ? ` · ${t(humPt.unit)}` : ''}`) : null;
-    const where = x.caps?.nfc === false ? `${t('Feuchtesensor')} → ${humWhere ? esc(humWhere) : t('noch nicht zugeordnet')}`
+    const where = bare(x.caps) ? t('noch keine Module erkannt')
+      : isSensor(x) ? `${t('Feuchtesensor')} → ${humWhere ? esc(humWhere) : t('noch nicht zugeordnet')}`
       : `${x.role === 'printer' && x.printerId ? t('am Drucker {p}', { p: esc(pr(x.printerId)?.name || '?') }) : t('Lager / Werkbank')}${humWhere ? ` · 💧 → ${esc(humWhere)}` : ''}`;
     const live = x.online ? [x.env ? `<span class="hum ${humLevelOf(x.env.h)}" title="${esc(t('Feuchtesensor {s}', { s: x.env.sensor || '' }))}">💧 ${fnum(x.env.h, 0)} %</span>` : '', x.weight ? `<b class="num">${fnum(x.weight.g, 0)} g</b>` : '', x.spool ? `<span class="pill">${esc(x.spool.nr)}</span>` : x.tag ? `<span class="pill pause">${t('Tag {f}', { f: esc(t(TAG_FORMATS[x.tag.format]?.[0] || x.tag.format || '')) })}</span>` : '', x.writing ? `<span class="pill run">${t('wartet auf Tag')}</span>` : ''].filter(Boolean).join(' ') : `<span class="meta">${x.lastSeen ? t('zuletzt {t}', { t: tfmt(x.lastSeen) }) : t('noch nie verbunden')}</span>`;
     return `<div class="st-row"><span class="st-dot ${x.online ? 'ok' : 'off'}" title="${x.online ? t('verbunden') : t('getrennt')}"></span>

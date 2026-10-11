@@ -62,7 +62,7 @@ function vHum() {
         : pt.level === 'alarm' ? `<b class="vl bad">${t('Filament trocknen')}</b>` : pt.level === 'warn' ? `<b class="vl warn">${t('Trockenmittel prüfen')}</b>` : `<span class="vl ok">${t('trocken genug')}</span>`;
     const dry = dr
       ? (dr.pending
-        ? `<div class="hd-run"><span class="hd-anim">♨</span><div><b>${dr.preparing ? t('Filament wird entladen …') : t('Wird gestartet …')}</b><small>${dr.preparing ? t('danach startet das Trocknen') : t('warte auf Rückmeldung des Geräts')}</small></div><button class="b b-sm" data-hact="dryStop" data-key="${esc(dr.key)}">${t('Abbrechen')}</button></div>`
+        ? `<div class="hd-run"><span class="hd-anim">♨</span><div><b>${dr.preparing === 'heating' ? t('Düse heizt auf …') : dr.preparing ? t('Filament wird entladen …') : t('Wird gestartet …')}</b><small>${dr.preparing === 'heating' ? t('danach wird das Filament entladen') : dr.preparing ? t('danach startet das Trocknen') : t('warte auf Rückmeldung des Geräts')}</small></div><button class="b b-sm" data-hact="dryStop" data-key="${esc(dr.key)}">${t('Abbrechen')}</button></div>`
         : dr.active
         ? `<div class="hd-run"><span class="hd-anim">♨</span><div><b>${t('Trocknet')}${dr.temp ? ` · ${dr.temp} °C` : ''}</b><small>${dr.until ? t('noch {t}', { t: leftTxt(dr.until) }) : ''}</small></div><button class="b b-sm" data-hact="dryStop" data-key="${esc(dr.key)}">${t('Stopp')}</button></div>`
         : `<button class="b b-sm ${pt.level === 'alarm' || pt.level === 'warn' ? 'b-go' : ''}" data-hact="dry" data-key="${esc(dr.key)}">♨ ${t('Trocknen …')}</button>`)
@@ -95,7 +95,8 @@ function dryDialog(key) {
     <div class="two">${dr.tempControl ? `<label>${t('Temperatur (°C)')}<input name="temp" type="number" min="${dr.minTemp || 30}" max="${dr.maxTemp || 90}" value="${sg.temp}" required></label>` : ''}
       <label>${t('Dauer (Stunden)')}<input name="hours" type="number" min="0.5" max="48" step="0.5" value="${sg.hours}" required></label></div>
     ${dr.maxTemp ? `<p class="hint" style="margin:0">${t('Dieses Gerät: {a}–{b} °C', { a: dr.minTemp || '–', b: dr.maxTemp })}</p>` : ''}
-    ${dr.loaded ? `<p class="hint" style="margin:0">${t('Aus dieser Einheit ist gerade Filament geladen – Bambu trocknet dann nicht. PrintDock zieht es vorher ins AMS zurück (die Düse heizt dafür kurz auf) und startet danach das Trocknen.')}</p>` : ''}
+    ${dr.loaded ? `<div class="hint" style="margin:0">${t('Aus dieser Einheit ist gerade Filament geladen – Bambu trocknet dann nicht.')}
+      <label style="display:flex;flex-direction:row;align-items:flex-start;gap:0.5rem;margin-top:0.5rem;font-weight:500;color:var(--ink)"><input type="checkbox" name="unload" style="width:auto;margin-top:0.2rem;flex:none"> <span>${t('Filament vorher entladen: PrintDock heizt die Düse auf {t} °C, wartet bis sie warm ist, zieht das Filament ins AMS zurück und startet dann das Trocknen.', { t: dr.unloadTemp || 250 })}</span></label></div>` : ''}
     ${dr.tempControl ? '' : `<p class="hint" style="margin:0">${t('Die Temperatur stellst du am Trockner ein – PrintDock schaltet ein und nach Ablauf wieder aus.')}</p>`}
     <p class="form-error" hidden></p>
     <div class="dlg-actions"><button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-go">♨ ${t('Trocknen starten')}</button></div></form>`);
@@ -103,7 +104,7 @@ function dryDialog(key) {
     e.preventDefault();
     const f = e.target;
     try {
-      await api('filament/dry', { method: 'POST', body: { key, temp: f.temp?.value, hours: f.hours.value } });
+      await api('filament/dry', { method: 'POST', body: { key, temp: f.temp?.value, hours: f.hours.value, unload: Boolean(f.unload?.checked) } });
       d.close();
       toast(t('Trocknen gestartet – warte auf Rückmeldung des Geräts'));
       reload('filament');
@@ -312,6 +313,7 @@ function dryErrorText(e) {
     const why = e.reason.split(':').slice(1).join(':');
     return why ? t('Der Drucker hat das Entladen abgelehnt: {why}. Bitte am Drucker entladen und erneut starten.', { why }) : t('Der Drucker hat das Entladen abgelehnt. Bitte am Drucker entladen und erneut starten.');
   }
+  if (e.code === 'refused' && e.reason === 'heat_timeout') return t('Die Düse wurde nicht warm genug – das Filament wurde nicht zurückgezogen. Bitte am Drucker entladen.');
   if (e.code === 'refused' && e.reason === 'offline') return t('Die Verbindung zum Drucker ist abgerissen, bevor das Trocknen starten konnte.');
   if (e.code === 'refused') return e.reason ? t('Der Drucker lehnt das Trocknen ab: {why}', { why: e.reason }) : t('Der Drucker lehnt das Trocknen ab. Häufige Ursachen: Filament steckt noch im AMS-Ausgang, es läuft ein Druck, oder das Netzteil reicht nicht für Druck und Trocknen gleichzeitig.');
   return t('Das Gerät hat nicht reagiert. Bei Bambu muss für Befehle aus PrintDock der LAN-Modus mit Entwicklermodus aktiv sein; während eines Drucks trocknet manches AMS nicht.');

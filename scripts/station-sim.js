@@ -51,7 +51,7 @@ const log = (...a) => !quiet && console.log(...a);
 
 ws.addEventListener('open', () => {
   log(`verbunden mit ${url} als ${id}`);
-  send({ t: 'hello', id, name: 'Sim-Station', fw: 'sim-1.0', hw: 'simulator', caps: args.includes('--sensor-only') ? { nfc: false, scale: false, display: true, led: true, humidity: true } : { nfc: true, scale: true, display: true, led: true, humidity: true }, token });
+  send({ t: 'hello', id, name: 'Sim-Station', fw: 'sim-1.0', hw: 'simulator', caps: args.includes('--bare') ? { nfc: false, scale: false, display: true, led: true, humidity: false } : args.includes('--sensor-only') ? { nfc: false, scale: false, display: true, led: true, humidity: true } : { nfc: true, scale: true, display: true, led: true, humidity: true }, token });
 });
 ws.addEventListener('close', (e) => { log(`getrennt (${e.code})`); process.exit(0); });
 ws.addEventListener('error', (e) => { console.error('Fehler:', e.message || e); });

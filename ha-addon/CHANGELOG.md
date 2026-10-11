@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.4
+- **Bambu: unloading before drying is now opt-in and heats the nozzle first.** Cold filament sticks in the nozzle and can snap when it is pulled back. If filament from the unit is loaded, the drying dialog offers "Unload filament first": PrintDock heats the nozzle to the filament's upper print temperature, waits until it is hot, unloads, switches the heater off again and then starts drying ("Nozzle heating up …" → "Unloading filament …"). Without the option PrintDock asks you to unload on the printer
+
+## 0.12.3
+- PrintDock Station: a board without modules (no NFC reader, scale or humidity sensor yet) now shows up under *Settings → PrintDock Station* with its pairing code instead of in the humidity-sensor list, with a hint that modules can be connected later
+- A new device asking to pair now shows a notice on every page, with its code
+
 ## 0.12.2
 - **Bambu: filament is really retracted before drying now.** The unload command now matches Bambu Studio (AMS number of the unit, and on two-nozzle printers like the X2D/H2D the nozzle that holds the filament). The printer heats the nozzle itself; each nozzle with filament from that AMS is unloaded in turn. If the printer refuses to unload, PrintDock shows its reason
 - PrintDock Station: the setup guide explains the Wi-Fi step in detail (http://192.168.4.1, *Configure WiFi*, address field)
