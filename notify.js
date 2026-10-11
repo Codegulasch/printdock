@@ -11,6 +11,7 @@ const EVENTS = [
   { id: 'maintenance', label: 'Wartung fällig', defaultOn: true },
   { id: 'filamentLow', label: 'Spule wird knapp', defaultOn: true },
   { id: 'humidity', label: 'Filament zu feucht (AMS/ACE/Sensor)', defaultOn: true },
+  { id: 'dryingDone', label: 'Trocknen fertig', defaultOn: true },
 ];
 
 const STYLE = {
@@ -23,6 +24,7 @@ const STYLE = {
   maintenance: { emoji: '🔧', tag: 'wrench', priority: 3 },
   filamentLow: { emoji: '🧵', tag: 'thread', priority: 3 },
   humidity: { emoji: '💧', tag: 'droplet', priority: 3 },
+  dryingDone: { emoji: '♨️', tag: 'hotsprings', priority: 3 },
   test: { emoji: '🔔', tag: 'bell', priority: 3 },
 };
 
@@ -241,6 +243,13 @@ function buildMessage(event, printer, status, entry) {
       lines.push(tr('{u}: {h} % Luftfeuchte', { u: tr(entry?.unit || ''), h: entry?.pct }));
       if (entry?.spools?.length) lines.push(entry.spools.join(', '));
       lines.push(entry?.level === 'alarm' ? tr('Filament trocknen, Trockenmittel tauschen.') : tr('Trockenmittel prüfen.'));
+      lines.push(tr('Trocknen lässt sich in PrintDock unter Filament → Feuchte & Trocknen starten.'));
+      break;
+    }
+    case 'dryingDone': {
+      title = tr('{p}: Trocknen fertig', { p: name });
+      lines.push(tr('{u}: {h} h bei {t} °C', { u: tr(entry?.unit || ''), h: entry?.hours, t: entry?.temp }));
+      if (entry?.spools?.length) lines.push(entry.spools.join(', '));
       break;
     }
     case 'maintenance':
@@ -280,7 +289,7 @@ class Notifier {
   async dispatch(event, printer, status, entry) {
     const app = require('./lib/app');
     if (!app.moduleOn('notifications')) return;
-    if ((event === 'maintenance' && !app.moduleOn('maintenance')) || (['filamentLow', 'humidity'].includes(event) && !app.moduleOn('filament'))) return;
+    if ((event === 'maintenance' && !app.moduleOn('maintenance')) || (['filamentLow', 'humidity', 'dryingDone'].includes(event) && !app.moduleOn('filament'))) return;
     const key = `${printer.id}:${event}`;
     if (Date.now() - (this.lastSent.get(key) || 0) < 60_000) return;
     this.lastSent.set(key, Date.now());
@@ -291,7 +300,7 @@ class Notifier {
 
     const msg = buildMessage(event, printer, status, entry);
     const wantsImage = channels.some((c) => c.attachImage && CHANNELS[c.type]?.image);
-    const image = wantsImage && status?.camera && !['maintenance', 'filamentLow', 'humidity'].includes(event) ? await this.getSnapshot(printer.id) : null;
+    const image = wantsImage && status?.camera && !['maintenance', 'filamentLow', 'humidity', 'dryingDone'].includes(event) ? await this.getSnapshot(printer.id) : null;
     await Promise.allSettled(channels.map((c) => this.sendTo(c, msg, c.attachImage ? image : null)));
   }
 

@@ -108,7 +108,7 @@ function headSummary() {
       const bad = all.filter((h) => h.level === 'alarm' || h.level === 'warn');
       if (!bad.length) return '';
       const alarm = bad.some((h) => h.level === 'alarm');
-      return `<button class="hs-i hs-hum ${alarm ? 'alarm' : 'warn'}" data-view="slots" title="${esc(bad.map((h) => `${h.printerName || ''} ${t(h.unit)} ${Math.round(h.pct)} %`).join(' · '))}">${DROP12()}<b class="num">${bad.length}</b> ${alarm ? t('zu feucht') : t('Feuchte prüfen')}</button>`;
+      return `<button class="hs-i hs-hum ${alarm ? 'alarm' : 'warn'}" data-view="hum" title="${esc(bad.map((h) => `${h.printerName || ''} ${t(h.unit)} ${Math.round(h.pct)} %`).join(' · '))}">${DROP12()}<b class="num">${bad.length}</b> ${alarm ? t('zu feucht') : t('Feuchte prüfen')}</button>`;
     })()}
     ${item('free', t('frei'))}${item('run', t('druckt'))}${n('wait') ? item('wait', t('wartet')) : ''}${n('fault') ? item('fault', t('Störung')) : ''}${n('off') ? item('off', t('offline')) : ''}
     ${next ? `<span class="vsep"></span><span><span class="nxt">${t('Als Nächstes frei:')}</span> <b>${esc(next.name)}</b></span>
@@ -141,7 +141,13 @@ function cardHTML(p) {
   if (s.online && (s.hms || p.driver === 'bambu')) badges.push(s.hms?.length ? `<button class="pb bad" data-bact="hms" data-id="${p.id}" title="${esc(t('Meldungen anzeigen'))}">${BI.alert}${s.hms.length > 1 ? t('{n} Meldungen', { n: s.hms.length }) : t('1 Meldung')}</button>` : `<span class="pb ok">${BI.alert}OK</span>`);
   if (on('filament')) {
     const hb = humFor(p).filter((h) => h.level === 'alarm' || h.level === 'warn').sort((a, b) => (a.level === 'alarm' ? -1 : 1) - (b.level === 'alarm' ? -1 : 1));
-    if (hb.length) badges.push(`<button class="pb ${hb[0].level === 'alarm' ? 'bad' : 'warn'}" data-view="slots" title="${esc(hb.map((h) => `${t(h.unit)}: ${Math.round(h.pct)} % – ${h.level === 'alarm' ? t('Filament trocknen') : t('Trockenmittel prüfen')}`).join('\n'))}">${DROP12()}${esc(t(hb[0].unit))} ${Math.round(hb[0].pct)} %${hb.length > 1 ? ` +${hb.length - 1}` : ''}</button>`);
+    if (hb.length) badges.push(`<button class="pb ${hb[0].level === 'alarm' ? 'bad' : 'warn'}" data-view="hum" title="${esc(hb.map((h) => `${t(h.unit)}: ${Math.round(h.pct)} % – ${h.level === 'alarm' ? t('Filament trocknen') : t('Trockenmittel prüfen')}`).join('\n'))}">${DROP12()}${esc(t(hb[0].unit))} ${Math.round(hb[0].pct)} %${hb.length > 1 ? ` +${hb.length - 1}` : ''}</button>`);
+  }
+  if (on('filament')) {
+    for (const d of (S.fil?.dryers || []).filter((x) => x.active && x.target?.printerId === p.id)) {
+      const m = d.until ? Math.max(0, Math.round((Date.parse(d.until) - Date.now()) / 60_000)) : null;
+      badges.push(`<button class="pb info" data-view="hum" title="${esc(t('Trocknet'))}${d.temp ? ` · ${d.temp} °C` : ''}">♨ ${esc(t(d.target.unit || ''))} ${m != null ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} h` : t('trocknet')}</button>`);
+    }
   }
   if (tasks.length) badges.push(`<button class="pb ${due ? 'bad' : soon ? 'warn' : 'ok'}" data-view="maint" title="${t('Wartung')}">${BI.wrench}${due ? t('{n} fällig', { n: due }) : soon ? t('bald fällig') : 'OK'}</button>`);
   if (queued.length && on('queue')) badges.push(`<button class="pb acc" data-view="queue" title="${t('Eingeplante Drucke')}">${BI.layers}${queued.length}</button>`);

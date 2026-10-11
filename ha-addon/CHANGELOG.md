@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.0
+- **Drying at the push of a button** under *Filament → Humidity & drying*, for as many devices as possible: Bambu AMS 2 Pro and AMS HT directly (model detected from the printer), Klipper/Moonraker printers via a G-code macro (template for the ACE Pro with the Klipper ACE driver), and anything Home Assistant can control – a dry box on a smart plug or a dryer with its own integration (start/stop buttons, number entities for temperature and duration, e.g. Anycubic ACE via the Anycubic integration). PrintDock suggests temperature and time from the loaded spools, caps them at the device limit, shows the remaining time on the printer card, sends "Drying finished" and records the drying date on the spools
+- **New page Filament → Humidity & drying** with every measuring point, its 48 h history and the dryer controls. *Slots* only shows a hint when something is too humid
+- **Clearer menus:** the sidebar is grouped into Production, Material and Workshop; settings are grouped into PrintDock (General, System), Workshop (Printers, Filament, Humidity & drying, PrintDock Station) and Connections (Home Assistant, Slicer, Notifications)
+- **PrintDock Sensor:** devices with only a humidity sensor are listed and paired under *Settings → Humidity & drying* instead of with the stations
+- Appearance: new accent colour green; the status preview was removed
+- Fix: the printer view no longer jumps back to the top while scrolling – live updates now only replace what changed (images and camera stay in place)
+
 ## 0.10.0
 - **Humidity for every unit and dry box:** *Settings → Filament → Humidity* lists every measuring point – AMS/ACE units that measure themselves, units and printers without a measurement, plus dry boxes and storage places. Assign any Home Assistant humidity sensor (e.g. a Zigbee or Bluetooth thermometer in the box) or a PrintDock Station with a humidity sensor. A dry box covers all spools with that storage place. The humidity sensor in the printer settings has moved there automatically
 - **Warnings on the printers:** a humidity badge on the printer card (e.g. "AMS lite 52 %"), coloured unit headers including external sensors, a "too humid" chip in the header and a hint on the Home Assistant card

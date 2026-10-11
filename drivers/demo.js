@@ -10,7 +10,7 @@ const VARIANTS = {
   x2d: {
     nozzles: ['Links', 'Rechts'], chamber: 55, bed: 70, nozzleTemp: 250, nozzleDiameter: 0.4, wifi: -44,
     fans: ['Bauteil', 'Hilfslüfter', 'Bauraum'],
-    units: [{ name: 'AMS 1', humidity: 2, humidityPct: 18, temp: 31 }],
+    units: [{ name: 'AMS 1', id: 0, model: 'AMS 2 Pro', humidity: 2, humidityPct: 18, temp: 31, canDry: 65 }],
     slots: [
       { key: 'ams0-0', label: 'AMS 1 · 1', unit: 'AMS 1', material: 'PLA', color: '#F2F2F2', remainPct: 82, uid: 'DEMO-RFID-0001', brand: 'PLA Basic' },
       { key: 'ams0-1', label: 'AMS 1 · 2', unit: 'AMS 1', material: 'PLA', color: '#1C1C1C', remainPct: 64, uid: 'DEMO-RFID-0002', brand: 'PLA Basic' },
@@ -181,7 +181,14 @@ class DemoDriver extends BaseDriver {
       message: this.paused ? 'Filament aufgebraucht – bitte nachladen (simuliert)' : state === 'error' ? 'Düse verstopft erkannt (simuliert)' : null,
       camera: true,
       filament: slots,
-      filamentUnits: v.units,
+      filamentUnits: v.units.map((u) => {
+        if (!u.canDry) return u;
+        const d = this.dry?.[u.id];
+        const remain = d ? Math.max(0, Math.round((d.until - Date.now()) / 60_000)) : 0;
+        if (d && !remain) delete this.dry[u.id];
+        const { canDry, ...rest } = u;
+        return { ...rest, temp: remain ? d.temp - 3 : u.temp, humidityPct: remain ? Math.max(8, u.humidityPct - 6) : u.humidityPct, dryer: { maxTemp: canDry, minTemp: 45, maxHours: 24, active: remain > 0, remainMin: remain || null, targetTemp: remain ? d.temp : null } };
+      }),
       activeSlot,
       filamentUsedMm: idle ? null : Math.round(this.progress * 60),
       wifi: v.wifi != null ? v.wifi + Math.round((Math.random() - 0.5) * 4) : null,
@@ -220,7 +227,11 @@ class DemoDriver extends BaseDriver {
     else if (cmd === 'cancel') this.phase = 'cancelled';
     else if (cmd === 'light' && this.v.light) this.lightOn = Boolean(args.on);
     else if (cmd === 'speed' && this.v.speed) this.speedLevel = Math.max(1, Math.min(4, Number(args.level) || 2));
-    else if (cmd === 'filament_setting' || cmd === 'demo_slot') {
+    else if (cmd === 'dry') {
+      this.dry ||= {};
+      if (args.stop) delete this.dry[args.unitId];
+      else this.dry[args.unitId] = { temp: Number(args.temp), until: Date.now() + Number(args.hours) * 3600_000 };
+    } else if (cmd === 'filament_setting' || cmd === 'demo_slot') {
       // filament_setting: wie Bambu „Fach einstellen“; demo_slot: Spule einlegen/entnehmen simulieren
       const s = this.v.slots.find((x) => x.key === args.key);
       if (!s) throw new Error(`Unbekannter Platz ${args.key}`);

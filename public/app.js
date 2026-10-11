@@ -28,15 +28,20 @@ const NAV_ICON = {
 };
 
 /** Seitenleiste; m = nötiges Modul. Bereiche mit mehreren Seiten zeigen oben Reiter. */
+// sec = Überschrift in der Seitenleiste; in den Einstellungen gruppiert das 4. Feld die Reiter.
 const NAV_ALL = [
-  { g: 'board', l: 'Drucker#pl', icon: 'printer', v: [['board', 'Drucker#pl']] },
+  { g: 'board', l: 'Drucker#pl', icon: 'printer', sec: 'Produktion', v: [['board', 'Drucker#pl']] },
   { g: 'queue', l: 'Warteschlange', icon: 'queue', v: [['queue', 'Warteschlange', 'queue']] },
   { g: 'orders', l: 'Aufträge', icon: 'orders', v: [['orders', 'Aufträge', 'orders']] },
   { g: 'files', l: 'Dateien', icon: 'files', v: [['files', 'Dateien', 'files']] },
-  { g: 'fil', l: 'Filament', icon: 'spool', v: [['spools', 'Spulen', 'filament'], ['slots', 'Belegung', 'filament'], ['usage', 'Verbrauch', 'filament']] },
-  { g: 'maint', l: 'Wartung', icon: 'wrench', v: [['maint', 'Wartungsplan', 'maintenance']] },
+  { g: 'fil', l: 'Filament', icon: 'spool', sec: 'Material', v: [['spools', 'Spulen', 'filament'], ['slots', 'Belegung', 'filament'], ['hum', 'Feuchte & Trocknen', 'filament'], ['usage', 'Verbrauch', 'filament']] },
+  { g: 'maint', l: 'Wartung', icon: 'wrench', sec: 'Werkstatt', v: [['maint', 'Wartungsplan', 'maintenance']] },
   { g: 'ana', l: 'Auswertung', icon: 'chart', v: [['stats', 'Statistik', 'stats'], ['history', 'Verlauf', 'history']] },
-  { g: 'set', l: 'Einstellungen', icon: 'gear', sep: true, v: [['general', 'Allgemein'], ['printers', 'Drucker#pl'], ['ha', 'Home Assistant', 'homeassistant'], ['notify', 'Benachrichtigungen', 'notifications'], ['slicer', 'Slicer', 'slicer'], ['filset', 'Filament', 'filament'], ['system', 'System']] },
+  { g: 'set', l: 'Einstellungen', icon: 'gear', sep: true, v: [
+    ['general', 'Allgemein', null, 'PrintDock'], ['system', 'System', null, 'PrintDock'],
+    ['printers', 'Drucker#pl', null, 'Werkstatt'], ['filset', 'Filament', 'filament', 'Werkstatt'], ['humset', 'Feuchte & Trocknen', 'filament', 'Werkstatt'], ['station', 'PrintDock Station', 'filament', 'Werkstatt'],
+    ['ha', 'Home Assistant', 'homeassistant', 'Anbindungen'], ['slicer', 'Slicer', 'slicer', 'Anbindungen'], ['notify', 'Benachrichtigungen', 'notifications', 'Anbindungen'],
+  ] },
 ];
 const on = (m) => !m || S.app?.modules?.[m] !== false;
 function navGroups() {
@@ -299,10 +304,15 @@ function renderHead() {
   const cur = viewGroup(S.view);
   $('#nav').innerHTML = groups.map((g) => {
     const n = g.v.map((v) => b[v[0]] || '').join('');
-    return `${g.sep ? '<div class="sep"></div>' : ''}<button data-group="${g.g}" ${g.g === cur ? 'aria-current="page"' : ''}>${NAV_ICON[g.icon]}<span>${esc(t(g.l))}</span>${n}</button>`;
+    return `${g.sep ? '<div class="sep"></div>' : ''}${g.sec ? `<div class="nav-sec">${esc(t(g.sec))}</div>` : ''}<button data-group="${g.g}" ${g.g === cur ? 'aria-current="page"' : ''}>${NAV_ICON[g.icon]}<span>${esc(t(g.l))}</span>${n}</button>`;
   }).join('');
   const grp = groups.find((g) => g.g === cur);
-  $('#subtabs').innerHTML = grp && grp.v.length > 1 ? grp.v.map(([k, l]) => `<button role="tab" data-view="${k}" aria-selected="${S.view === k}">${esc(t(l))}${b[k] || ''}</button>`).join('') : '';
+  let lastSec = null;
+  $('#subtabs').innerHTML = grp && grp.v.length > 1 ? grp.v.map(([k, l, , sec]) => {
+    const head = sec && sec !== lastSec ? `<span class="tab-sec">${esc(t(sec))}</span>` : '';
+    lastSec = sec;
+    return `${head}<button role="tab" data-view="${k}" aria-selected="${S.view === k}">${esc(t(l))}${b[k] || ''}</button>`;
+  }).join('') : '';
   const m = $('#mode');
   m.className = `mode${S.live ? ' live' : ''}`;
   m.querySelector('span').textContent = S.live ? t('Live verbunden') : t('Keine Verbindung zum Server');
@@ -325,6 +335,9 @@ function setView(v) {
   history.replaceState(null, '', `#${v}`);
   render();
   window.scrollTo(0, 0);
+  // Reiterleiste (Handy): gewählten Reiter sichtbar machen
+  const tab = $('#subtabs [aria-selected="true"]');
+  if (tab) tab.parentElement.scrollLeft = Math.max(0, tab.offsetLeft - 16);
 }
 
 // ================================================================ Kennzahlen-Leiste
@@ -1159,9 +1172,67 @@ function render() {
   const app = $('#app');
   // Eingaben in Einstellungen nicht durch Live-Updates überschreiben
   if (['slicer', 'general', 'ha'].includes(S.view) && app.contains(document.activeElement) && document.activeElement.matches('input,select,textarea')) return;
-  app.innerHTML = (VIEW_FN[S.view] || VIEW_FN.board)();
+  const html = (VIEW_FN[S.view] || VIEW_FN.board)();
+  // Gleiche Ansicht: nur Geändertes austauschen. So bleiben Bilder, Kamera, Scrollposition und
+  // offene Auswahllisten stehen (vorher sprang die Druckeransicht bei Live-Updates teils nach oben).
+  if (render.last === S.view && S.view !== 'files') morph(app, html);
+  else app.innerHTML = html;
+  render.last = S.view;
   attachCameras();
   if (S.view === 'files') bindFileView();
+}
+
+/** DOM schonend aktualisieren: gleiche Knoten bleiben erhalten, nur Abweichungen werden ersetzt. */
+function morph(target, html) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  morphChildren(target, tpl.content);
+}
+function morphChildren(a, b) {
+  const next = [...b.childNodes];
+  next.forEach((nb, i) => {
+    const na = a.childNodes[i];
+    if (!na) a.appendChild(nb);
+    else morphNode(na, nb);
+  });
+  while (a.childNodes.length > next.length) a.lastChild.remove();
+}
+function morphNode(na, nb) {
+  // Kamera: das Live-Bild bleibt, der Platzhalter in der neuen Fassung wird ignoriert
+  if (nb.nodeType === 1 && nb.hasAttribute('data-cam-slot') && na.nodeType === 1 && na.classList.contains('cam')) return;
+  if (na.nodeType !== nb.nodeType || na.nodeName !== nb.nodeName || (na.nodeType === 1 && (na.dataset.id || '') !== (nb.dataset.id || '') && na.matches('article,[data-id]'))) {
+    na.replaceWith(nb);
+    return;
+  }
+  if (na.nodeType === 3 || na.nodeType === 8) {
+    if (na.nodeValue !== nb.nodeValue) na.nodeValue = nb.nodeValue;
+    return;
+  }
+  if (na.nodeType !== 1) return;
+  if (na.isEqualNode(nb)) return;
+  for (const { name } of [...na.attributes]) if (!nb.hasAttribute(name)) na.removeAttribute(name);
+  for (const { name, value } of [...nb.attributes]) if (na.getAttribute(name) !== value) na.setAttribute(name, value);
+  const focused = na === document.activeElement;
+  if (na.tagName === 'INPUT') {
+    if (!focused) {
+      if (na.type === 'checkbox' || na.type === 'radio') na.checked = nb.hasAttribute('checked');
+      else if (na.value !== (nb.getAttribute('value') ?? '')) na.value = nb.getAttribute('value') ?? '';
+    }
+    return;
+  }
+  if (na.tagName === 'TEXTAREA') {
+    if (!focused) na.value = nb.textContent;
+    return;
+  }
+  if (na.tagName === 'SELECT') {
+    morphChildren(na, nb);
+    if (!focused) {
+      const sel = [...nb.options].findIndex((o) => o.hasAttribute('selected'));
+      na.selectedIndex = sel >= 0 ? sel : 0;
+    }
+    return;
+  }
+  morphChildren(na, nb);
 }
 
 function tick() {

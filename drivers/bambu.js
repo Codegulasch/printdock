@@ -66,6 +66,8 @@ class BambuDriver extends BaseDriver {
     this.client.on('connect', () => {
       this.client.subscribe(`device/${serial}/report`);
       this.pushAll();
+      // Modulliste (welches AMS-Modell – nur AMS 2 Pro und AMS HT können trocknen)
+      this.client.publish(`device/${serial}/request`, JSON.stringify({ info: { sequence_id: '0', command: 'get_version' } }));
       // Vollabzug alle 5 Minuten, falls Teilnachrichten verloren gingen
       clearInterval(this.pushTimer);
       this.pushTimer = setInterval(() => this.pushAll(), 5 * 60 * 1000);
@@ -77,6 +79,15 @@ class BambuDriver extends BaseDriver {
         if (msg.print) {
           deepMerge(this.raw, msg.print);
           this.publishStatus();
+        }
+        if (Array.isArray(msg.info?.module)) {
+          // ams/0 = AMS, ams_f1/0 = AMS lite, n3f/0 = AMS 2 Pro, n3s/128 = AMS HT
+          this.amsModels = {};
+          for (const m of msg.info.module) {
+            const k = String(m.name || '').match(/^(ams|ams_f1|n3f|n3s)\/(\d+)$/);
+            if (k) this.amsModels[Number(k[2])] = { ams: 'AMS', ams_f1: 'AMS lite', n3f: 'AMS 2 Pro', n3s: 'AMS HT' }[k[1]];
+          }
+          if (this.raw?.ams) this.publishStatus();
         }
       } catch {
         /* defekte Nachricht ignorieren */
@@ -188,17 +199,28 @@ class BambuDriver extends BaseDriver {
       });
     };
     const units = Array.isArray(p.ams?.ams) ? p.ams.ams : [];
-    const unitInfo = units.map((u, ui) => ({
-      name: `AMS ${Number(u.id ?? ui) + 1}`,
-      humidity: u.humidity != null ? Number(u.humidity) : null,
-      humidityPct: u.humidity_raw != null ? Number(u.humidity_raw) : null,
-      temp: u.temp != null ? Number(u.temp) : null,
-    }));
+    const unitName = (id) => (id >= 128 ? `AMS HT ${id - 127}` : `AMS ${id + 1}`);
+    const unitInfo = units.map((u, ui) => {
+      const id = Number(u.id ?? ui);
+      const model = this.amsModels?.[id] || (id >= 128 ? 'AMS HT' : null);
+      // Trocknen: AMS 2 Pro (bis 65 °C) und AMS HT (bis 85 °C); ohne Modulliste erkennbar am Feld dry_time
+      const canDry = model ? ['AMS 2 Pro', 'AMS HT'].includes(model) : u.dry_time !== undefined && u.humidity_raw !== undefined;
+      const remain = Number(u.dry_time) || 0;
+      return {
+        name: unitName(id),
+        id,
+        model,
+        humidity: u.humidity != null ? Number(u.humidity) : null,
+        humidityPct: u.humidity_raw != null ? Number(u.humidity_raw) : null,
+        temp: u.temp != null ? Number(u.temp) : null,
+        dryer: canDry ? { maxTemp: model === 'AMS HT' || id >= 128 ? 85 : 65, minTemp: 45, maxHours: 24, active: remain > 0, remainMin: remain || null, targetTemp: Number(u.dry_setting?.dry_temperature) > 0 ? Number(u.dry_setting.dry_temperature) : null } : null,
+      };
+    });
     units.forEach((u, ui) => {
       const amsId = Number(u.id ?? ui);
       (u.tray || []).forEach((t, ti) => {
         const trayId = Number(t.id ?? ti);
-        tray(t, `ams${amsId}-${trayId}`, `AMS ${amsId + 1} · ${trayId + 1}`, `AMS ${amsId + 1}`);
+        tray(t, `ams${amsId}-${trayId}`, `${unitName(amsId)} · ${trayId + 1}`, unitName(amsId));
       });
     });
     // Externe Spule(n): ältere Modelle "vt_tray", H2D/X2D teils "vir_slot" (je Düse eine)
@@ -330,6 +352,19 @@ class BambuDriver extends BaseDriver {
     if (cmd === 'speed') {
       const level = Math.max(1, Math.min(4, Number(args.level) || 2));
       this.send({ command: 'print_speed', param: String(level) });
+      return;
+    }
+    if (cmd === 'dry') {
+      // AMS 2 Pro / AMS HT trocknen (wie in Bambu Studio bzw. am Drucker); mode 0 = beenden
+      const amsId = Number(args.unitId);
+      if (!Number.isInteger(amsId)) throw new Error('Unbekannte AMS-Einheit');
+      if (args.stop) return this.send({ command: 'ams_filament_drying', ams_id: amsId, temp: 0, cooling_temp: 0, duration: 0, humidity: 0, mode: 0, rotate_tray: false, filament: '', close_power_conflict: false });
+      const max = amsId >= 128 ? 85 : 65;
+      const t = Math.round(Number(args.temp));
+      const h = Math.round(Number(args.hours));
+      if (!(t >= 45 && t <= max)) throw new Error(`Temperatur ${t} °C geht nicht (45–${max} °C)`);
+      if (!(h >= 1 && h <= 24)) throw new Error('Dauer 1–24 Stunden');
+      this.send({ command: 'ams_filament_drying', ams_id: amsId, temp: t, cooling_temp: 45, duration: h, humidity: 0, mode: 1, rotate_tray: Boolean(args.rotate), filament: String(args.material || ''), close_power_conflict: false });
       return;
     }
     if (cmd === 'filament_setting') {
