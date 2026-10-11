@@ -2,6 +2,7 @@
 
 ## 0.12.2
 - **Bambu: filament is really retracted before drying now.** The unload command now matches Bambu Studio (AMS number of the unit, and on two-nozzle printers like the X2D/H2D the nozzle that holds the filament). The printer heats the nozzle itself; each nozzle with filament from that AMS is unloaded in turn. If the printer refuses to unload, PrintDock shows its reason
+- PrintDock Station: the setup guide explains the Wi-Fi step in detail (http://192.168.4.1, *Configure WiFi*, address field)
 - PrintDock Station: the D1 Mini with ESP8266 is supported from station firmware 0.3.0 (PN532 in I²C mode)
 
 ## 0.12.1

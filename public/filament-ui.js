@@ -690,7 +690,7 @@ function stationHelpDialog(sensor = false) {
     <ol class="steps-ol">
       <li><b>${t('Bauen')}</b> – ${build}</li>
       <li><b>${t('Firmware flashen')}</b> – ${t('Datei …factory.bin aus „Firmware herunterladen“ im Browser über web.esphome.io („Connect“) aufspielen, oder mit esptool.')}</li>
-      <li><b>${t('WLAN')}</b> – ${t('Das Gerät öffnet beim ersten Start das WLAN „PrintDock-Station“. Damit verbinden, Heim-WLAN wählen und als PrintDock-Adresse eintragen:')}
+      <li><b>${t('WLAN')}</b> – ${t('Beim ersten Start öffnet das Gerät das WLAN „PrintDock-Station“ (ohne Passwort). Damit verbinden – die Einrichtungsseite öffnet sich meist selbst, sonst im Browser http://192.168.4.1 aufrufen (am Handy mobile Daten kurz aus). Dort „Configure WiFi“ tippen, Heim-WLAN wählen (nur 2,4 GHz), Passwort eingeben, ins Feld „PrintDock-Adresse“ diese Adresse eintragen und „Save“ tippen:')}
         <div class="copyline"><code>${esc(addr)}</code><button class="b b-sm" data-act="copy" data-text="${esc(addr)}">${t('Kopieren')}</button></div></li>
       <li><b>${t('Koppeln')}</b> – ${sensor ? t('Der Code vom Display (ohne Display: einfach den neuen Eintrag) erscheint unter Einstellungen → Drucker & Filament → Feuchte & Trocknen – „Koppeln“ drücken und danach einer Messstelle zuordnen.') : t('Die Station zeigt einen sechsstelligen Code. Er erscheint hier unter „PrintDock Station“ – vergleichen und „Koppeln“ drücken.')}</li>
       ${sensor ? '' : `<li><b>${t('Waage kalibrieren')}</b> – ${t('„Tara“ mit leerer Waage, dann ein bekanntes Gewicht (z. B. eine volle 1-kg-Spule mit bekanntem Leergewicht oder ein Paket Mehl) auflegen und „Kalibrieren“.')}</li>`}
