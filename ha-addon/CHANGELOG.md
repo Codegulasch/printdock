@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.1
+- Writing a tag that is too small for the chosen format could hang PrintDock while it looked for a format that fits (Node 18 crashed). Fixed
+- Checks run on Node 18 again (station test without the built-in WebSocket)
+
 ## 0.9.0
 - **PrintDock Station:** own NFC reader + scale + display on an ESP32 (WROOM devkit or D1 Mini ESP32), firmware in the new project [printdock-station](https://github.com/Codegulasch/printdock-station). Pair it under *Settings → Filament → Stations* with the code from its display
 - **One workflow for spools, RFID and QR:** put a spool on the station → PrintDock recognises it, shows it on the display and in the spool colour, books the remaining amount by weight (learns the empty spool weight from new, full spools) and assigns it to the next printer slot it is loaded into. Stations at a printer can place spools into a fixed slot right away

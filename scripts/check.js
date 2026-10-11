@@ -12,6 +12,43 @@ let failed = 0;
 const fail = (msg) => { failed += 1; console.error(`✗ ${msg}`); };
 const ok = (msg) => console.log(`✓ ${msg}`);
 
+/** Kleiner WebSocket-Client (Node 18 hat noch kein globales WebSocket) – gleiche Schnittstelle wie im Browser */
+function wsClient(url) {
+  if (typeof WebSocket === 'function') return new WebSocket(url);
+  const http = require('http');
+  const crypto = require('crypto');
+  const c = { send: null, close: null };
+  const u = new URL(url.replace(/^ws/, 'http'));
+  const req = http.request({ host: u.hostname, port: u.port, path: u.pathname, headers: { Connection: 'Upgrade', Upgrade: 'websocket', 'Sec-WebSocket-Version': '13', 'Sec-WebSocket-Key': crypto.randomBytes(16).toString('base64') } });
+  req.on('error', (e) => c.onerror?.(e));
+  req.on('upgrade', (res, sock) => {
+    let buf = Buffer.alloc(0);
+    c.send = (text) => {
+      const p = Buffer.from(text);
+      const mask = crypto.randomBytes(4);
+      const head = p.length < 126 ? Buffer.from([0x81, 0x80 | p.length]) : Buffer.from([0x81, 0xfe, p.length >> 8, p.length & 255]);
+      sock.write(Buffer.concat([head, mask, p.map((b, i) => b ^ mask[i & 3])]));
+    };
+    c.close = () => sock.destroy();
+    sock.on('data', (d) => {
+      buf = Buffer.concat([buf, d]);
+      while (buf.length >= 2) {
+        let len = buf[1] & 0x7f;
+        let off = 2;
+        if (len === 126) { if (buf.length < 4) return; len = buf.readUInt16BE(2); off = 4; }
+        if (buf.length < off + len) return;
+        const op = buf[0] & 0x0f;
+        const data = buf.subarray(off, off + len).toString();
+        buf = buf.subarray(off + len);
+        if (op === 1) c.onmessage?.({ data });
+      }
+    });
+    c.onopen?.();
+  });
+  req.end();
+  return c;
+}
+
 // ---------------------------------------------------------------- 1. Syntax
 const jsFiles = ['.', 'lib', 'drivers', 'public', 'scripts', 'dist']
   .flatMap((d) => fs.readdirSync(path.join(root, d)).filter((f) => f.endsWith('.js')).map((f) => path.join(root, d, f)));
@@ -94,7 +131,7 @@ try {
     } catch (err) { fail(`Sicherung: ${err.message}`); } finally { fs.rmSync(bkFile, { force: true }); }
     // Station: WebSocket, Kopplung, Tag melden
     await new Promise((resolve, reject) => {
-      const ws = new WebSocket(`ws://127.0.0.1:${port}/api/station/ws`);
+      const ws = wsClient(`ws://127.0.0.1:${port}/api/station/ws`);
       const timer = setTimeout(() => reject(new Error('Station: keine Antwort')), 5000);
       ws.onerror = () => reject(new Error('Station: WebSocket-Fehler'));
       ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', id: 'CHECK-1', fw: 'check', caps: { nfc: true, scale: true } }));
