@@ -11,7 +11,7 @@
  * https://github.com/Codegulasch/printdock
  */
 (() => {
-  const VERSION = '0.9.1';
+  const VERSION = '0.10.0';
 
   // ------------------------------------------------------------------ texts
   const TXT = {
@@ -24,7 +24,7 @@
       due: 'fällig', soon: 'bald', late: 'überfällig', of: 'von', free: 'frei', run: 'druckt', wait: 'wartet', fault: 'Störung', off: 'offline',
       notFound: 'PrintDock-Entität nicht gefunden. Sind in PrintDock die MQTT-Geräte eingeschaltet?', messages: 'Meldungen', camera: 'Kamera', camShow: 'Kamera zeigen', camHide: 'Kamera ausblenden', cameraOpen: 'Kamera anfangs zeigen', height: 'Höhe (px, 0 = automatisch)',
       entity: 'Drucker (Status-Sensor)', showCamera: 'Kamera', showTemps: 'Temperaturen', showFans: 'Lüfter', showFilament: 'Filament', showControls: 'Steuerung', compact: 'Kompakt',
-      overviewEntity: 'PrintDock-Übersicht', title: 'Titel', sections: 'Bereiche', maxItems: 'Einträge je Bereich', more: 'weitere',
+      humDry: 'Filament trocknen', humCheck: 'Trockenmittel prüfen', overviewEntity: 'PrintDock-Übersicht', title: 'Titel', sections: 'Bereiche', maxItems: 'Einträge je Bereich', more: 'weitere',
     },
     en: {
       left: 'left', eta: 'ETA', layer: 'Layer', temps: 'TEMPERATURES', fans: 'FANS', filament: 'FILAMENT', controls: 'CONTROLS',
@@ -35,7 +35,7 @@
       due: 'due', soon: 'soon', late: 'overdue', of: 'of', free: 'idle', run: 'printing', wait: 'waiting', fault: 'fault', off: 'offline',
       notFound: 'PrintDock entity not found. Are MQTT devices enabled in PrintDock?', messages: 'messages', camera: 'Camera', camShow: 'Show camera', camHide: 'Hide camera', cameraOpen: 'Show camera initially', height: 'Height (px, 0 = automatic)',
       entity: 'Printer (status sensor)', showCamera: 'Camera', showTemps: 'Temperatures', showFans: 'Fans', showFilament: 'Filament', showControls: 'Controls', compact: 'Compact',
-      overviewEntity: 'PrintDock overview', title: 'Title', sections: 'Sections', maxItems: 'Items per section', more: 'more',
+      humDry: 'Dry the filament', humCheck: 'Check the desiccant', overviewEntity: 'PrintDock overview', title: 'Title', sections: 'Sections', maxItems: 'Items per section', more: 'more',
     },
   };
   const tx = (hass) => TXT[String(hass?.locale?.language || hass?.language || 'en').startsWith('de') ? 'de' : 'en'];
@@ -213,6 +213,8 @@
           ? `<div class="file">${esc(a.file || '')}</div><button class="btn go" data-act="plate">${svg(ICON.check)}${esc(t.plateClear)}</button>`
           : `<div class="muted">${esc(a.message && a.printer_state === 'offline' ? a.message : t.noJob)}</div>`;
       const msg = a.message && (a.printer_state === 'error' || active) ? `<div class="msg ${a.printer_state === 'error' ? 'bad' : ''}">${esc(a.message)}</div>` : '';
+      const ha = a.humidity_alert;
+      const hum = ha ? `<div class="msg hum ${ha.level === 'alarm' ? 'bad' : ''}">💧 ${esc(ha.name)}: <b>${ha.humidity} %</b> – ${esc(ha.level === 'alarm' ? t.humDry : t.humCheck)}</div>` : '';
       const next = a.next_job && !active ? `<div class="next muted">${esc(t.next)}: <b>${esc(a.next_job)}</b>${a.queued > 1 ? ` · +${a.queued - 1}` : ''}</div>` : '';
 
       const camBtn = cam ? `<button class="ibtn ${this.camOn ? 'on' : ''}" data-act="camToggle" title="${esc(this.camOn ? t.camHide : t.camShow)}">${svg(ICON.cam)}</button>` : '';
@@ -229,8 +231,8 @@
         for (const sl of a.filament) (groups[sl.unit || ''] ||= []).push(sl);
         fil = `<div class="sect">${esc(t.filament)}</div><div class="units">${Object.entries(groups).map(([name, list]) => {
           const u = (a.filament_units || []).find((x) => x.name === name);
-          const meta = u ? [u.humidity != null ? `${u.humidity} %` : '', u.temp != null ? `${Math.round(u.temp)} °C` : ''].filter(Boolean).join(' · ') : '';
-          return `<div class="unit">${name || meta ? `<div class="uh"><span>${esc(name)}</span><span class="muted">${esc(meta)}</span></div>` : ''}<div class="slots">${list.map((sl) => `<div class="slot ${sl.active ? 'act' : ''} ${sl.low ? 'low' : ''}" title="${esc(sl.label)}${sl.spool ? ` · ${esc(sl.spool)}` : ''}">
+          const meta = u ? [u.humidity != null ? `💧 ${Math.round(u.humidity)} %` : '', u.temp != null ? `${Math.round(u.temp)} °C` : ''].filter(Boolean).join(' · ') : '';
+          return `<div class="unit">${name || meta ? `<div class="uh"><span>${esc(name)}</span><span class="muted ${u?.level === 'alarm' || u?.level === 'warn' ? `hum-${u.level}` : ''}">${esc(meta)}</span></div>` : ''}<div class="slots">${list.map((sl) => `<div class="slot ${sl.active ? 'act' : ''} ${sl.low ? 'low' : ''}" title="${esc(sl.label)}${sl.spool ? ` · ${esc(sl.spool)}` : ''}">
             <span class="dot ${sl.color ? '' : 'nocolor'}" style="${sl.color ? `background:${esc(sl.color)}` : ''}"></span><b>${esc(sl.material || '–')}</b><small>${esc(sl.material ? sl.amount || '' : t.empty)}</small></div>`).join('')}</div></div>`;
         }).join('')}</div>`;
       }
@@ -248,7 +250,7 @@
       this.shadowRoot.innerHTML = `<style>${BASE_CSS}${CARD_CSS}</style><ha-card class="${c.compact ? 'compact' : ''} ${fixed || this.inGrid ? '' : 'auto'} ${a.online ? '' : 'offline'}" style="${fixed}">
         <div class="bar ${cat}"></div>
         <div class="body">${head}${hms}
-          <div class="cols"><div class="c1"><div class="status">${status}${msg}${next}</div>${camImg}</div>
+          <div class="cols"><div class="c1"><div class="status">${status}${msg}${hum}${next}</div>${camImg}</div>
           <div class="c2">${temps}${fans}${fil}</div></div>${ctrls}
         </div></ha-card>`;
     }
@@ -317,6 +319,7 @@
     .times b{color:var(--primary-text-color);font-size:15px}
     .msg{margin-top:8px;font-size:13.5px;padding:6px 9px;border-radius:7px;background:rgba(234,179,8,.15)}
     .msg.bad{background:rgba(239,68,68,.15);color:var(--pd-fault)}
+    .uh .hum-warn{color:#B7791F;opacity:1;font-weight:700}.uh .hum-alarm{color:var(--pd-fault);opacity:1;font-weight:700}
     .next{margin-top:8px;font-size:13.5px;border-top:1px solid var(--pd-line);padding-top:7px}
     .next b{color:var(--primary-text-color)}
     .status .btn{margin-top:8px}

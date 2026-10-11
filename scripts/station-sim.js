@@ -10,6 +10,8 @@
 //   gone                         Tag abnehmen
 //   w <Gramm>                    Gewicht auf der Waage (ruhig)
 //   btn | btn long               Taste kurz/lang
+//   env <rF%> [°C]               Messwert des Feuchtesensors
+//   --sensor-only                Station nur mit Feuchtesensor (ohne NFC und Waage)
 //   show                         aktuellen Tag-Inhalt anzeigen
 //   quit
 const readline = require('readline');
@@ -49,7 +51,7 @@ const log = (...a) => !quiet && console.log(...a);
 
 ws.addEventListener('open', () => {
   log(`verbunden mit ${url} als ${id}`);
-  send({ t: 'hello', id, name: 'Sim-Station', fw: 'sim-1.0', hw: 'simulator', caps: { nfc: true, scale: true, display: true, led: true }, token });
+  send({ t: 'hello', id, name: 'Sim-Station', fw: 'sim-1.0', hw: 'simulator', caps: args.includes('--sensor-only') ? { nfc: false, scale: false, display: true, led: true, humidity: true } : { nfc: true, scale: true, display: true, led: true, humidity: true }, token });
 });
 ws.addEventListener('close', (e) => { log(`getrennt (${e.code})`); process.exit(0); });
 ws.addEventListener('error', (e) => { console.error('Fehler:', e.message || e); });
@@ -95,6 +97,13 @@ function cmd(line) {
   }
   if (c === 'gone') { tag = null; return send({ t: 'tag_gone' }); }
   if (c === 'w') { raw = Number(rest[0]) + scaleOffset; return sendWeight(); }
+  if (c === 'env') {
+    // wie die Firmware: Messwert alle 30 s wiederholen
+    const msg = { t: 'env', h: Number(rest[0]), temp: rest[1] != null ? Number(rest[1]) : null, sensor: 'SIM' };
+    clearInterval(cmd.envTimer);
+    cmd.envTimer = setInterval(() => send(msg), 30_000);
+    return send(msg);
+  }
   if (c === 'btn') return send({ t: 'button', press: rest[0] === 'long' ? 'long' : 'short' });
   if (c === 'show') return log(tag?.mem ? tags.decode(tag.mem.toString('hex')) : tag);
   if (c === 'quit') return ws.close();

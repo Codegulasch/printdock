@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.0
+- **Humidity for every unit and dry box:** *Settings → Filament → Humidity* lists every measuring point – AMS/ACE units that measure themselves, units and printers without a measurement, plus dry boxes and storage places. Assign any Home Assistant humidity sensor (e.g. a Zigbee or Bluetooth thermometer in the box) or a PrintDock Station with a humidity sensor. A dry box covers all spools with that storage place. The humidity sensor in the printer settings has moved there automatically
+- **Warnings on the printers:** a humidity badge on the printer card (e.g. "AMS lite 52 %"), coloured unit headers including external sensors, a "too humid" chip in the header and a hint on the Home Assistant card
+- **PrintDock Station** is now called that in the settings, with a short description, links to the project, firmware download and wiring. Station firmware 0.2.0 supports SHT4x, SHT3x, AHT20 and HTU21D humidity sensors and also works as a sensor-only humidity meter
+- The ESPHome RFID reader entry was removed from the settings – the PrintDock Station replaces it; `POST /api/rfid` keeps working for existing readers
+
 ## 0.9.1
 - Writing a tag that is too small for the chosen format could hang PrintDock while it looked for a format that fits (Node 18 crashed). Fixed
 - Checks run on Node 18 again (station test without the built-in WebSocket)
