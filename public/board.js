@@ -85,6 +85,13 @@ function cardState(p) {
 /** Statusleuchte mit Text – Farbe nie allein (Text steht immer daneben). */
 /** Feuchte-Stufe nach den Grenzwerten unter Einstellungen → Filament */
 const humLevelOf = (pct) => { const st = S.fil?.settings || {}; return pct >= (st.humAlarm ?? 55) ? 'alarm' : pct >= (st.humWarn ?? 40) ? 'warn' : 'ok'; };
+/** Feuchte je Einheit eines Druckers: AMS/ACE-Messung und zugeordnete Sensoren (nur aktuelle Werte) */
+function humFor(p) {
+  const out = (p.status?.filamentUnits || []).filter((u) => u.humidityPct != null).map((u) => ({ unit: u.name, pct: u.humidityPct, temp: u.temp ?? null, level: humLevelOf(u.humidityPct), ext: false }));
+  for (const h of S.fil?.humidity || []) if (h.printerId === p.id && !h.stale && !out.some((u) => u.unit === h.unit)) out.push({ unit: h.unit, pct: h.pct, temp: h.temp, level: h.level, ext: true });
+  return out;
+}
+const DROP12 = () => BI.drop.replace('<svg', '<svg width="12" height="12" style="vertical-align:-1px"');
 const lampHTML = (v) => `<span class="lamp ${v.cls}"><i class="led ${v.cls}"></i>${esc(v.lamp)}</span>`;
 
 function headSummary() {
@@ -95,6 +102,14 @@ function headSummary() {
   const item = (cls, label) => `<span class="hs-i"><i class="led ${n(cls) ? cls : 'off'}"></i><b class="num">${n(cls)}</b> ${esc(label)}</span>`;
   const next = printing.filter((p) => p.status.remainingSec != null).sort((a, b) => a.status.remainingSec - b.status.remainingSec)[0];
   return `<div class="head-sum">
+    ${(() => {
+      if (!on('filament')) return '';
+      const all = [...ps.flatMap((p) => humFor(p)), ...(S.fil?.humidity || []).filter((h) => h.storage && !h.stale)];
+      const bad = all.filter((h) => h.level === 'alarm' || h.level === 'warn');
+      if (!bad.length) return '';
+      const alarm = bad.some((h) => h.level === 'alarm');
+      return `<button class="hs-i hs-hum ${alarm ? 'alarm' : 'warn'}" data-view="slots" title="${esc(bad.map((h) => `${h.printerName || ''} ${t(h.unit)} ${Math.round(h.pct)} %`).join(' · '))}">${DROP12()}<b class="num">${bad.length}</b> ${alarm ? t('zu feucht') : t('Feuchte prüfen')}</button>`;
+    })()}
     ${item('free', t('frei'))}${item('run', t('druckt'))}${n('wait') ? item('wait', t('wartet')) : ''}${n('fault') ? item('fault', t('Störung')) : ''}${n('off') ? item('off', t('offline')) : ''}
     ${next ? `<span class="vsep"></span><span><span class="nxt">${t('Als Nächstes frei:')}</span> <b>${esc(next.name)}</b></span>
       <span class="mini"><i style="width:${next.status.progress || 0}%"></i></span><b class="num">${Math.floor(next.status.progress || 0)} %</b>
@@ -124,6 +139,10 @@ function cardHTML(p) {
   badges.push(`<button class="pb ${s.online ? 'ok' : 'off'}" data-act="editPrinter" data-id="${p.id}" title="${esc(t('Verbindung einstellen'))}">${BI.link}${s.online ? t('Verbunden') : t('Offline')}</button>`);
   if (s.wifi != null) badges.push(`<span class="pb ${s.wifi < -75 ? 'warn' : ''}" title="${t('WLAN-Signal')}">${BI.wifi}${s.wifi} dBm</span>`);
   if (s.online && (s.hms || p.driver === 'bambu')) badges.push(s.hms?.length ? `<button class="pb bad" data-bact="hms" data-id="${p.id}" title="${esc(t('Meldungen anzeigen'))}">${BI.alert}${s.hms.length > 1 ? t('{n} Meldungen', { n: s.hms.length }) : t('1 Meldung')}</button>` : `<span class="pb ok">${BI.alert}OK</span>`);
+  if (on('filament')) {
+    const hb = humFor(p).filter((h) => h.level === 'alarm' || h.level === 'warn').sort((a, b) => (a.level === 'alarm' ? -1 : 1) - (b.level === 'alarm' ? -1 : 1));
+    if (hb.length) badges.push(`<button class="pb ${hb[0].level === 'alarm' ? 'bad' : 'warn'}" data-view="slots" title="${esc(hb.map((h) => `${t(h.unit)}: ${Math.round(h.pct)} % – ${h.level === 'alarm' ? t('Filament trocknen') : t('Trockenmittel prüfen')}`).join('\n'))}">${DROP12()}${esc(t(hb[0].unit))} ${Math.round(hb[0].pct)} %${hb.length > 1 ? ` +${hb.length - 1}` : ''}</button>`);
+  }
   if (tasks.length) badges.push(`<button class="pb ${due ? 'bad' : soon ? 'warn' : 'ok'}" data-view="maint" title="${t('Wartung')}">${BI.wrench}${due ? t('{n} fällig', { n: due }) : soon ? t('bald fällig') : 'OK'}</button>`);
   if (queued.length && on('queue')) badges.push(`<button class="pb acc" data-view="queue" title="${t('Eingeplante Drucke')}">${BI.layers}${queued.length}</button>`);
   if (p.demo) badges.push(`<span class="pb info">${t('Demo')}</span>`);
@@ -222,6 +241,7 @@ function filamentSectionHTML(p) {
   if (!slots.length || (!managed && !slots.some((x) => x.material))) return '';
   const activeSlot = fp?.activeSlot ?? s.activeSlot;
   const units = s.filamentUnits || [];
+  const hums = managed ? humFor(p) : units.filter((u) => u.humidityPct != null).map((u) => ({ unit: u.name, pct: u.humidityPct, level: humLevelOf(u.humidityPct) }));
   const groups = {};
   for (const sl of slots) (groups[sl.unit || 'Spulen'] ||= []).push(sl);
   const tile = (sl) => {
@@ -246,11 +266,14 @@ function filamentSectionHTML(p) {
   return `<div class="sect">${t('FILAMENT')}<span class="r">${managed ? `<button class="x" data-view="slots" style="font-size:12.5px">${t('Belegung')}</button>` : ''}</span></div><div class="pbody">${prompt}<div class="fil-units">
     ${Object.entries(groups).map(([name, list]) => {
       const u = units.find((x) => x.name === name);
-      const lvl = u?.humidityPct != null ? humLevelOf(u.humidityPct) : '';
-      const meta = u ? [u.humidityPct != null ? `<span class="hum ${lvl}" title="${esc(lvl === 'alarm' ? t('Filament trocknen') : lvl === 'warn' ? t('Trockenmittel prüfen') : t('Luftfeuchte'))}">${BI.drop.replace('<svg', '<svg width="12" height="12" style="vertical-align:-1px"')} ${u.humidityPct} %</span>` : u.humidity != null ? t('Feuchte-Stufe {n}', { n: u.humidity }) : '', u.temp != null ? `${Math.round(u.temp)} °C` : ''].filter(Boolean).join(' · ') : '';
+      const h = hums.find((x) => x.unit === name);
+      const lvl = h?.level || '';
+      const humTxt = h ? `<span class="hum ${lvl}" title="${esc(`${lvl === 'alarm' ? t('Filament trocknen') : lvl === 'warn' ? t('Trockenmittel prüfen') : t('Luftfeuchte')}${h.ext ? ` · ${t('externer Sensor')}` : ''}`)}">${DROP12()} ${fnum(h.pct, 0)} %</span>` : u?.humidity != null ? t('Feuchte-Stufe {n}', { n: u.humidity }) : '';
+      const temp = u?.temp ?? h?.temp;
+      const meta = [humTxt, temp != null ? `${Math.round(temp)} °C` : ''].filter(Boolean).join(' · ');
       return `<div class="fu"><div class="fu-h">${esc(t(name))}<span>${meta}</span></div><div class="fu-slots">${list.map(tile).join('')}</div></div>`;
     }).join('')}
-    ${(S.fil?.humidity || []).filter((h) => h.printerId === p.id && !units.some((u) => u.name === h.unit)).map((h) => `<div class="fu-ext"><span class="hum ${h.level}">${BI.drop.replace('<svg', '<svg width="12" height="12" style="vertical-align:-1px"')} ${esc(h.unit)}: ${fnum(h.pct, 0)} %</span></div>`).join('')}</div></div>`;
+    ${hums.filter((h) => !groups[h.unit]).map((h) => `<div class="fu-ext"><span class="hum ${h.level}">${DROP12()} ${esc(t(h.unit))}: ${fnum(h.pct, 0)} %</span></div>`).join('')}</div></div>`;
 }
 
 /** HMS-Meldungen (Bambu) mit Klartext, Wiki-Link und „als Wartung eintragen“. */

@@ -20,7 +20,7 @@ function entityPickerHTML(name, value, cls = '', list = undefined, noneLabel = n
   const src = list === undefined ? S.haEntities : list;
   const ents = src || [];
   const val = value || '';
-  const input = (show) => `<input class="${cls}" style="width:100%;${show ? '' : 'display:none'}" name="${name}" value="${esc(val)}" placeholder="${name === 'humidityEntity' ? 'sensor.trockenbox_feuchte' : 'switch.drucker_werkstatt'}" autocomplete="off">`;
+  const input = (show) => `<input class="${cls}" style="width:100%;${show ? '' : 'display:none'}" name="${name}" value="${esc(val)}" placeholder="${name === 'humidityEntity' || name === 'entity' ? 'sensor.trockenbox_feuchte' : 'switch.drucker_werkstatt'}" autocomplete="off">`;
   if (!ents.length) {
     const hint = src === null && S.haEntLoading ? t('Entitäten werden geladen …') : t('Keine Entitäten gefunden – Verbindung zu Home Assistant prüfen oder von Hand eintragen.');
     return `<div class="epick">${input(true)}<div class="meta" style="margin-top:3px">${hint}</div></div>`;

@@ -158,6 +158,15 @@ const stations = new Stations({
 });
 filament.ctx.onPlaced = (spool, cfg, slot, source) => stations.onPlaced(spool, cfg, slot, source);
 filament.ctx.onTagAssigned = (spool, pending) => stations.onTagAssigned(spool, pending);
+stations.ctx.onEnv = (stationId, pct, temp) => filament.stationEnv(stationId, pct, temp);
+stations.ctx.envTarget = (stationId) => {
+  const src = require('./lib/filament').db.data.humSources.find((x) => x.kind === 'station' && x.stationId === stationId);
+  if (!src) return null;
+  if (src.target.type === 'storage') return src.target.name;
+  const cfg = printerConfigs.find((p) => p.id === src.target.printerId);
+  return [cfg?.name, src.target.unit].filter(Boolean).join(' · ');
+};
+filament.migrateHumidityEntities(savePrinters);
 // Belegung an den Drucker übertragen (Bambu-AMS: Material und Farbe des Fachs)
 filament.ctx.pushSlot = async (cfg, key, spool) => {
   const rt = runtime.get(cfg.id);
@@ -298,7 +307,6 @@ function validatePrinter(body, existing) {
     hoursOffset: Math.max(0, Number(st.hoursOffset) || 0),
     slots: String(st.slots || '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, 16).join(', '),
     powerEntity: /^(switch|light|input_boolean)\.[\w]+$/.test(String(st.powerEntity || '').trim()) ? String(st.powerEntity).trim() : '',
-    humidityEntity: /^sensor\.[\w]+$/.test(String(st.humidityEntity || '').trim()) ? String(st.humidityEntity).trim() : '',
     autoOff: st.autoOff === true || st.autoOff === 'true',
     autoOffDelay: Math.max(1, Math.min(240, Number(st.autoOffDelay) || 10)),
     autoOffMaxTemp: Math.max(30, Math.min(120, Number(st.autoOffMaxTemp) || 50)),
@@ -641,6 +649,13 @@ async function handleApi(req, res, url) {
   if (resource === 'filament') {
     if (!id && req.method === 'GET') return sendJson(res, 200, { ...filament.view(), spoolman: spoolman.publicSettings(), stations: stations.view() });
     if (id === 'disarm' && req.method === 'POST') { filament.disarm(); return sendJson(res, 200, { ok: true }); }
+    // Feuchte-Messstellen (Sensor aus Home Assistant oder PrintDock Station → AMS/ACE-Einheit, Drucker oder Trockenbox)
+    if (id === 'hum-sources') {
+      const sid = action;
+      if (!sid && req.method === 'POST') { const r = filament.saveHumSource(await readBody(req)); ha.pollHumidity().catch(() => {}); return sendJson(res, 201, r); }
+      if (sid && req.method === 'PUT') { const r = filament.saveHumSource(await readBody(req), sid); ha.pollHumidity().catch(() => {}); return sendJson(res, 200, r); }
+      if (sid && req.method === 'DELETE') { filament.deleteHumSource(sid); return sendJson(res, 200, { ok: true }); }
+    }
     if (id === 'assign' && req.method === 'POST') {
       const b = await readBody(req);
       filament.assign(b.printerId, b.key, b.spoolId || null);

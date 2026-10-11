@@ -567,39 +567,6 @@ function tagWriteDialog(sp) {
   });
 }
 
-/** Einrichtungshilfe für einen RFID-Leser mit ESPHome */
-function rfidHelpDialog() {
-  const url = `${S.app?.directUrl || location.origin}/api/rfid`;
-  const auth = S.app?.auth?.enabled;
-  const yaml = `# ESPHome: RFID-/NFC-Leser (PN532 über I²C) am Drucker
-http_request:
-  verify_ssl: false
-
-i2c:
-  sda: GPIO21
-  scl: GPIO22
-
-pn532_i2c:
-  update_interval: 1s
-  on_tag:
-    then:
-      - http_request.post:
-          url: ${url}
-          request_headers:
-            Content-Type: application/json${auth ? '\n            X-Api-Key: DEIN_API_KEY   # Einstellungen → System → API-Key' : ''}
-          json:
-            tag: !lambda 'return x;'
-            printer: "${esc(S.printers[0]?.name || 'Werkstatt X2D')}"
-            # slot: "AMS 1 · 2"   # optional, sonst der gerade aktive Platz`;
-  openDialog(`<div class="dlg" style="max-width:760px"><h2>${t('RFID-Leser am Drucker')}</h2>
-    <p>${t('Ein kleiner Leser (PN532 oder RC522 an einem ESP32 mit ESPHome) neben dem Drucker: Spule mit Tag auflegen – PrintDock erkennt sie und legt sie in den Platz. Unbekannte Tags fragt PrintDock einmal ab und merkt sie sich.')}</p>
-    <ol style="line-height:1.6;margin:0 0 10px;padding-left:20px"><li>${t('NTAG213/215-Sticker auf die Spulen kleben (oder die vorhandenen Hersteller-Tags nutzen).')}</li>
-      <li>${t('Leser mit ESPHome flashen, Beispiel unten anpassen (Pins, Druckername).')}</li><li>${t('Tag auflegen – beim ersten Mal in PrintDock die passende Spule wählen.')}</li></ol>
-    <pre class="code" style="white-space:pre;overflow:auto;font-size:12px;max-height:320px">${esc(yaml)}</pre>
-    <p class="meta">${t('Schnittstelle: POST {u} mit {"tag": "…", "printer": "…", "slot": "…"} – oder {"spool": "S-012"} statt tag.', { u: esc(url) })}</p>
-    <div class="dlg-actions"><button class="b" type="button" data-act="copy" data-text="${esc(yaml)}">${t('Kopieren')}</button><button class="b" data-close>${t('Schließen')}</button></div></div>`);
-}
-
 // ================================================================ Feuchte
 
 /** Kleiner Verlauf (48 h) als SVG-Linie mit Warn- und Alarmlinie */
@@ -668,16 +635,13 @@ function vFilSettings() {
         <h3 class="shead">${t('Warnungen')}</h3>
         <div class="sbox">
           ${row(t('Spule wird knapp'), t('Meldung und Markierung, wenn die Restmenge darunter fällt.'), num('lowGrams', st.lowGrams, 'g'))}
-          ${row(t('Feuchte: Warnung ab'), t('AMS, ACE oder Feuchtesensor – gelb markieren.'), num('humWarn', st.humWarn, '%'))}
-          ${row(t('Feuchte: Alarm ab'), t('Rot markieren und melden („Filament zu feucht“).'), num('humAlarm', st.humAlarm, '%'))}
         </div>
-        <h3 class="shead">${t('Stationen')}</h3>
+        <h3 class="shead">PrintDock Station</h3>
         ${stationsHTML(F)}
-        <h3 class="shead">${t('Etiketten und RFID')}</h3>
+        <h3 class="shead">${t('Etiketten und Belegung')}</h3>
         <div class="sbox">
           ${row(t('Spulen-Etiketten'), t('Mit QR-Code – Scannen öffnet die Spule in PrintDock.'), `<button class="b b-sm" data-fact="labels">${t('Etiketten drucken …')}</button>`)}
           ${row(t('Belegung ans AMS übertragen'), t('Bambu: Material und Farbe einer eingelegten Spule ohne Bambu-Chip gleich am AMS-Fach eintragen.'), `<label class="tgl"><input type="checkbox" data-fset-chk="pushAms" ${st.pushAms !== false ? 'checked' : ''}><span class="sw"></span></label>`)}
-          ${row(t('RFID-Leser mit ESPHome'), t('Statt der Station: eigener ESPHome-Leser (PN532/RC522) über Home Assistant.'), `<button class="b b-sm" data-fact="rfidHelp">${t('Einrichten …')}</button>`)}
         </div>
       </div>
       <div>
@@ -690,8 +654,85 @@ function vFilSettings() {
           ${row(t('Neue Spulen anlegen'), t('Spulen, die in PrintDock angelegt werden, auch in Spoolman eintragen (Hersteller und Filament werden gesucht oder angelegt).'), `<label class="tgl"><input type="checkbox" data-smset="pushNew" ${sm.pushNew !== false ? 'checked' : ''}><span class="sw"></span></label>`)}
         </div>
         <p class="meta">${t('Mit Spoolman bleibt Spoolman die Quelle: Änderungen an Material, Farbe oder Gewicht dort vornehmen. PrintDock gleicht alle 5 Minuten ab; ist Spoolman nicht erreichbar, holt PrintDock die Buchungen nach.')}</p>
+        <h3 class="shead">${t('Luftfeuchte')}</h3>
+        <div class="sbox">
+          ${row(t('Warnung ab'), t('Gelb markieren – an Drucker, Karte und Belegung.'), num('humWarn', st.humWarn, '%'))}
+          ${row(t('Alarm ab'), t('Rot markieren und melden („Filament zu feucht“).'), num('humAlarm', st.humAlarm, '%'))}
+        </div>
+        ${humPointsHTML(F)}
       </div>
     </div>`;
+}
+
+// ================================================================ Feuchte-Messstellen
+
+function humPointsHTML(F) {
+  const pts = F.humPoints || [];
+  const srcLabel = (src) => src.kind === 'station'
+    ? t('Station „{s}“', { s: esc((F.stations?.list || []).find((x) => x.id === src.stationId)?.name || '?') })
+    : `${esc(src.name || src.entity)} <span class="meta">(${t('Home Assistant')})</span>`;
+  const val = (pt) => pt.value ? `<span class="hum ${pt.level || ''}"><b class="num">${fnum(pt.value.pct, 0)} %</b>${pt.value.temp != null ? ` <span class="meta">${fnum(pt.value.temp, 0)} °C</span>` : ''}</span>` : `<span class="meta">${t('kein Wert')}</span>`;
+  const rows = pts.map((pt) => {
+    const name = pt.type === 'storage' ? `<b>${esc(pt.name)}</b><small>${t('Trockenbox / Lagerort')}${pt.spools?.length ? ` · ${pt.spools.length === 1 ? t('1 Spule') : t('{n} Spulen', { n: pt.spools.length })}` : ''}</small>`
+      : `<b>${esc(pt.printerName)}${pt.unit ? ` · ${esc(t(pt.unit))}` : ''}</b><small>${pt.builtin ? t('misst selbst') : pt.source ? srcLabel(pt.source) : t('keine eigene Messung')}</small>`;
+    const act = pt.builtin ? '' : pt.source
+      ? `<button class="x" data-fact="humEdit" data-id="${esc(pt.source.id)}" title="${t('Bearbeiten')}">${ICON.edit}</button>`
+      : `<button class="b b-sm" data-fact="humAdd" data-printer="${esc(pt.printerId)}" data-unit="${esc(pt.unit || '')}">${t('Sensor zuordnen')}</button>`;
+    return `<div class="hp-row ${pt.builtin || pt.source ? '' : 'none'}"><span class="hp-ic">${pt.type === 'storage' ? BI.box || BI.spool : BI.drop}</span><div class="hp-n">${name}</div><div class="hp-v">${pt.builtin || pt.source ? val(pt) : ''}</div><div class="hp-a">${act}</div></div>`;
+  }).join('');
+  return `<div class="sbox hp-box">${rows || `<div class="st-empty"><span>${t('Noch keine Drucker.')}</span></div>`}
+    <div class="st-foot"><button class="b b-sm" data-fact="humAdd" data-storage="1">${ICON.plus}${t('Trockenbox / Lagerort')}</button></div></div>
+    <p class="meta">${t('Nicht jedes AMS, ACE oder jede Trockenbox misst selbst. Dann einen Feuchtesensor zuordnen: aus Home Assistant (z. B. ein Zigbee- oder Bluetooth-Thermometer in der Box) oder eine PrintDock Station mit Feuchtesensor. Bei einer Trockenbox gelten Warnungen für alle Spulen mit diesem Lagerort.')}</p>`;
+}
+
+/** Sensor einer Messstelle zuordnen bzw. ändern */
+function humSourceDialog({ printerId = null, unit = null, storage = false, src = null } = {}) {
+  const F = fil();
+  const tg = src?.target || (storage ? { type: 'storage', name: '' } : { type: 'printer', printerId, unit: unit || null });
+  const isStorage = tg.type === 'storage';
+  const pr = F.printers.find((p) => p.id === tg.printerId);
+  const sts = F.stations?.list || [];
+  const locs = [...new Set(F.spools.filter((x) => !x.archived && x.location).map((x) => x.location))];
+  const d = openDialog(`<form class="dlg" method="dialog"><h2>${isStorage ? (src ? esc(tg.name) : t('Trockenbox / Lagerort')) : `${esc(pr?.name || '')}${tg.unit ? ` · ${esc(t(tg.unit))}` : ''}`}</h2>
+    ${isStorage ? `<label>${t('Name (wie der Lagerort der Spulen)')}<input name="loc" list="hum-locs" required value="${esc(tg.name || '')}" placeholder="${esc(t('z. B. Trockenbox 2'))}"></label><datalist id="hum-locs">${locs.map((l) => `<option value="${esc(l)}">`).join('')}</datalist>` : ''}
+    <label>${t('Sensor')}<select name="kind"><option value="ha" ${src?.kind !== 'station' ? 'selected' : ''}>${t('Feuchtesensor aus Home Assistant')}</option><option value="station" ${src?.kind === 'station' ? 'selected' : ''}>PrintDock Station</option></select></label>
+    <label data-k="ha">${t('Sensor in Home Assistant')}<div data-hum-pick>${entityPickerHTML('entity', src?.entity || '', '', S.haHumidity ?? null, t('– bitte wählen –'))}</div></label>
+    <label data-k="station">${t('Station')}<select name="stationId">${sts.length ? sts.map((x) => `<option value="${esc(x.id)}" ${src?.stationId === x.id ? 'selected' : ''}>${esc(x.name)}${x.env ? ` – ${fnum(x.env.h, 0)} %` : x.online ? ` – ${t('kein Feuchtesensor erkannt')}` : ` – ${t('getrennt')}`}</option>`).join('') : `<option value="">${t('Keine Station gekoppelt')}</option>`}</select></label>
+    <p class="form-error" hidden></p>
+    <div class="dlg-actions">${src ? `<button class="b b-fault left" type="button" data-del>${t('Entfernen')}</button>` : ''}<button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-done">${t('Speichern')}</button></div></form>`);
+  const form = $('form', d);
+  const sync = () => $$('[data-k]', d).forEach((n) => (n.hidden = n.dataset.k !== form.kind.value));
+  form.kind.addEventListener('change', sync);
+  sync();
+  if (!S.haHumidity) {
+    api('ha/humidity-sensors').then((l) => (S.haHumidity = l)).catch(() => (S.haHumidity = [])).finally(() => {
+      const box = $('[data-hum-pick]', d);
+      if (box && d.open) box.innerHTML = entityPickerHTML('entity', form.entity?.value || src?.entity || '', '', S.haHumidity, t('– bitte wählen –'));
+    });
+  }
+  $('[data-del]', d)?.addEventListener('click', async () => {
+    await run(() => api(`filament/hum-sources/${src.id}`, { method: 'DELETE' }), t('Sensor entfernt'));
+    d.close();
+    reload('filament');
+  });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const kind = form.kind.value;
+    const entity = form.entity?.value.trim() || '';
+    const body = {
+      kind, entity, stationId: form.stationId.value,
+      name: kind === 'ha' ? (S.haHumidity || []).find((x) => x.entity_id === entity)?.name || null : null,
+      target: isStorage ? { type: 'storage', name: form.loc.value } : tg,
+    };
+    try {
+      await api(src ? `filament/hum-sources/${src.id}` : 'filament/hum-sources', { method: src ? 'PUT' : 'POST', body });
+      d.close();
+      toast(t('Gespeichert'));
+      reload('filament');
+    } catch (err) {
+      formError(d, err.message);
+    }
+  });
 }
 
 // ================================================================ Stationen (NFC + Waage)
@@ -704,8 +745,11 @@ function stationsHTML(F) {
       <div class="st-code num">${esc(p.code)}</div>
       <button class="b b-sm b-go" data-fact="stPair" data-hw="${esc(p.id)}">${t('Koppeln')}</button><button class="x" data-fact="stReject" data-hw="${esc(p.id)}">${t('Ablehnen')}</button></div>`).join('');
   const rows = S0.list.map((x) => {
-    const where = x.role === 'printer' && x.printerId ? t('am Drucker {p}', { p: esc(pr(x.printerId)?.name || '?') }) : t('Lager / Werkbank');
-    const live = x.online ? [x.weight ? `<b class="num">${fnum(x.weight.g, 0)} g</b>` : '', x.spool ? `<span class="pill">${esc(x.spool.nr)}</span>` : x.tag ? `<span class="pill pause">${t('Tag {f}', { f: esc(t(TAG_FORMATS[x.tag.format]?.[0] || x.tag.format || '')) })}</span>` : '', x.writing ? `<span class="pill run">${t('wartet auf Tag')}</span>` : ''].filter(Boolean).join(' ') : `<span class="meta">${x.lastSeen ? t('zuletzt {t}', { t: tfmt(x.lastSeen) }) : t('noch nie verbunden')}</span>`;
+    const humPt = (F.humPoints || []).find((pt) => pt.source?.kind === 'station' && pt.source.stationId === x.id);
+    const humWhere = humPt ? (humPt.type === 'storage' ? humPt.name : `${humPt.printerName}${humPt.unit ? ` · ${t(humPt.unit)}` : ''}`) : null;
+    const where = x.caps?.nfc === false ? `${t('Feuchtesensor')} → ${humWhere ? esc(humWhere) : t('noch nicht zugeordnet')}`
+      : `${x.role === 'printer' && x.printerId ? t('am Drucker {p}', { p: esc(pr(x.printerId)?.name || '?') }) : t('Lager / Werkbank')}${humWhere ? ` · 💧 → ${esc(humWhere)}` : ''}`;
+    const live = x.online ? [x.env ? `<span class="hum ${humLevelOf(x.env.h)}" title="${esc(t('Feuchtesensor {s}', { s: x.env.sensor || '' }))}">💧 ${fnum(x.env.h, 0)} %</span>` : '', x.weight ? `<b class="num">${fnum(x.weight.g, 0)} g</b>` : '', x.spool ? `<span class="pill">${esc(x.spool.nr)}</span>` : x.tag ? `<span class="pill pause">${t('Tag {f}', { f: esc(t(TAG_FORMATS[x.tag.format]?.[0] || x.tag.format || '')) })}</span>` : '', x.writing ? `<span class="pill run">${t('wartet auf Tag')}</span>` : ''].filter(Boolean).join(' ') : `<span class="meta">${x.lastSeen ? t('zuletzt {t}', { t: tfmt(x.lastSeen) }) : t('noch nie verbunden')}</span>`;
     return `<div class="st-row"><span class="st-dot ${x.online ? 'ok' : 'off'}" title="${x.online ? t('verbunden') : t('getrennt')}"></span>
       <div class="st-main"><b>${esc(x.name)}</b><small>${where}${x.fw ? ` · ${esc(x.fw)}` : ''}${x.ip ? ` · ${esc(x.ip)}` : ''}</small></div>
       <div class="st-live">${live}</div>
@@ -713,8 +757,10 @@ function stationsHTML(F) {
         ${x.online ? `<button class="b b-sm" data-fact="stFind" data-id="${x.id}" title="${esc(t('Display und LED blinken lassen'))}">${t('Finden')}</button>` : ''}
         <button class="x" data-fact="stEdit" data-id="${x.id}" title="${t('Bearbeiten')}">${ICON.edit}</button></div></div>`;
   }).join('');
-  return `<div class="sbox st-box">${pair}${rows || (!pair ? `<div class="st-empty"><b>${t('Noch keine Station')}</b><span>${t('Eine Station ist ein ESP32 mit NFC-Leser, Waage und kleinem Display: Spule auflegen – PrintDock erkennt sie, bucht die Restmenge nach Gewicht und ordnet sie dem Fach zu, in das sie danach eingelegt wird.')}</span></div>` : '')}
-    <div class="st-foot"><button class="b b-sm" data-fact="stHelp">${t('Station einrichten …')}</button></div></div>`;
+  return `<div class="sbox st-box"><div class="st-intro">${BI.spool}<div><b>${t('NFC-Leser, Waage und Display für deine Spulen')}</b>
+      <span>${t('Ein kleiner ESP32 mit eigener Firmware: Spule auflegen – PrintDock erkennt sie, bucht die Restmenge nach Gewicht und ordnet sie dem Fach zu, in das sie danach eingelegt wird. Beschreibt auch NFC-Tags und misst mit Sensor die Feuchte in der Trockenbox.')}</span></div></div>
+    ${pair}${rows || (!pair ? `<div class="st-empty"><span>${t('Noch keine Station gekoppelt.')}</span></div>` : '')}
+    <div class="st-foot"><a class="b b-sm" href="${STATION_REPO}" target="_blank" rel="noopener">${t('Projekt und Firmware')} ↗</a><button class="b b-sm" data-fact="stHelp">${t('Station einrichten …')}</button></div></div>`;
 }
 
 /** PrintDock-Adresse, die in der Station eingetragen wird */
@@ -723,15 +769,21 @@ function stationAddress() {
   return u.host;
 }
 
+const STATION_REPO = 'https://github.com/Codegulasch/printdock-station';
+
 function stationHelpDialog() {
   const addr = stationAddress();
-  openDialog(`<div class="dlg" style="max-width:720px"><h2>${t('PrintDock-Station einrichten')}</h2>
+  openDialog(`<div class="dlg" style="max-width:720px"><h2>${t('PrintDock Station einrichten')}</h2>
+    <p style="margin:0">${t('Die PrintDock Station ist ein eigenes Projekt mit Firmware, Stückliste und Verdrahtung:')}</p>
+    <div class="copyline"><a class="b b-sm" href="${STATION_REPO}" target="_blank" rel="noopener">github.com/Codegulasch/printdock-station ↗</a>
+      <a class="b b-sm" href="${STATION_REPO}/releases/latest" target="_blank" rel="noopener">${t('Firmware herunterladen')} ↗</a>
+      <a class="b b-sm" href="${STATION_REPO}/blob/main/docs/wiring.md" target="_blank" rel="noopener">${t('Verdrahtung')} ↗</a></div>
     <ol class="steps-ol">
-      <li><b>${t('Bauen')}</b> – ${t('ESP32 (WROOM-Devkit oder D1 Mini ESP32), PN532-NFC-Modul, HX711 mit 5-kg-Wägezelle, 0,96″-OLED (SSD1306), optional WS2812-LED und ein Taster. Verdrahtung und Stückliste: siehe Projekt printdock-station.')}</li>
-      <li><b>${t('Firmware flashen')}</b> – ${t('im Browser über web.esphome.io („Connect“ → .bin der Station wählen) oder mit esptool.')}</li>
+      <li><b>${t('Bauen')}</b> – ${t('ESP32 (WROOM-Devkit oder D1 Mini ESP32), PN532-NFC-Modul, HX711 mit 5-kg-Wägezelle, 0,96″-OLED (SSD1306), optional WS2812-LED, Taster und ein Feuchtesensor (SHT31, SHT40, AHT20 oder HTU21D) am selben I²C wie das Display. Nur mit Feuchtesensor (ohne NFC und Waage) wird daraus ein Funk-Feuchtemesser für die Trockenbox.')}</li>
+      <li><b>${t('Firmware flashen')}</b> – ${t('Datei …factory.bin aus „Firmware herunterladen“ im Browser über web.esphome.io („Connect“) aufspielen, oder mit esptool.')}</li>
       <li><b>${t('WLAN')}</b> – ${t('Die Station öffnet beim ersten Start das WLAN „PrintDock-Station“. Damit verbinden, Heim-WLAN wählen und als PrintDock-Adresse eintragen:')}
         <div class="copyline"><code>${esc(addr)}</code><button class="b b-sm" data-act="copy" data-text="${esc(addr)}">${t('Kopieren')}</button></div></li>
-      <li><b>${t('Koppeln')}</b> – ${t('Die Station zeigt einen sechsstelligen Code. Er erscheint hier unter „Stationen“ – vergleichen und „Koppeln“ drücken.')}</li>
+      <li><b>${t('Koppeln')}</b> – ${t('Die Station zeigt einen sechsstelligen Code. Er erscheint hier unter „PrintDock Station“ – vergleichen und „Koppeln“ drücken.')}</li>
       <li><b>${t('Waage kalibrieren')}</b> – ${t('„Tara“ mit leerer Waage, dann ein bekanntes Gewicht (z. B. eine volle 1-kg-Spule mit bekanntem Leergewicht oder ein Paket Mehl) auflegen und „Kalibrieren“.')}</li>
     </ol>
     <p class="meta">${t('Tags: NTAG215 oder NTAG216 (Format „PrintDock + OpenSpool“), NTAG213 für „Nur Link“ oder „Anycubic ACE“. Bambu- und Snapmaker-Original-Tags werden an ihrer Kennung erkannt.')}</p>
@@ -825,10 +877,11 @@ document.addEventListener('click', async (e) => {
       return reload('filament');
     }
     case 'labels': return labelsDialog(id || null);
-    case 'rfidHelp': return rfidHelpDialog();
     case 'nfcWrite': return nfcWrite(spoolById(id));
     case 'tagWrite': return tagWriteDialog(spoolById(id));
     case 'stHelp': return stationHelpDialog();
+    case 'humAdd': return humSourceDialog(el.dataset.storage ? { storage: true } : { printerId: el.dataset.printer, unit: el.dataset.unit || null });
+    case 'humEdit': return humSourceDialog({ src: (fil().humPoints || []).map((x) => x.source).find((x) => x?.id === id) });
     case 'stPair': {
       const r = await run(() => api('stations/pair', { method: 'POST', body: { id: el.dataset.hw } }));
       if (r) toast(t('Station „{s}“ gekoppelt', { s: r.name }));
