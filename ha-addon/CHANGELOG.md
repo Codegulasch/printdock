@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0
+- **PrintDock Station:** own NFC reader + scale + display on an ESP32 (WROOM devkit or D1 Mini ESP32), firmware in the new project [printdock-station](https://github.com/Codegulasch/printdock-station). Pair it under *Settings → Filament → Stations* with the code from its display
+- **One workflow for spools, RFID and QR:** put a spool on the station → PrintDock recognises it, shows it on the display and in the spool colour, books the remaining amount by weight (learns the empty spool weight from new, full spools) and assigns it to the next printer slot it is loaded into. Stations at a printer can place spools into a fixed slot right away
+- **Bambu AMS:** material and colour of a spool without a Bambu chip are set on the AMS slot automatically when it is assigned (switchable)
+- **Write tags** from the spool sheet: "PrintDock + OpenSpool" (link + material data, NTAG215/216), "OpenSpool" (e.g. Snapmaker U1 with community firmware), "Link only" (NTAG213) or "Anycubic ACE" (ACE Pro / Kobra S1 recognises material and colour) – at a station or with the phone (Chrome on Android)
+- **Read tags:** Anycubic and OpenSpool tags of new spools are recognised and offered as a new spool with material, colour and weight filled in
+- `scripts/station-sim.js` simulates a station for trying it without hardware
+
 ## 0.8.0
 - **Spoolman (optional):** *Settings → Filament → Spoolman* takes over the spool inventory from Spoolman and reports usage, weighed remaining amounts and the current printer/slot back. New spools created in PrintDock can be added to Spoolman automatically. Bookings are kept and sent later if Spoolman is unreachable
 - **Filament humidity:** AMS, ACE and optional Home Assistant humidity sensors (e.g. in a dry box) are monitored with warning and alarm thresholds – colour on the printer cards, tiles with a 48 h history under *Filament → Assignment*, notification "Filament too humid" with the affected spools, and a "dried" date per spool

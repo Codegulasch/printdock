@@ -36,7 +36,25 @@ for (const f of sources) {
 if (missing.size) fail(`Englische Übersetzung fehlt für ${missing.size} Text(e):\n  ${[...missing].join('\n  ')}`);
 else ok(`Übersetzungen vollständig (${Object.keys(DICTS.en).length} Einträge)`);
 
-// ---------------------------------------------------------------- 3. Server
+// ---------------------------------------------------------------- 3. Tag-Formate
+try {
+  const tags = require('../lib/tags');
+  // Original-Tag von Anycubic (PLA+ „Bright Red“, Seiten 4–31, aus DnG-Crafts/ACE-RFID)
+  const real = '7B006500' + '4148504C' + '50424B2D' + '31303200' + '00'.repeat(8) + '41430000' + '00'.repeat(16) + '504C412B' + '00'.repeat(16)
+    + 'FF0006E1' + '00'.repeat(8) + '32006400' + 'CD00D700' + '00'.repeat(16) + '32003C00' + 'AF004A01' + 'E8030000';
+  const head = '04A1B2C3D4E5F680' + '00000000' + 'E1101200';
+  const ace = tags.decode(head + real);
+  if (ace.format !== 'ace' || ace.data.material !== 'PLA+' || ace.data.color !== '#E10600' || ace.data.netWeight !== 1000) fail(`ACE lesen: ${JSON.stringify(ace)}`);
+  const sp = { nr: 'S-007', material: 'PETG', color: '#3366FF', brand: 'Sunlu', netWeight: 1000, diameter: 1.75 };
+  const back = tags.decode(head + tags.encode('ace', sp).pages.map((x) => x.hex).join(''));
+  const uni = tags.decode(head.replace('E1101200', 'E1103E00') + tags.encode('universal', sp, { baseUrl: 'http://192.168.1.5:3080' }).pages.map((x) => x.hex).join(''));
+  let small = false;
+  try { tags.encode('universal', sp, { baseUrl: 'http://192.168.1.5:3080', capacity: 144 }); } catch { small = true; }
+  if (back.data?.color !== '#3366FF' || uni.spoolRef !== 'S-007' || uni.data?.material !== 'PETG' || !small) fail('Tag-Formate: Hin- und Rückweg stimmt nicht');
+  else ok('Tag-Formate: Anycubic ACE, OpenSpool, Link');
+} catch (err) { fail(`Tag-Formate: ${err.message}`); }
+
+// ---------------------------------------------------------------- 4. Server
 (async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'printdock-check-'));
   const port = 30000 + Math.floor(Math.random() * 20000);
@@ -74,6 +92,28 @@ else ok(`Übersetzungen vollständig (${Object.keys(DICTS.en).length} Einträge)
       const info = require('../lib/backup').inspect(bkFile);
       if (bk.status !== 200 || info.printers !== 5 || info.files < 8) fail(`Sicherung unvollständig (${JSON.stringify(info)})`); else ok(`Sicherung: ${info.files} Dateien`);
     } catch (err) { fail(`Sicherung: ${err.message}`); } finally { fs.rmSync(bkFile, { force: true }); }
+    // Station: WebSocket, Kopplung, Tag melden
+    await new Promise((resolve, reject) => {
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/api/station/ws`);
+      const timer = setTimeout(() => reject(new Error('Station: keine Antwort')), 5000);
+      ws.onerror = () => reject(new Error('Station: WebSocket-Fehler'));
+      ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', id: 'CHECK-1', fw: 'check', caps: { nfc: true, scale: true } }));
+      ws.onmessage = async (e) => {
+        const m = JSON.parse(e.data);
+        if (m.t === 'pair') {
+          const r = await req('/api/stations/pair', { method: 'POST', body: JSON.stringify({ id: 'CHECK-1', code: m.code }) });
+          if (r.status !== 201) reject(new Error(`Station koppeln: HTTP ${r.status}`));
+        }
+        if (m.t === 'welcome') ws.send(JSON.stringify({ t: 'tag', uid: '04AA11BB22CC33', kind: 'ntag', pages: '04AA11BB22CC3300E1103E00' + '0300FE00' + '00'.repeat(60) }));
+        if (m.t === 'show' && /Leerer Tag/.test(m.lines[0])) {
+          const f = await req('/api/filament');
+          clearTimeout(timer);
+          ws.close();
+          if (f.body.pendingTag?.tag === '04AA11BB22CC33' && f.body.stations.list[0]?.online) resolve(); else reject(new Error('Station: Tag nicht gemeldet'));
+        }
+      };
+    });
+    ok('Station: koppeln und Tag melden');
     const auth = await req('/api/app', { method: 'PUT', body: JSON.stringify({ auth: { enabled: true, user: 'admin', password: 'test1234' } }) });
     const locked = await req('/api/printers');
     if (auth.status !== 200 || locked.status !== 401) fail(`Login-Schutz greift nicht (HTTP ${locked.status})`); else ok('Login-Schutz greift');

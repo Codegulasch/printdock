@@ -637,6 +637,40 @@ body.has-overlay{overflow:hidden}
 .ns-list{max-height:55vh;overflow:auto}
 .hms-row{grid-template-columns:1fr auto}
 .hms-row .code{font-family:ui-monospace,Consolas,monospace;font-size:0.875rem}
+
+/* ---------- Stationen (NFC + Waage) */
+.newspool.armed{margin-bottom:0.875rem;padding:0.625rem 0.875rem;background:var(--run-bg);border-color:color-mix(in srgb,var(--run) 45%,transparent)}
+.newspool.armed>span{color:inherit}
+.st-box{overflow:hidden}
+.st-row,.st-pair{display:flex;align-items:center;gap:0.625rem 0.75rem;padding:0.6rem 1rem;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.st-pair{background:var(--accent-bg)}
+.st-row>div,.st-pair>div{min-width:0}
+.st-main,.st-pair>div:nth-child(2){flex:1 1 9rem}
+.st-main b,.st-pair b{display:block;font-size:0.875rem}
+.st-main small,.st-pair small{display:block;color:var(--muted);font-size:0.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-live{display:flex;gap:0.375rem;align-items:center;font-size:0.8125rem}
+.st-acts{display:flex;gap:0.375rem;align-items:center;margin-left:auto}
+.st-dot{width:0.625rem;height:0.625rem;border-radius:50%;flex:none;background:var(--line)}
+.st-dot.ok{background:var(--run);box-shadow:0 0 0 3px var(--run-bg)}
+.st-dot.run{background:var(--accent);animation:stpulse 1.4s ease-in-out infinite}
+@keyframes stpulse{50%{opacity:.35}}
+.st-code{font-size:1.25rem;font-weight:700;letter-spacing:.12em;padding:0.125rem 0.5rem;border:1px dashed var(--accent);border-radius:0.375rem}
+.st-empty{padding:0.875rem 1rem;border-bottom:1px solid var(--line)}
+.st-empty b{display:block;font-size:0.875rem;margin-bottom:0.125rem}
+.st-empty span{color:var(--muted);font-size:0.8125rem}
+.st-foot{padding:0.5rem 1rem;display:flex;justify-content:flex-end}
+.fmt-pick{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:0.5rem}
+.radio-card{display:flex;gap:0.5rem;align-items:flex-start;border:1px solid var(--line);border-radius:0.5rem;padding:0.5rem 0.625rem;cursor:pointer}
+.radio-card:has(input:checked){border-color:var(--accent);background:var(--accent-bg)}
+.radio-card:has(input:disabled){opacity:.45;cursor:not-allowed}
+.dlg label.radio-card{flex-direction:row;gap:0.5rem;font-weight:400}
+.dlg label.radio-card input{width:1.125rem;height:1.125rem;min-height:0;margin:0.15rem 0 0;padding:0;flex:none;accent-color:var(--accent)}
+.radio-card b{display:block;font-size:0.8438rem}
+.radio-card small{display:block;color:var(--muted);font-size:0.75rem;line-height:1.3}
+.steps-ol{margin:0 0 0.625rem;padding-left:1.25rem;line-height:1.55}
+.steps-ol li{margin-bottom:0.375rem}
+.copyline{display:flex;gap:0.5rem;align-items:center;margin:0.375rem 0}
+.copyline code{font-size:1rem;padding:0.25rem 0.5rem;background:var(--accent-bg);border-radius:0.375rem}
 </style>
 </head>
 <body>
