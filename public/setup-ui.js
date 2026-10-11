@@ -11,7 +11,7 @@ const MODULE_INFO = [
   ['history', 'Verlauf', 'Liste aller beendeten Drucke.'],
   ['stats', 'Statistik', 'Auswertungen zu Drucken, Zeit, Material und Kosten.'],
   ['camera', 'Kamera', 'Livebild der Druckerkameras auf den Karten.'],
-  ['notifications', 'Benachrichtigungen', 'Meldungen per ntfy, Telegram, Discord, Gotify oder Webhook.'],
+  ['notifications', 'Benachrichtigungen', 'Meldungen per Home Assistant, ntfy, Telegram, Discord, Gotify oder Webhook – auf Wunsch mit Kamerabild.'],
   ['homeassistant', 'Home Assistant', 'Drucker über Steckdosen schalten und PrintDock in Home Assistant anzeigen.'],
   ['slicer', 'Slicer-Anbindung', 'Aus OrcaSlicer & Co. direkt an PrintDock senden.'],
   ['demo', 'Demo-Daten', 'Simulierte Drucker zum Ausprobieren.'],
@@ -244,20 +244,51 @@ document.addEventListener('input', (e) => {
 /** Eine Einstellungszeile: links Bezeichnung + Erklärung, rechts das Bedienelement. */
 const srow = (label, hint, control) => `<div class="srow"><div class="sl"><b>${label}</b>${hint ? `<span>${hint}</span>` : ''}</div><div class="sc">${control}</div></div>`;
 
+/** Gruppen für die Funktionsliste unter Allgemein */
+const MODULE_GROUPS = [
+  ['Produktion', ['queue', 'orders', 'files']],
+  ['Material und Wartung', ['filament', 'maintenance']],
+  ['Auswertung', ['history', 'stats']],
+  ['Anbindungen', ['camera', 'notifications', 'homeassistant', 'slicer']],
+  ['Sonstiges', ['demo']],
+];
+const ACCENT_HEX = { cobalt: '#3F5BD8', violet: '#7C3AED', petrol: '#0E7490', orange: '#D9531E', magenta: '#BE185D', graphite: '#475569' };
+const seg = (items, cur, attr) => `<div class="seg" role="group">${items.map(([k, l]) => `<button type="button" ${attr}="${k}" aria-pressed="${cur === k}">${l}</button>`).join('')}</div>`;
+const lrow = (label, hint, control) => `<div class="lrow"><div class="lt"><b>${label}</b>${hint ? `<span>${hint}</span>` : ''}</div><div class="lc">${control}</div></div>`;
+
 function vGeneral() {
   const a = S.app;
   if (!a) return `<div class="empty">${t('Lade …')}</div>`;
+  const mods = a.modules || {};
+  const name = (k) => t(MODULE_INFO.find((m) => m[0] === k)?.[1] || k);
+  const modRows = MODULE_GROUPS.map(([g, keys]) => `<div class="mgh">${t(g)}</div>${keys.map((k) => {
+    const [, l, d, deps] = MODULE_INFO.find((m) => m[0] === k);
+    return `<label class="mrow ${mods[k] ? 'on' : ''}"><span class="lt"><b>${esc(t(l))}</b><span>${esc(t(d))}${deps ? ` <i>${esc(t('braucht: {d}', { d: deps.map(name).join(', ') }))}</i>` : ''}</span></span>
+      <span class="tgl"><input type="checkbox" data-g-mod="${k}" ${mods[k] ? 'checked' : ''}><span class="sw"></span></span></label>`;
+  }).join('')}`).join('');
+  const prev = [['free', 'Frei'], ['run', 'Druckt'], ['wait', 'Wartet'], ['fault', 'Störung']].map(([c, l]) => `<span class="lamp ${c}"><i class="led ${c}"></i>${t(l)}</span>`).join('');
   return `<div class="page-head"><h1>${NAV_ICON.gear}${t('Allgemein')}</h1></div>
-    <div class="sbox">
-      ${srow(t('Sprache'), t('Oberfläche, Benachrichtigungen und Home Assistant'), `<div class="chips">${[['de', 'Deutsch'], ['en', 'English']].map(([k, l]) => `<button class="chip" data-gact="lang" data-v="${k}" aria-pressed="${a.lang === k}">${l}</button>`).join('')}</div>`)}
-      ${srow(t('Erscheinungsbild'), '', themePicker(themeGet(), 'data-g-theme'))}
-      ${srow(t('Größe'), t('Schrift und Abstände der ganzen Oberfläche'), `<div class="chips">${[['compact', 'Kompakt'], ['standard', 'Standard'], ['large', 'Groß']].map(([k, l]) => `<button class="chip" data-gact="density" data-v="${k}" aria-pressed="${(a.density || 'standard') === k}">${t(l)}</button>`).join('')}</div>`)}
-      ${srow(t('Akzentfarbe'), t('Statusfarben bleiben immer gleich'), accentPicker(a.accent, 'data-g-accent'))}
-      ${srow(t('Druckplatte'), t('Vor jedem Start aus Warteschlange oder Auftrag fragen, ob die Platte geräumt ist'), `<label class="tgl"><input type="checkbox" data-g-plate ${a.plateCheck ? 'checked' : ''}><span class="sw"></span></label>`)}
-    </div>
-    <h3 class="shead">${t('Funktionen')}</h3>
-    <p class="meta" style="margin:-4px 0 10px">${t('Abgeschaltete Bereiche verschwinden aus Menü und Druckerkarten; ihre Daten bleiben erhalten.')}</p>
-    ${moduleGrid(a.modules, 'data-g-mod')}`;
+    <div class="gen-grid">
+      <div>
+        <h3 class="shead">${t('Darstellung')}</h3>
+        <div class="sbox">
+          ${lrow(t('Sprache'), '', seg([['de', 'Deutsch'], ['en', 'English']], a.lang, 'data-gact="lang" data-v'))}
+          ${lrow(t('Erscheinungsbild'), '', seg([['auto', t('Auto')], ['light', t('Hell')], ['dark', t('Dunkel')]], themeGet(), 'data-g-theme'))}
+          ${lrow(t('Größe'), '', seg([['compact', 'A<sub>−</sub>'], ['standard', 'A'], ['large', 'A<sup>+</sup>']], a.density || 'standard', 'data-gact="density" data-v'))}
+          ${lrow(t('Akzentfarbe'), esc(t(ACCENTS.find((x) => x[0] === a.accent)?.[1] || 'Kobalt')), `<div class="swatches">${ACCENTS.map(([k, l]) => `<button type="button" class="swb" style="--c:${ACCENT_HEX[k]}" data-g-accent="${k}" aria-pressed="${a.accent === k}" title="${esc(t(l))}" aria-label="${esc(t(l))}"></button>`).join('')}</div>`)}
+          <div class="gprev"><span class="meta">${t('Vorschau')}</span>${prev}<button type="button" class="b b-sm b-go" tabindex="-1">${t('Aktion')}</button></div>
+        </div>
+        <h3 class="shead">${t('Druckstart')}</h3>
+        <div class="sbox">
+          ${lrow(t('Druckplatte abfragen'), t('Vor jedem Start aus Warteschlange oder Auftrag bestätigen, dass die Platte geräumt ist.'), `<label class="tgl"><input type="checkbox" data-g-plate ${a.plateCheck ? 'checked' : ''}><span class="sw"></span></label>`)}
+        </div>
+      </div>
+      <div>
+        <h3 class="shead">${t('Funktionen')} <span class="meta" style="text-transform:none;letter-spacing:0;font-weight:400">· ${t('{n} von {m} an', { n: MODULE_INFO.filter(([k]) => mods[k] !== false).length, m: MODULE_INFO.length })}</span></h3>
+        <div class="sbox mlist">${modRows}</div>
+        <p class="meta">${t('Abgeschaltete Bereiche verschwinden aus Menü und Druckerkarten; ihre Daten bleiben erhalten.')}</p>
+      </div>
+    </div>`;
 }
 
 function vSystem() {

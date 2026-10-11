@@ -36,7 +36,7 @@ const NAV_ALL = [
   { g: 'fil', l: 'Filament', icon: 'spool', v: [['spools', 'Spulen', 'filament'], ['slots', 'Belegung', 'filament'], ['usage', 'Verbrauch', 'filament']] },
   { g: 'maint', l: 'Wartung', icon: 'wrench', v: [['maint', 'Wartungsplan', 'maintenance']] },
   { g: 'ana', l: 'Auswertung', icon: 'chart', v: [['stats', 'Statistik', 'stats'], ['history', 'Verlauf', 'history']] },
-  { g: 'set', l: 'Einstellungen', icon: 'gear', sep: true, v: [['general', 'Allgemein'], ['printers', 'Drucker#pl'], ['ha', 'Home Assistant', 'homeassistant'], ['notify', 'Benachrichtigungen', 'notifications'], ['slicer', 'Slicer', 'slicer'], ['system', 'System']] },
+  { g: 'set', l: 'Einstellungen', icon: 'gear', sep: true, v: [['general', 'Allgemein'], ['printers', 'Drucker#pl'], ['ha', 'Home Assistant', 'homeassistant'], ['notify', 'Benachrichtigungen', 'notifications'], ['slicer', 'Slicer', 'slicer'], ['filset', 'Filament', 'filament'], ['system', 'System']] },
 ];
 const on = (m) => !m || S.app?.modules?.[m] !== false;
 function navGroups() {
@@ -987,6 +987,8 @@ function printerDialog(p = null) {
     </fieldset>
     <fieldset ${on('homeassistant') ? '' : 'hidden'}><legend>${t('Strom über Home Assistant')}</legend>
       <label>${t('Steckdose (Entität)')}<div data-power-pick>${entityPickerHTML('powerEntity', p?.settings?.powerEntity)}</div></label>
+      ${on('filament') ? `<label>${t('Feuchtesensor (optional)')}<div data-hum-pick>${entityPickerHTML('humidityEntity', p?.settings?.humidityEntity, '', S.haHumidity ?? null, t('– kein Sensor –'))}</div></label>
+      <p class="hint" style="margin-top:-4px">${t('Z. B. ein Sensor in der Trockenbox – PrintDock überwacht ihn wie die AMS-/ACE-Feuchte.')}</p>` : ''}
       <label class="check"><input type="checkbox" name="autoOff" ${p?.settings?.autoOff ? 'checked' : ''}> ${t('Nach dem Druck automatisch ausschalten, sobald die Düse abgekühlt ist')}</label>
       <p class="hint" style="margin-top:-4px">${t('Verbindung einrichten unter Einstellungen → Home Assistant. Leer lassen, wenn der Drucker nicht geschaltet werden soll.')}</p>
     </fieldset>
@@ -1002,6 +1004,13 @@ function printerDialog(p = null) {
   renderFields(p?.config);
   form.driver.addEventListener('change', () => renderFields());
   // Steckdosen-Auswahl: Entitäten aus Home Assistant nachladen
+  if (on('homeassistant') && on('filament') && S.haHumidity === undefined) {
+    S.haHumidity = null;
+    api('ha/humidity-sensors').then((l) => (S.haHumidity = l)).catch(() => (S.haHumidity = [])).finally(() => {
+      const box = $('[data-hum-pick]', d);
+      if (box && d.open) box.innerHTML = entityPickerHTML('humidityEntity', form.humidityEntity?.value, '', S.haHumidity, t('– kein Sensor –'));
+    });
+  }
   if (on('homeassistant') && S.haEntities === null && !S.haEntLoading) {
     S.haEntLoading = true;
     loadHaEntities().then(() => {
@@ -1020,7 +1029,7 @@ function printerDialog(p = null) {
     e.preventDefault();
     const body = {
       name: form.name.value, driver: form.driver.value, config: readFields(form),
-      settings: { ...(p?.settings || {}), model: form.model.value, autoStart: form.autoStart.checked, hoursOffset: form.hoursOffset.value, slots: form.slots.value, powerEntity: form.powerEntity.value.trim(), autoOff: form.autoOff.checked },
+      settings: { ...(p?.settings || {}), model: form.model.value, autoStart: form.autoStart.checked, hoursOffset: form.hoursOffset.value, slots: form.slots.value, powerEntity: form.powerEntity.value.trim(), humidityEntity: form.humidityEntity?.value.trim() || '', autoOff: form.autoOff.checked },
     };
     try {
       await api(p ? `printers/${p.id}` : 'printers', { method: p ? 'PUT' : 'POST', body });
@@ -1040,16 +1049,25 @@ function vNotify() {
   const rows = S.channels.map((c) => {
     const type = S.notifyTypes.channels.find((x) => x.id === c.type);
     const r = c.lastResult;
-    return `<article class="card"><h3>${esc(c.name)}</h3>
-      <div class="meta">${esc(t(type?.label || c.type))}${c.enabled ? '' : ` · <b>${t('deaktiviert')}</b>`}${c.attachImage ? ` · ${t('mit Kamerabild')}` : ''}</div>
-      <div class="facts" style="margin:8px 0">${c.events.map((e) => `<span class="pill">${esc(t(evLabel[e] || e))}</span>`).join(' ') || `<span>${t('keine Ereignisse gewählt')}</span>`}</div>
-      ${r ? `<div class="meta" style="color:${r.ok ? 'var(--run)' : 'var(--fault)'}">${r.ok ? t('Zuletzt gesendet {t}', { t: tfmt(r.at) }) : t('Fehlgeschlagen: {e}', { e: esc(t(r.error)) })}</div>` : ''}
-      <div class="btns"><button class="b b-sm" data-act="nTest" data-id="${c.id}">${t('Test senden')}</button><button class="b b-sm" data-act="nEdit" data-id="${c.id}">${ICON.edit}${t('Bearbeiten')}</button></div></article>`;
+    const status = r ? `<span class="${r.ok ? 'vl ok' : 'vl bad'}" title="${esc(r.ok ? '' : t(r.error || ''))}">${r.ok ? t('zuletzt {t}', { t: tfmt(r.at) }) : t('Fehler')}</span>` : `<span class="meta">${t('noch nichts gesendet')}</span>`;
+    return `<div class="nrow ${c.enabled ? '' : 'off'}">
+      <div class="lt"><b>${esc(c.name)}</b><span>${esc(t(type?.label || c.type))} · ${c.events.map((e) => esc(t(evLabel[e] || e))).join(', ') || t('keine Ereignisse gewählt')}</span></div>
+      <div class="nstat">${status}</div>
+      <label class="nimg" title="${esc(type?.image ? t('Kamerabild mitschicken') : t('Dieser Dienst kann keine Bilder'))}">${ICON.cam || ''}<span class="tgl"><input type="checkbox" data-n-set="attachImage" data-id="${c.id}" ${c.attachImage && type?.image ? 'checked' : ''} ${type?.image ? '' : 'disabled'}><span class="sw"></span></span></label>
+      <label class="nimg" title="${esc(t('Kanal aktiv'))}"><span class="tgl"><input type="checkbox" data-n-set="enabled" data-id="${c.id}" ${c.enabled ? 'checked' : ''}><span class="sw"></span></span></label>
+      <div class="nbtn"><button class="b b-sm" data-act="nTest" data-id="${c.id}">${t('Test')}</button><button class="b b-sm" data-act="nEdit" data-id="${c.id}" aria-label="${esc(t('Bearbeiten'))}">${ICON.edit}</button></div></div>`;
   }).join('');
-  return `<div class="bar-row"><h2>${t('Benachrichtigungen')}</h2><button class="b b-sm b-go" data-act="nEdit">${ICON.plus}${t('Kanal hinzufügen')}</button></div>
-    <p class="intro">${t('Meldungen bei Druckende, Störung, Pause (z. B. Filament leer) oder fälliger Wartung – auf Wunsch mit Kamerabild. Am schnellsten geht es mit der App ntfy.')}</p>
-    ${S.channels.length ? `<div class="cards">${rows}</div>` : `<div class="list"><div class="empty">${t('Noch kein Kanal eingerichtet.')}</div></div>`}`;
+  return `<div class="page-head"><h1>${NAV_ICON.gear}${t('Benachrichtigungen')}</h1><span class="grow"></span><button class="b b-sm b-go" data-act="nEdit">${ICON.plus}${t('Kanal hinzufügen')}</button></div>
+    <p class="meta" style="margin:-6px 0 12px">${t('Meldungen bei Druckende, Störung, Pause (z. B. Filament leer) oder fälliger Wartung – je Kanal mit oder ohne Kamerabild vom Moment des Ereignisses.')}</p>
+    ${S.channels.length ? `<div class="sbox nlist"><div class="nrow nhead"><span>${t('Kanal')}</span><span>${t('Status')}</span><span>${t('Bild')}</span><span>${t('Aktiv')}</span><span></span></div>${rows}</div>` : `<div class="list"><div class="empty">${t('Noch kein Kanal eingerichtet.')}</div></div>`}`;
 }
+
+document.addEventListener('change', async (e) => {
+  const el = e.target.closest?.('[data-n-set]');
+  if (!el) return;
+  await run(() => api(`notifications/${el.dataset.id}/set`, { method: 'POST', body: { [el.dataset.nSet]: el.checked } }), el.dataset.nSet === 'attachImage' ? (el.checked ? t('Kamerabild wird mitgeschickt') : t('Ohne Kamerabild')) : null);
+  reload('channels');
+});
 
 function channelDialog(c = null) {
   const T = S.notifyTypes;

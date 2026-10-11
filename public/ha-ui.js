@@ -16,12 +16,13 @@ async function loadHaEntities() {
  * Auswahlliste für schaltbare Entitäten (gruppiert nach Bereich). Der Wert steht im Textfeld `name`,
  * damit Formulare ihn wie bisher lesen; „Andere Entität …“ blendet das Textfeld zum Eintippen ein.
  */
-function entityPickerHTML(name, value, cls = '') {
-  const ents = S.haEntities || [];
+function entityPickerHTML(name, value, cls = '', list = undefined, noneLabel = null) {
+  const src = list === undefined ? S.haEntities : list;
+  const ents = src || [];
   const val = value || '';
-  const input = (show) => `<input class="${cls}" style="width:100%;${show ? '' : 'display:none'}" name="${name}" value="${esc(val)}" placeholder="switch.drucker_werkstatt" autocomplete="off">`;
+  const input = (show) => `<input class="${cls}" style="width:100%;${show ? '' : 'display:none'}" name="${name}" value="${esc(val)}" placeholder="${name === 'humidityEntity' ? 'sensor.trockenbox_feuchte' : 'switch.drucker_werkstatt'}" autocomplete="off">`;
   if (!ents.length) {
-    const hint = S.haEntities === null && S.haEntLoading ? t('Entitäten werden geladen …') : t('Keine Entitäten gefunden – Verbindung zu Home Assistant prüfen oder von Hand eintragen.');
+    const hint = src === null && S.haEntLoading ? t('Entitäten werden geladen …') : t('Keine Entitäten gefunden – Verbindung zu Home Assistant prüfen oder von Hand eintragen.');
     return `<div class="epick">${input(true)}<div class="meta" style="margin-top:3px">${hint}</div></div>`;
   }
   const known = ents.some((e) => e.entity_id === val);
@@ -30,7 +31,7 @@ function entityPickerHTML(name, value, cls = '') {
   for (const e of ents) (groups[e.area || t('Ohne Bereich')] ||= []).push(e);
   const opts = Object.entries(groups).map(([area, list]) => `<optgroup label="${esc(area)}">${list.map((e) => `<option value="${esc(e.entity_id)}" ${e.entity_id === val ? 'selected' : ''}>${esc(e.name)} (${esc(stateTxt(e.state))}) · ${esc(e.entity_id)}</option>`).join('')}</optgroup>`).join('');
   return `<div class="epick"><select class="${cls}" style="width:100%" data-epick>
-      <option value="" ${!val ? 'selected' : ''}>${t('– keine Steckdose –')}</option>
+      <option value="" ${!val ? 'selected' : ''}>${noneLabel || t('– keine Steckdose –')}</option>
       ${val && !known ? `<option value="${esc(val)}" selected>${esc(val)} (${t('nicht gefunden')})</option>` : ''}
       ${opts}
       <option value="__other">${t('Andere Entität eintragen …')}</option>

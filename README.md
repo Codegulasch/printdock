@@ -104,6 +104,13 @@ On your home network PrintDock runs without login. For access from outside, enab
 
 Passwords are stored with scrypt, sessions use HttpOnly cookies, 5 wrong attempts lock for a minute. Never forward port 3080 directly on your router.
 
+## Filament: Spoolman, humidity, labels, RFID
+
+- **Spoolman (optional):** *Settings → Filament → Spoolman* takes the spool inventory from Spoolman and reports usage, weighed remaining amounts and the current printer/slot back. Spools created in PrintDock can also be added to Spoolman. If Spoolman is briefly unavailable, PrintDock catches up.
+- **Filament humidity:** AMS, ACE and an optional Home Assistant humidity sensor per printer (e.g. in a dry box) with warning and alarm thresholds, 48 h history, "Filament too humid" notification and a drying date per spool.
+- **Spool labels:** with QR code in 62 × 29 mm (Brother QL), 50 × 30, 40 × 30, 57 × 25 mm or as an A4 sheet. Scanning opens the spool with quick actions.
+- **RFID/NFC:** write the spool link to an NFC sticker from the phone (Chrome on Android) or use an ESPHome reader (PN532/RC522) at the printer: tag on the reader → spool in the slot. Example configuration under *Settings → Filament → RFID reader*, API `POST /api/rfid` with `{"tag": "…", "printer": "…", "slot": "…"}`.
+
 ## Updates
 
 *Settings → System → Updates* checks GitHub for a new version (also automatically once a day) and installs it with one click: as an add-on Home Assistant rebuilds PrintDock, on PC and Raspberry Pi PrintDock replaces its files and restarts. For a private repository enter a read-only GitHub token under “Update source”. Docker: `docker compose pull && docker compose up -d`.
