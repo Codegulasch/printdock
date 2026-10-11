@@ -124,6 +124,8 @@ Oben fasst eine Zeile zusammen, wie viele Drucker frei sind, drucken, warten ode
 
 ## Filament: Spoolman, Feuchte, Etiketten, RFID
 
+- **PrintDock-Station (neu in 0.9):** ein ESP32 mit NFC-Leser (PN532), Waage (HX711) und kleinem Display, mit eigener Firmware: [printdock-station](https://github.com/Codegulasch/printdock-station). Spule auflegen → PrintDock erkennt sie (Tag-Kennung, Spulen-Link, OpenSpool- oder Anycubic-Daten), bucht die Restmenge nach Gewicht (das Leergewicht lernt es an einer neuen, vollen Spule) und merkt sie sich 3 Minuten: Das nächste Fach, das eine frisch eingelegte Spule meldet, bekommt sie – bei Bambu gehen Material und Farbe gleich ans AMS. Leere Tags lassen sich aus der Spulenansicht in vier Formaten beschreiben (PrintDock + OpenSpool, OpenSpool, Nur Link, Anycubic ACE) – an der Station oder mit dem Handy. Koppeln per sechsstelligem Code unter *Einstellungen → Filament → Stationen*; ohne Hardware simuliert `node scripts/station-sim.js` eine Station.
+
 - **Spoolman (optional):** *Einstellungen → Filament → Spoolman* übernimmt den Spulenbestand aus Spoolman und meldet Verbrauch, gewogene Restmengen und den aktuellen Drucker/Platz zurück. In PrintDock angelegte Spulen landen auf Wunsch auch in Spoolman. Ist Spoolman kurz weg, holt PrintDock die Buchungen nach.
 - **Filamentfeuchte:** AMS, ACE und optional ein Feuchtesensor aus Home Assistant je Drucker (z. B. in der Trockenbox) mit Warn- und Alarmwert, Verlauf über 48 Stunden, Meldung „Filament zu feucht“ und Trocknungsdatum je Spule.
 - **Spulen-Etiketten:** mit QR-Code in 62 × 29 mm (Brother QL), 50 × 30, 40 × 30, 57 × 25 mm oder als A4-Bogen. Scannen öffnet die Spule mit Schnellaktionen.
@@ -379,6 +381,9 @@ data/                JSON-Dateien und hochgeladene Dateien (wird angelegt)
 | GET | `/api/filament/check?printerId&queueId` | Reicht das Filament für einen Eintrag? |
 | POST / PUT / DELETE | `/api/spools`, `/api/spools/:id` | Spulen anlegen / ändern / löschen |
 | POST | `/api/spools/:id/weigh`, `/api/spools/:id/book` | Wiegen / von Hand abbuchen |
+| GET / PUT / DELETE | `/api/stations`, `/api/stations/:id` | Stationen anzeigen / einstellen / entfernen |
+| POST | `/api/stations/pair`, `/api/stations/:id/{tare,calibrate,identify,write}` | Koppeln, Tara, Kalibrieren, Finden, Tag beschreiben (`{spoolId, format}`) |
+| WS | `/api/station/ws` | Verbindung der Station (Protokoll: printdock-station/docs/protocol.md) |
 | POST | `/api/printers/:id/command` | auch `{cmd: "light", on}` und `{cmd: "speed", level: 1–4}` |
 | POST | `/api/printers/:id/power` | Steckdose über Home Assistant `{on: true \| false}` |
 | GET / PUT | `/api/ha` | Home-Assistant-Einstellungen |

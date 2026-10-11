@@ -182,6 +182,7 @@ class BambuDriver extends BaseDriver {
         color: /^[0-9a-f]{6}/i.test(t.tray_color || '') ? `#${t.tray_color.slice(0, 6).toUpperCase()}` : null,
         remainPct: Number(t.remain) >= 0 && t.tray_type ? Number(t.remain) : null,
         uid,
+        present: trayLoaded(t),
         brand: t.tray_sub_brands || null,
         weight: Number(t.tray_weight) || null,
       });
@@ -331,11 +332,45 @@ class BambuDriver extends BaseDriver {
       this.send({ command: 'print_speed', param: String(level) });
       return;
     }
+    if (cmd === 'filament_setting') {
+      // Material und Farbe eines AMS-Fachs bzw. der externen Spule setzen (wie in Bambu Studio)
+      const m = String(args.key || '').match(/^ams(\d+)-(\d+)$|^ext(\d*)$/);
+      if (!m) throw new Error(`Unbekannter Platz ${args.key}`);
+      const material = String(args.material || 'PLA').toUpperCase();
+      const idx = GENERIC_IDX.find(([re]) => re.test(material))?.[1];
+      if (!idx) throw new Error(`Für ${args.material} kennt PrintDock kein Bambu-Profil`);
+      const amsId = m[1] != null ? Number(m[1]) : 255;
+      const trayId = m[1] != null ? Number(m[2]) : Number(m[3] || 0);
+      this.send({
+        command: 'ams_filament_setting', ams_id: amsId, tray_id: trayId, slot_id: trayId,
+        tray_info_idx: idx, tray_color: `${String(args.color || '#FFFFFF').replace('#', '').toUpperCase()}FF`,
+        nozzle_temp_min: Number(args.tempMin) || 190, nozzle_temp_max: Number(args.tempMax) || 240,
+        tray_type: material.replace(/ .*/, ''),
+      });
+      return;
+    }
     const map = { pause: 'pause', resume: 'resume', cancel: 'stop' };
     if (!map[cmd]) return super.command(cmd);
     this.send({ command: map[cmd], param: '' });
   }
 }
+
+/** Steckt eine Spule im Fach? Bevorzugt das „state“-Bitfeld (Bit 0 Spule, Bit 3 ruhig), sonst Filamentangaben. */
+function trayLoaded(t) {
+  if (t.state != null && t.state !== '') {
+    const st = Number(t.state);
+    if (!(st & 1)) return false;
+    return st <= 3 ? st === 3 : Boolean(st & 8);
+  }
+  return Boolean(t.tray_info_idx || (t.tray_type && t.tray_type !== 'Empty'));
+}
+
+// Generische Bambu-Filamentprofile (tray_info_idx) je Material
+const GENERIC_IDX = [
+  [/^PLA[- ]?CF/, 'GFL98'], [/^PLA.*SILK/, 'GFL96'], [/^PLA/, 'GFL99'],
+  [/^PETG[- ]?HF/, 'GFG96'], [/^(PETG|PCTG)/, 'GFG99'],
+  [/^ABS/, 'GFB99'], [/^ASA/, 'GFB98'], [/^TPU/, 'GFU99'], [/^PC/, 'GFC99'], [/^PA/, 'GFN99'], [/^PVA/, 'GFS99'],
+];
 
 function md5File(file) {
   return new Promise((resolve, reject) => {

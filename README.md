@@ -106,6 +106,8 @@ Passwords are stored with scrypt, sessions use HttpOnly cookies, 5 wrong attempt
 
 ## Filament: Spoolman, humidity, labels, RFID
 
+- **PrintDock Station (new in 0.9):** an ESP32 with NFC reader (PN532), scale (HX711) and small display, with its own firmware: [printdock-station](https://github.com/Codegulasch/printdock-station). Put a spool on it → PrintDock recognises it (tag UID, spool link, OpenSpool or Anycubic data), books the remaining amount by weight (learns the empty spool weight from a new, full spool) and remembers it for 3 minutes: the next slot that reports a newly loaded spool gets it, and on Bambu printers material and colour are sent to the AMS slot. Blank tags can be written from the spool sheet in four formats (PrintDock + OpenSpool, OpenSpool, link only, Anycubic ACE) – at the station or with the phone. Pairing with a six-digit code under *Settings → Filament → Stations*; no hardware yet? `node scripts/station-sim.js` simulates one.
+
 - **Spoolman (optional):** *Settings → Filament → Spoolman* takes the spool inventory from Spoolman and reports usage, weighed remaining amounts and the current printer/slot back. Spools created in PrintDock can also be added to Spoolman. If Spoolman is briefly unavailable, PrintDock catches up.
 - **Filament humidity:** AMS, ACE and an optional Home Assistant humidity sensor per printer (e.g. in a dry box) with warning and alarm thresholds, 48 h history, "Filament too humid" notification and a drying date per spool.
 - **Spool labels:** with QR code in 62 × 29 mm (Brother QL), 50 × 30, 40 × 30, 57 × 25 mm or as an A4 sheet. Scanning opens the spool with quick actions.

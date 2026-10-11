@@ -146,6 +146,27 @@ const { Spoolman } = require('./lib/spoolman');
 const spoolman = new Spoolman({ db: require('./lib/filament').db, filament, printers: () => printerConfigs });
 filament.ext = spoolman;
 
+// PrintDock-Stationen (NFC-Leser + Waage + Display, eigene Firmware)
+const { Stations } = require('./lib/stations');
+const tags = require('./lib/tags');
+const stations = new Stations({
+  filament,
+  spools: () => require('./lib/filament').db.data.spools,
+  printers: () => printerConfigs,
+  baseUrl: () => ha?.directUrl || '',
+  broadcast,
+});
+filament.ctx.onPlaced = (spool, cfg, slot, source) => stations.onPlaced(spool, cfg, slot, source);
+filament.ctx.onTagAssigned = (spool, pending) => stations.onTagAssigned(spool, pending);
+// Belegung an den Drucker übertragen (Bambu-AMS: Material und Farbe des Fachs)
+filament.ctx.pushSlot = async (cfg, key, spool) => {
+  const rt = runtime.get(cfg.id);
+  if (!rt || !(cfg.driver === 'bambu' || (cfg.driver === 'demo' && /^(ams|ext)/.test(key)))) return;
+  const [tempMin, tempMax] = tags.tempsFor(spool.material);
+  await rt.driver.command('filament_setting', { key, material: spool.material, color: spool.color, tempMin, tempMax });
+  console.log(`[${cfg.name}] ${key}: ${spool.material} ${spool.color} gesetzt (${spool.nr})`);
+};
+
 ha = new HomeAssistant({
   printers: () => printerConfigs,
   runtime,
@@ -618,7 +639,8 @@ async function handleApi(req, res, url) {
     }
   }
   if (resource === 'filament') {
-    if (!id && req.method === 'GET') return sendJson(res, 200, { ...filament.view(), spoolman: spoolman.publicSettings() });
+    if (!id && req.method === 'GET') return sendJson(res, 200, { ...filament.view(), spoolman: spoolman.publicSettings(), stations: stations.view() });
+    if (id === 'disarm' && req.method === 'POST') { filament.disarm(); return sendJson(res, 200, { ok: true }); }
     if (id === 'assign' && req.method === 'POST') {
       const b = await readBody(req);
       filament.assign(b.printerId, b.key, b.spoolId || null);
@@ -652,6 +674,38 @@ async function handleApi(req, res, url) {
   if (resource === 'rfid' && !id && req.method === 'POST') return sendJson(res, 200, filament.rfidScan(await readBody(req)));
   if (resource === 'rfid' && id === 'assign' && req.method === 'POST') return sendJson(res, 200, filament.rfidAssign((await readBody(req)).spoolId));
   if (resource === 'rfid' && id === 'dismiss' && req.method === 'POST') { filament.pendingTag = null; filament.save(); return sendJson(res, 200, { ok: true }); }
+  // Neue Spule aus einem gelesenen Tag (OpenSpool/Anycubic-Daten) anlegen
+  if (resource === 'rfid' && id === 'create' && req.method === 'POST') {
+    const p = filament.pendingTag;
+    if (!p) throw httpError(404, 'Kein offener Tag');
+    const b = await readBody(req);
+    const d = p.data || {};
+    const spool = filament.saveSpool({
+      material: b.material || d.material || 'PLA', brand: b.brand ?? d.brand ?? '', color: b.color || d.color || '#888888',
+      colorName: b.colorName || (d.color ? require('./lib/colors').nameOf(d.color) : ''), netWeight: b.netWeight || d.netWeight || 1000,
+      diameter: d.diameter || 1.75, remaining: b.remaining, tare: b.tare, rfid: p.tag,
+    })[0];
+    return sendJson(res, 201, filament.rfidAssign(spool.id));
+  }
+  // Inhalt eines Tags (fürs Beschreiben mit dem Handy): Link und OpenSpool-Daten
+  if (resource === 'spools' && action === 'tag' && req.method === 'GET') {
+    const sp = require('./lib/filament').db.data.spools.find((s) => s.id === id);
+    if (!sp) throw httpError(404, 'Spule nicht gefunden');
+    return sendJson(res, 200, { url: tags.spoolUrl(ha?.directUrl || '', sp), openspool: tags.openSpoolJson(sp) });
+  }
+  // ---- Stationen
+  if (resource === 'stations') {
+    const b = ['POST', 'PUT'].includes(req.method) ? await readBody(req) : {};
+    if (!id && req.method === 'GET') return sendJson(res, 200, stations.view());
+    if (id === 'pair' && req.method === 'POST') return sendJson(res, 201, stations.accept(b.id, b));
+    if (id === 'reject' && req.method === 'POST') { stations.reject(b.id); return sendJson(res, 200, { ok: true }); }
+    if (id && !action && req.method === 'PUT') return sendJson(res, 200, stations.update(id, b));
+    if (id && !action && req.method === 'DELETE') { stations.remove(id); return sendJson(res, 200, { ok: true }); }
+    if (action === 'tare' && req.method === 'POST') return sendJson(res, 200, stations.tare(id));
+    if (action === 'calibrate' && req.method === 'POST') return sendJson(res, 200, stations.calibrate(id, b.grams));
+    if (action === 'identify' && req.method === 'POST') return sendJson(res, 200, stations.identifyStation(id));
+    if (action === 'write' && req.method === 'POST') return sendJson(res, 200, await stations.write(id, b.spoolId, b.format || 'universal'));
+  }
   if (resource === 'spools') {
     if (!id && req.method === 'POST') return sendJson(res, 201, filament.saveSpool(await readBody(req)));
     if (id && !action && req.method === 'PUT') return sendJson(res, 200, filament.saveSpool(await readBody(req), id));
@@ -849,7 +903,8 @@ async function handleApi(req, res, url) {
 
     if (action === 'command' && req.method === 'POST') {
       const { cmd, ...args } = await readBody(req);
-      if (!['pause', 'resume', 'cancel', 'light', 'speed'].includes(cmd)) throw httpError(400, 'Unbekannter Befehl');
+      const demoOnly = cmd === 'demo_slot' && existing.driver === 'demo'; // für Tests und die Station-Simulation
+      if (!['pause', 'resume', 'cancel', 'light', 'speed'].includes(cmd) && !demoOnly) throw httpError(400, 'Unbekannter Befehl');
       const rt = runtime.get(id);
       if (!rt) throw httpError(409, 'Drucker nicht aktiv');
       await rt.driver.command(cmd, args);
@@ -893,6 +948,13 @@ const server = http.createServer(async (req, res) => {
   } catch (err) {
     if (!res.headersSent) sendJson(res, err.status || 500, { error: err.message });
   }
+});
+
+// Stationen verbinden sich per WebSocket (eigener Schlüssel je Station, keine Anmeldung nötig)
+server.on('upgrade', (req, socket) => {
+  const p = new URL(req.url, 'http://localhost').pathname;
+  if (p === '/api/station/ws' || p === '/station') return stations.upgrade(req, socket);
+  socket.destroy();
 });
 
 // ---------------------------------------------------------------- Start

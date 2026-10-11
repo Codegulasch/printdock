@@ -86,7 +86,13 @@ class DemoDriver extends BaseDriver {
   };
 
   get v() {
-    return VARIANTS[this.config.variant] || VARIANTS.basic;
+    // eigene Kopie je Drucker, damit simulierte Spulenwechsel nur diesen Drucker betreffen
+    if (!this._v || this._vKey !== this.config.variant) {
+      const base = VARIANTS[this.config.variant] || VARIANTS.basic;
+      this._v = { ...base, slots: base.slots.map((s) => ({ ...s, present: s.present ?? Boolean(s.material) })) };
+      this._vKey = this.config.variant;
+    }
+    return this._v;
   }
 
   async start() {
@@ -214,6 +220,13 @@ class DemoDriver extends BaseDriver {
     else if (cmd === 'cancel') this.phase = 'cancelled';
     else if (cmd === 'light' && this.v.light) this.lightOn = Boolean(args.on);
     else if (cmd === 'speed' && this.v.speed) this.speedLevel = Math.max(1, Math.min(4, Number(args.level) || 2));
+    else if (cmd === 'filament_setting' || cmd === 'demo_slot') {
+      // filament_setting: wie Bambu „Fach einstellen“; demo_slot: Spule einlegen/entnehmen simulieren
+      const s = this.v.slots.find((x) => x.key === args.key);
+      if (!s) throw new Error(`Unbekannter Platz ${args.key}`);
+      if (cmd === 'demo_slot' && args.present === false) Object.assign(s, { material: null, color: null, uid: null, present: false, remainPct: null });
+      else Object.assign(s, { material: args.material ?? s.material, color: args.color ?? s.color, uid: cmd === 'demo_slot' ? args.uid || null : s.uid, present: true, ...(cmd === 'demo_slot' ? { remainPct: null } : {}) });
+    }
     else return super.command(cmd);
     this.tick();
   }

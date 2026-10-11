@@ -144,7 +144,7 @@ function vSpools() {
   return `${stripHTML()}<div class="bar-row"><h2>${t('Spulen')}</h2><div class="chips">${chips}</div>
       ${mats.length > 1 ? `<select class="in" data-fact-change="spMaterial" aria-label="${t('Material')}"><option value="">${t('Alle Materialien')}</option>${mats.map((m) => `<option ${m === S.spMaterial ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>` : ''}
       <button class="b b-sm" data-fact="labels">${t('Etiketten')}</button><button class="b b-sm b-go" data-fact="editSpool">${ICON.plus}${t('Neue Spule')}</button></div>
-    ${pendingTagHTML(F)}
+    ${pendingTagHTML(F)}${armedHTML(F)}
     <div class="strip" style="margin-top:-4px"><div><b class="num">${active.length}</b><span>${t('Spulen')}</span></div>
       <div><b class="num">${fnum(active.reduce((a, s) => a + s.remaining, 0) / 1000, 1)} kg</b><span>${t('auf Lager')}</span></div>
       <div><b class="num">${active.filter((s) => s.slot).length}</b><span>${t('im Drucker')}</span></div>
@@ -160,22 +160,24 @@ function agoDays(iso) {
   return d <= 0 ? t('weniger als 1 Tag') : d === 1 ? t('1 Tag') : t('{n} Tagen', { n: d });
 }
 
-function spoolDialog(s = null) {
+function spoolDialog(edit = null, pre = null, onCreated = null) {
   const F = fil();
+  const s = edit;
+  const v = edit || pre; // Vorbelegung (z. B. aus einem gelesenen Tag)
   const d = openDialog(`<form class="dlg" method="dialog"><h2>${s ? t('Spule {nr}', { nr: esc(s.nr) }) : t('Neue Spule')}</h2>
-    <div class="two"><label>${t('Material')}<input name="material" list="mats" required value="${esc(s?.material || '')}" placeholder="${esc(t('z. B. PLA'))}"></label>
-      <label>${t('Hersteller')}<input name="brand" value="${esc(s?.brand || '')}" placeholder="${esc(t('z. B. Bambu Lab'))}"></label></div>
+    <div class="two"><label>${t('Material')}<input name="material" list="mats" required value="${esc(v?.material || '')}" placeholder="${esc(t('z. B. PLA'))}"></label>
+      <label>${t('Hersteller')}<input name="brand" value="${esc(v?.brand || '')}" placeholder="${esc(t('z. B. Bambu Lab'))}"></label></div>
     <datalist id="mats">${F.materials.map((m) => `<option value="${esc(m)}">`).join('')}</datalist>
-    <div class="two"><label>${t('Farbe')}<input name="colorName" value="${esc(s?.colorName || '')}" placeholder="${esc(t('z. B. Schwarz'))}"></label>
-      <label>${t('Farbton')}<input name="color" type="color" value="${esc(s?.color || '#888888')}" style="padding:2px;height:42px"></label></div>
-    <div class="two"><label>${t('Nettogewicht (g)')}<input name="netWeight" type="number" min="1" value="${esc(s?.netWeight || 1000)}"></label>
+    <div class="two"><label>${t('Farbe')}<input name="colorName" value="${esc(v?.colorName || '')}" placeholder="${esc(t('z. B. Schwarz'))}"></label>
+      <label>${t('Farbton')}<input name="color" type="color" value="${esc(v?.color || '#888888')}" style="padding:2px;height:42px"></label></div>
+    <div class="two"><label>${t('Nettogewicht (g)')}<input name="netWeight" type="number" min="1" value="${esc(v?.netWeight || 1000)}"></label>
       <label>${s ? t('Restmenge (g)') : t('Restmenge (g, leer = voll)')}<input name="remaining" type="number" min="0" step="0.1" value="${s ? esc(s.remaining) : ''}"></label></div>
-    <div class="two"><label>${t('Leerspule (g)')}<input name="tare" type="number" min="0" value="${esc(s?.tare || '')}" placeholder="${esc(t('fürs Wiegen, z. B. 250'))}"></label>
+    <div class="two"><label>${t('Leerspule (g)')}<input name="tare" type="number" min="0" value="${esc(v?.tare || '')}" placeholder="${esc(t('fürs Wiegen, z. B. 250'))}"></label>
       <label>${t('Preis je Spule (€)')}<input name="price" type="number" min="0" step="0.01" value="${s?.price ?? ''}"></label></div>
-    <div class="two"><label>${t('Lagerort')}<input name="location" value="${esc(s?.location || '')}" placeholder="${esc(t('z. B. Trockenbox 2'))}"></label>
-      <label>${t('Durchmesser')}<select name="diameter"><option value="1.75" ${s?.diameter !== 2.85 ? 'selected' : ''}>${fnum(1.75, 2)} mm</option><option value="2.85" ${s?.diameter === 2.85 ? 'selected' : ''}>${fnum(2.85, 2)} mm</option></select></label></div>
+    <div class="two"><label>${t('Lagerort')}<input name="location" value="${esc(v?.location || '')}" placeholder="${esc(t('z. B. Trockenbox 2'))}"></label>
+      <label>${t('Durchmesser')}<select name="diameter"><option value="1.75" ${v?.diameter !== 2.85 ? 'selected' : ''}>${fnum(1.75, 2)} mm</option><option value="2.85" ${v?.diameter === 2.85 ? 'selected' : ''}>${fnum(2.85, 2)} mm</option></select></label></div>
     ${s ? `<label>${t('RFID-Kennung')}<input name="rfid" value="${esc(s.rfid || '')}" placeholder="${esc(t('wird bei Bambu-Spulen automatisch erkannt'))}"></label>` : `<label>${t('Anzahl gleicher Spulen')}<input name="count" type="number" min="1" max="50" value="1"></label>`}
-    <label>${t('Notiz')}<input name="note" value="${esc(s?.note || '')}"></label>
+    <label>${t('Notiz')}<input name="note" value="${esc(v?.note || '')}"></label>
     ${s ? `<label class="check"><input type="checkbox" name="archived" ${s.archived ? 'checked' : ''}> ${t('Aufgebraucht / ausgemustert')}</label>` : ''}
     <p class="form-error" hidden></p>
     <div class="dlg-actions">${s ? `<button class="b b-fault left" type="button" data-del>${t('Löschen')}</button>` : ''}<button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-done">${t('Speichern')}</button></div></form>`);
@@ -192,7 +194,8 @@ function spoolDialog(s = null) {
       .filter((k) => form[k]).map((k) => [k, form[k].value]));
     if (form.archived) body.archived = form.archived.checked;
     try {
-      await api(s ? `spools/${s.id}` : 'spools', { method: s ? 'PUT' : 'POST', body });
+      const r = await api(s ? `spools/${s.id}` : 'spools', { method: s ? 'PUT' : 'POST', body });
+      if (!s && onCreated) await onCreated(Array.isArray(r) ? r[0] : r);
       d.close();
       toast(s ? t('Gespeichert') : t('Spule angelegt'));
       reload('filament', 'summary');
@@ -340,7 +343,7 @@ function vSlots() {
   }).join('');
   const unmatched = F.printers.flatMap((p) => p.slots.filter((x) => x.unmatched));
   return `${stripHTML()}<div class="bar-row"><h2>${t('Belegung')}</h2><span class="meta">${t('Platz antippen = Spule einlegen oder wechseln')}</span></div>
-    ${pendingTagHTML(F)}${humidityHTML(F)}
+    ${pendingTagHTML(F)}${armedHTML(F)}${humidityHTML(F)}
     ${unmatched.length ? `<div class="newspool big"><span>${BI.spool}</span><div><b>${unmatched.length === 1 ? t('Neue Spule erkannt') : t('{n} neue Spulen erkannt', { n: unmatched.length })}</b><small>${t('Die Drucker melden Filament, zu dem es noch keine Spule im Lager gibt.')}</small></div><button class="b b-sm b-go" data-fact="newSpools">${t('Spulen anlegen')}</button></div>` : ''}
     <div style="display:grid;gap:14px">${cards}</div>
     <p class="meta">${t('Bambu-AMS meldet Material, Farbe und – bei Bambu-Spulen – RFID und Restmenge. RFID-Spulen ordnet PrintDock automatisch zu.')}
@@ -376,7 +379,7 @@ function spoolSheet(sp) {
       <button class="b" data-fact="weigh" data-id="${sp.id}">${t('Wiegen')}</button>
       <button class="b" data-fact="dried" data-id="${sp.id}">${t('Getrocknet')}</button>
       <button class="b" data-fact="labels" data-id="${sp.id}">${t('Etikett')}</button>
-      ${nfc ? `<button class="b" data-fact="nfcWrite" data-id="${sp.id}">${t('NFC-Tag beschreiben')}</button>` : ''}
+      ${nfc || (fil().stations?.list || []).length ? `<button class="b" data-fact="tagWrite" data-id="${sp.id}">${t('Tag beschreiben')}</button>` : ''}
       <button class="b" data-fact="editSpool" data-id="${sp.id}">${ICON.edit}${t('Bearbeiten')}</button>
     </div>
     <div class="dlg-actions"><button class="b" data-close>${t('Schließen')}</button></div></div>`);
@@ -471,11 +474,15 @@ function labelsDialog(preId = null) {
 }
 
 /** Spulen-Link auf einen NFC-Tag schreiben (Chrome auf Android) */
-async function nfcWrite(sp) {
+async function nfcWrite(sp, format = 'link') {
   try {
     const w = new NDEFReader();
+    const tag = format === 'link' ? null : await api(`spools/${sp.id}/tag`);
+    const records = [];
+    if (format !== 'openspool') records.push({ recordType: 'url', data: tag?.url || spoolLink(sp) });
+    if (format !== 'link') records.push({ recordType: 'mime', mediaType: 'application/json', data: new TextEncoder().encode(tag.openspool) });
     toast(t('Tag ans Handy halten …'));
-    await w.write({ records: [{ recordType: 'url', data: spoolLink(sp) }] });
+    await w.write({ records });
     toast(t('{nr} auf den Tag geschrieben', { nr: sp.nr }));
   } catch (err) {
     toast(t('NFC: {e}', { e: err.message }), true);
@@ -483,13 +490,81 @@ async function nfcWrite(sp) {
 }
 
 /** Hinweis bei unbekanntem Tag vom Leser */
+const TAG_FORMATS = {
+  universal: ['PrintDock + OpenSpool', 'Link zur Spule und Materialdaten – NTAG215/216'],
+  openspool: ['OpenSpool', 'Nur Materialdaten – z. B. Snapmaker U1 mit Community-Firmware'],
+  link: ['Nur Link', 'Handy öffnet die Spule – passt auch auf NTAG213'],
+  ace: ['Anycubic ACE', 'ACE Pro / Kobra S1 erkennt Material und Farbe'],
+};
+
+/** Hinweis bei unbekanntem Tag vom Leser bzw. von der Station */
 function pendingTagHTML(F) {
   const p = F.pendingTag;
   if (!p) return '';
   const opts = F.spools.filter((x) => !x.archived).map((x) => `<option value="${x.id}">${esc(x.nr)} ${esc(x.material)} ${esc(t(x.colorName || ''))}${x.rfid ? ' (RFID)' : ''}</option>`).join('');
-  return `<div class="newspool big"><span>${BI.spool}</span><div><b>${t('Unbekannter RFID-Tag {t}', { t: esc(p.tag) })}</b>
-    <small>${p.printerName ? t('gelesen an {p}', { p: esc(p.printerName) }) : t('vom Leser gemeldet')} · ${t('welche Spule ist das?')}</small></div>
-    <select class="in" data-tagspool>${opts}</select><button class="b b-sm b-go" data-fact="tagAssign">${t('Zuordnen')}</button><button class="x" data-fact="tagDismiss">${t('Verwerfen')}</button></div>`;
+  const d = p.data;
+  const where = p.stationName ? t('an Station „{s}“', { s: esc(p.stationName) }) : p.printerName ? t('gelesen an {p}', { p: esc(p.printerName) }) : t('vom Leser gemeldet');
+  const title = d ? t('Neue Spule auf dem Tag: {m}', { m: esc([d.brand, d.material].filter(Boolean).join(' ')) }) : p.blank ? t('Leerer Tag {t}', { t: esc(p.tag) }) : t('Unbekannter RFID-Tag {t}', { t: esc(p.tag) });
+  const sub = d ? `${d.color ? `<span class="swatch" style="background:${esc(d.color)}"></span>` : ''}${t(TAG_FORMATS[p.format]?.[0] || p.format)} · ${where}` : `${where} · ${p.blank && p.writable ? t('anlegen oder zuordnen – danach lässt er sich beschreiben') : t('welche Spule ist das?')}`;
+  return `<div class="newspool big"><span>${BI.spool}</span><div><b>${title}</b><small>${sub}</small></div>
+    ${d ? `<button class="b b-sm b-go" data-fact="tagCreate">${ICON.plus}${t('Anlegen')}</button>` : `<button class="b b-sm" data-fact="tagNew">${ICON.plus}${t('Neue Spule')}</button>`}
+    <select class="in" data-tagspool>${opts}</select><button class="b b-sm ${d ? '' : 'b-go'}" data-fact="tagAssign">${t('Zuordnen')}</button><button class="x" data-fact="tagDismiss">${t('Verwerfen')}</button></div>`;
+}
+
+/** An der Station gescannte Spule wartet aufs Einlegen */
+function armedHTML(F) {
+  const a = F.armed;
+  const sp = a && spoolById(a.spoolId);
+  if (!sp) return '';
+  const st = (F.stations?.list || []).find((x) => x.id === a.source?.stationId);
+  const pr = a.source?.printerId && F.printers.find((x) => x.id === a.source.printerId);
+  return `<div class="newspool armed"><span>${spoolRing(sp.color, pctOf(sp), 40)}</span><div><b>${t('{nr} {m} wartet aufs Einlegen', { nr: esc(sp.nr), m: esc(sp.material) })}</b>
+    <small>${st ? t('gescannt an „{s}“', { s: esc(st.name) }) : ''} · ${pr ? t('jetzt in {p} einlegen – PrintDock erkennt das Fach', { p: esc(pr.name) }) : t('jetzt in einen Drucker einlegen – PrintDock erkennt das Fach')} · ${t('bis {t}', { t: new Date(a.until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}</small></div>
+    <button class="b b-sm" data-fact="load" data-id="${sp.id}">${t('Platz wählen')}</button><button class="x" data-fact="disarm">${t('Abbrechen')}</button></div>`;
+}
+
+/** Tag beschreiben: an einer Station oder mit dem Handy (Web NFC) */
+function tagWriteDialog(sp) {
+  const F = fil();
+  const sts = (F.stations?.list || []).filter((x) => x.online && x.caps?.nfc !== false);
+  const nfc = 'NDEFReader' in window;
+  let fmt = 'universal';
+  try { fmt = localStorage.getItem('pd-tagfmt') || 'universal'; } catch {}
+  const targets = [...sts.map((x) => `<option value="st:${esc(x.id)}">${t('Station „{s}“', { s: esc(x.name) })}${x.tag ? ` – ${t('Tag liegt auf')}` : ''}</option>`), nfc ? `<option value="phone">${t('Dieses Handy (NFC)')}</option>` : ''].join('');
+  if (!targets) return toast(t('Keine Station verbunden'), true);
+  const d = openDialog(`<form class="dlg" method="dialog"><h2>${t('Tag für {nr} beschreiben', { nr: esc(sp.nr) })}</h2>
+    <label>${t('Womit')}<select name="target">${targets}</select></label>
+    <div class="fmt-pick">${Object.entries(TAG_FORMATS).map(([k, [n, h]]) => `<label class="radio-card"><input type="radio" name="fmt" value="${k}" ${k === fmt ? 'checked' : ''}><span><b>${t(n)}</b><small>${t(h)}</small></span></label>`).join('')}</div>
+    <p class="meta" data-state>${t('Leeren NTAG-Sticker bereithalten. Bambu- und Snapmaker-Original-Tags lassen sich nicht beschreiben.')}</p>
+    <p class="form-error" hidden></p>
+    <div class="dlg-actions"><button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-go">${t('Beschreiben')}</button></div></form>`);
+  const form = $('form', d);
+  const sync = () => {
+    const phone = form.target.value === 'phone';
+    $$('input[name=fmt]', d).forEach((i) => { i.disabled = phone && i.value === 'ace'; });
+    if (phone && form.fmt.value === 'ace') form.querySelector('input[value=universal]').checked = true;
+  };
+  form.addEventListener('change', sync);
+  sync();
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const format = form.fmt.value;
+    try { localStorage.setItem('pd-tagfmt', format); } catch {}
+    if (form.target.value === 'phone') { d.close(); return nfcWrite(sp, format); }
+    const btn = $('.b-go', d);
+    btn.disabled = true;
+    $('[data-state]', d).innerHTML = `<b>${t('Tag auf die Station legen …')}</b> ${t('(wartet bis zu 60 Sekunden)')}`;
+    try {
+      await api(`stations/${form.target.value.slice(3)}/write`, { method: 'POST', body: { spoolId: sp.id, format } });
+      d.close();
+      toast(t('{nr} auf den Tag geschrieben', { nr: sp.nr }));
+      reload('filament');
+    } catch (err) {
+      btn.disabled = false;
+      $('[data-state]', d).textContent = '';
+      formError(d, err.message);
+    }
+  });
 }
 
 /** Einrichtungshilfe für einen RFID-Leser mit ESPHome */
@@ -596,10 +671,13 @@ function vFilSettings() {
           ${row(t('Feuchte: Warnung ab'), t('AMS, ACE oder Feuchtesensor – gelb markieren.'), num('humWarn', st.humWarn, '%'))}
           ${row(t('Feuchte: Alarm ab'), t('Rot markieren und melden („Filament zu feucht“).'), num('humAlarm', st.humAlarm, '%'))}
         </div>
+        <h3 class="shead">${t('Stationen')}</h3>
+        ${stationsHTML(F)}
         <h3 class="shead">${t('Etiketten und RFID')}</h3>
         <div class="sbox">
           ${row(t('Spulen-Etiketten'), t('Mit QR-Code – Scannen öffnet die Spule in PrintDock.'), `<button class="b b-sm" data-fact="labels">${t('Etiketten drucken …')}</button>`)}
-          ${row(t('RFID-Leser am Drucker'), t('ESPHome-Leser (PN532/RC522) über Home Assistant – Spule auflegen, PrintDock legt sie in den Platz.'), `<button class="b b-sm" data-fact="rfidHelp">${t('Einrichten …')}</button>`)}
+          ${row(t('Belegung ans AMS übertragen'), t('Bambu: Material und Farbe einer eingelegten Spule ohne Bambu-Chip gleich am AMS-Fach eintragen.'), `<label class="tgl"><input type="checkbox" data-fset-chk="pushAms" ${st.pushAms !== false ? 'checked' : ''}><span class="sw"></span></label>`)}
+          ${row(t('RFID-Leser mit ESPHome'), t('Statt der Station: eigener ESPHome-Leser (PN532/RC522) über Home Assistant.'), `<button class="b b-sm" data-fact="rfidHelp">${t('Einrichten …')}</button>`)}
         </div>
       </div>
       <div>
@@ -616,8 +694,95 @@ function vFilSettings() {
     </div>`;
 }
 
+// ================================================================ Stationen (NFC + Waage)
+
+function stationsHTML(F) {
+  const S0 = F.stations || { list: [], pairing: [] };
+  const pr = (id) => F.printers.find((p) => p.id === id);
+  const pair = S0.pairing.map((p) => `<div class="st-pair"><span class="st-dot run"></span><div><b>${t('Neue Station möchte sich koppeln')}</b>
+      <small>${esc(p.name || p.id)} · ${esc(p.ip || '')}${p.fw ? ` · Firmware ${esc(p.fw)}` : ''}</small></div>
+      <div class="st-code num">${esc(p.code)}</div>
+      <button class="b b-sm b-go" data-fact="stPair" data-hw="${esc(p.id)}">${t('Koppeln')}</button><button class="x" data-fact="stReject" data-hw="${esc(p.id)}">${t('Ablehnen')}</button></div>`).join('');
+  const rows = S0.list.map((x) => {
+    const where = x.role === 'printer' && x.printerId ? t('am Drucker {p}', { p: esc(pr(x.printerId)?.name || '?') }) : t('Lager / Werkbank');
+    const live = x.online ? [x.weight ? `<b class="num">${fnum(x.weight.g, 0)} g</b>` : '', x.spool ? `<span class="pill">${esc(x.spool.nr)}</span>` : x.tag ? `<span class="pill pause">${t('Tag {f}', { f: esc(t(TAG_FORMATS[x.tag.format]?.[0] || x.tag.format || '')) })}</span>` : '', x.writing ? `<span class="pill run">${t('wartet auf Tag')}</span>` : ''].filter(Boolean).join(' ') : `<span class="meta">${x.lastSeen ? t('zuletzt {t}', { t: tfmt(x.lastSeen) }) : t('noch nie verbunden')}</span>`;
+    return `<div class="st-row"><span class="st-dot ${x.online ? 'ok' : 'off'}" title="${x.online ? t('verbunden') : t('getrennt')}"></span>
+      <div class="st-main"><b>${esc(x.name)}</b><small>${where}${x.fw ? ` · ${esc(x.fw)}` : ''}${x.ip ? ` · ${esc(x.ip)}` : ''}</small></div>
+      <div class="st-live">${live}</div>
+      <div class="st-acts">${x.online && x.caps?.scale !== false ? `<button class="b b-sm" data-fact="stTare" data-id="${x.id}" title="${esc(t('Waage auf 0 setzen (nichts auflegen)'))}">${t('Tara')}</button><button class="b b-sm" data-fact="stCal" data-id="${x.id}">${t('Kalibrieren')}</button>` : ''}
+        ${x.online ? `<button class="b b-sm" data-fact="stFind" data-id="${x.id}" title="${esc(t('Display und LED blinken lassen'))}">${t('Finden')}</button>` : ''}
+        <button class="x" data-fact="stEdit" data-id="${x.id}" title="${t('Bearbeiten')}">${ICON.edit}</button></div></div>`;
+  }).join('');
+  return `<div class="sbox st-box">${pair}${rows || (!pair ? `<div class="st-empty"><b>${t('Noch keine Station')}</b><span>${t('Eine Station ist ein ESP32 mit NFC-Leser, Waage und kleinem Display: Spule auflegen – PrintDock erkennt sie, bucht die Restmenge nach Gewicht und ordnet sie dem Fach zu, in das sie danach eingelegt wird.')}</span></div>` : '')}
+    <div class="st-foot"><button class="b b-sm" data-fact="stHelp">${t('Station einrichten …')}</button></div></div>`;
+}
+
+/** PrintDock-Adresse, die in der Station eingetragen wird */
+function stationAddress() {
+  const u = new URL(S.app?.directUrl || location.origin);
+  return u.host;
+}
+
+function stationHelpDialog() {
+  const addr = stationAddress();
+  openDialog(`<div class="dlg" style="max-width:720px"><h2>${t('PrintDock-Station einrichten')}</h2>
+    <ol class="steps-ol">
+      <li><b>${t('Bauen')}</b> – ${t('ESP32 (WROOM-Devkit oder D1 Mini ESP32), PN532-NFC-Modul, HX711 mit 5-kg-Wägezelle, 0,96″-OLED (SSD1306), optional WS2812-LED und ein Taster. Verdrahtung und Stückliste: siehe Projekt printdock-station.')}</li>
+      <li><b>${t('Firmware flashen')}</b> – ${t('im Browser über web.esphome.io („Connect“ → .bin der Station wählen) oder mit esptool.')}</li>
+      <li><b>${t('WLAN')}</b> – ${t('Die Station öffnet beim ersten Start das WLAN „PrintDock-Station“. Damit verbinden, Heim-WLAN wählen und als PrintDock-Adresse eintragen:')}
+        <div class="copyline"><code>${esc(addr)}</code><button class="b b-sm" data-act="copy" data-text="${esc(addr)}">${t('Kopieren')}</button></div></li>
+      <li><b>${t('Koppeln')}</b> – ${t('Die Station zeigt einen sechsstelligen Code. Er erscheint hier unter „Stationen“ – vergleichen und „Koppeln“ drücken.')}</li>
+      <li><b>${t('Waage kalibrieren')}</b> – ${t('„Tara“ mit leerer Waage, dann ein bekanntes Gewicht (z. B. eine volle 1-kg-Spule mit bekanntem Leergewicht oder ein Paket Mehl) auflegen und „Kalibrieren“.')}</li>
+    </ol>
+    <p class="meta">${t('Tags: NTAG215 oder NTAG216 (Format „PrintDock + OpenSpool“), NTAG213 für „Nur Link“ oder „Anycubic ACE“. Bambu- und Snapmaker-Original-Tags werden an ihrer Kennung erkannt.')}</p>
+    <div class="dlg-actions"><button class="b" data-close>${t('Schließen')}</button></div></div>`);
+}
+
+function stationEditDialog(x) {
+  const F = fil();
+  const d = openDialog(`<form class="dlg" method="dialog"><h2>${t('Station „{s}“', { s: esc(x.name) })}</h2>
+    <label>${t('Name')}<input name="name" value="${esc(x.name)}" required></label>
+    <label>${t('Steht')}<select name="role"><option value="storage" ${x.role !== 'printer' ? 'selected' : ''}>${t('im Lager / an der Werkbank')}</option><option value="printer" ${x.role === 'printer' ? 'selected' : ''}>${t('an einem Drucker')}</option></select></label>
+    <div class="two" data-pr><label>${t('Drucker')}<select name="printerId"><option value="">–</option>${F.printers.map((p) => `<option value="${esc(p.id)}" ${p.id === x.printerId ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
+      <label>${t('Fach')}<select name="slotKey"></select></label></div>
+    <p class="hint" data-pr style="margin:0">${t('Mit festem Fach legt PrintDock eine gescannte Spule sofort hinein; ohne wartet es, in welches Fach des Druckers sie eingelegt wird.')}</p>
+    <label class="check"><input type="checkbox" name="autoWeigh" ${x.autoWeigh ? 'checked' : ''}> ${t('Restmenge beim Auflegen nach Gewicht buchen')}</label>
+    <p class="form-error" hidden></p>
+    <div class="dlg-actions"><button class="b b-fault left" type="button" data-del>${t('Entfernen')}</button><button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-done">${t('Speichern')}</button></div></form>`);
+  const form = $('form', d);
+  const sync = () => {
+    $$('[data-pr]', d).forEach((n) => (n.hidden = form.role.value !== 'printer'));
+    const p = F.printers.find((pp) => pp.id === form.printerId.value);
+    const cur = form.slotKey.value || x.slotKey || '';
+    form.slotKey.innerHTML = `<option value="">${t('beim Einlegen erkennen')}</option>${(p?.slots || []).map((sl) => `<option value="${esc(sl.key)}" ${sl.key === cur ? 'selected' : ''}>${esc(t(sl.label))}</option>`).join('')}`;
+  };
+  form.addEventListener('change', sync);
+  sync();
+  $('[data-del]', d).addEventListener('click', async () => {
+    if (!(await confirmBox(t('Station entfernen'), t('„{s}“ entfernen? Die Station vergisst ihren Schlüssel und lässt sich danach neu koppeln.', { s: x.name }), t('Entfernen'), 'b-fault'))) return;
+    await run(() => api(`stations/${x.id}`, { method: 'DELETE' }), t('Station entfernt'));
+    d.close();
+    reload('filament');
+  });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await api(`stations/${x.id}`, { method: 'PUT', body: { name: form.name.value, role: form.role.value, printerId: form.printerId.value || null, slotKey: form.slotKey.value || null, autoWeigh: form.autoWeigh.checked } });
+      d.close();
+      toast(t('Gespeichert'));
+      reload('filament');
+    } catch (err) {
+      formError(d, err.message);
+    }
+  });
+}
+
 document.addEventListener('change', async (e) => {
   const el = e.target;
+  if (el.dataset?.fsetChk) {
+    await run(() => api('filament/settings', { method: 'PUT', body: { [el.dataset.fsetChk]: el.checked } }), t('Gespeichert'));
+    return reload('filament');
+  }
   if (el.dataset?.fset) {
     await run(() => api('filament/settings', { method: 'PUT', body: { [el.dataset.fset]: el.value } }), t('Gespeichert'));
     return reload('filament');
@@ -662,6 +827,36 @@ document.addEventListener('click', async (e) => {
     case 'labels': return labelsDialog(id || null);
     case 'rfidHelp': return rfidHelpDialog();
     case 'nfcWrite': return nfcWrite(spoolById(id));
+    case 'tagWrite': return tagWriteDialog(spoolById(id));
+    case 'stHelp': return stationHelpDialog();
+    case 'stPair': {
+      const r = await run(() => api('stations/pair', { method: 'POST', body: { id: el.dataset.hw } }));
+      if (r) toast(t('Station „{s}“ gekoppelt', { s: r.name }));
+      return reload('filament');
+    }
+    case 'stReject': await run(() => api('stations/reject', { method: 'POST', body: { id: el.dataset.hw } })); return reload('filament');
+    case 'stTare': return run(() => api(`stations/${id}/tare`, { method: 'POST' }), t('Waage auf 0 gesetzt'));
+    case 'stFind': return run(() => api(`stations/${id}/identify`, { method: 'POST' }));
+    case 'stEdit': return stationEditDialog((fil().stations?.list || []).find((x) => x.id === id));
+    case 'stCal': return numberDialog({
+      title: t('Waage kalibrieren'), label: t('Bekanntes Gewicht'), unit: 'g', okLabel: t('Kalibrieren'),
+      text: esc(t('Vorher mit leerer Waage „Tara“ drücken. Dann ein Gewicht auflegen, dessen Masse du genau kennst, und hier eintragen.')),
+      onSubmit: async (v) => {
+        await api(`stations/${id}/calibrate`, { method: 'POST', body: { grams: v } });
+        toast(t('Kalibrierung gesendet'));
+      },
+    });
+    case 'disarm': await run(() => api('filament/disarm', { method: 'POST' })); return reload('filament');
+    case 'tagCreate': {
+      const p = fil().pendingTag;
+      const d0 = p?.data || {};
+      return spoolDialog(null, { material: d0.material, brand: d0.brand, color: d0.color, colorName: '', netWeight: d0.netWeight, diameter: d0.diameter }, async (sp) => {
+        await api('rfid/assign', { method: 'POST', body: { spoolId: sp.id } });
+      });
+    }
+    case 'tagNew': return spoolDialog(null, null, async (sp) => {
+      await api('rfid/assign', { method: 'POST', body: { spoolId: sp.id } });
+    });
     case 'sheet': return spoolSheet(spoolById(id));
     case 'tagAssign': {
       const sel = $('[data-tagspool]');
