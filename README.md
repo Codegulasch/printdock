@@ -55,6 +55,10 @@ Then open `http://<ip>:3080`. The setup wizard asks for language, look, features
 
 **Assign colours at print start:** when starting from the queue, PrintDock suggests which slot or tool prints which filament of the slice by material and colour – every row can be changed. Bambu gets it as AMS mapping; on Klipper and OctoPrint printers PrintDock renumbers the tools in the G-code (e.g. T0 → T2).
 
+**Costs, electricity and photos:** every print in the history shows its costs – filament by spool price, electricity (from a metering plug in Home Assistant, or estimated), optionally machine hours and markup. Orders show an estimate from the sliced files and the actual costs; *Print estimate / quote* creates a printable page. At the end of a print PrintDock saves a camera image of the finished part. Finished orders can be archived.
+
+**Automatic printer choice:** queue entries without a fixed printer go to the free printer with auto-start whose profile the file was sliced for and that has the matching filament loaded. Files sliced for another profile are never started.
+
 ## Supported printers
 
 | Connection | Printers | Requirements |

@@ -541,7 +541,8 @@ function vQueue() {
     }
     if (q.status === 'failed' || q.status === 'cancelled') acts.push(`<button class="b b-sm" data-act="qRequeue" data-id="${q.id}">${t('Erneut einreihen')}</button>`);
     if (!['sending', 'printing'].includes(q.status)) acts.push(`<button class="x del" data-act="qDel" data-id="${q.id}" title="${t('Entfernen')}" aria-label="${t('Entfernen')}">${ICON.trash}</button>`);
-    const warn = q.modelMatch === false ? ` <span class="pill pause" title="${esc(t('Datei wurde für ein anderes Druckermodell gesliced'))}">${t('anderes Modell?')}</span>` : '';
+    const warn = (q.modelMatch === false ? ` <span class="pill bad" title="${esc(t('Datei wurde für ein anderes Druckerprofil geslict – so startet sie nicht'))}">${t('anderes Profil')}</span>` : '')
+      + (q.waitReason ? `<div class="meta wait-reason" title="${esc(t('Warum der Eintrag noch nicht automatisch startet'))}">⏳ ${esc(t(q.waitReason))}</div>` : '');
     return `<div class="row q-row ${['done', 'retried'].includes(q.status) ? 'dim' : ''}">
       <div class="c-main filecell">${thumbHTML(q.file)}<div style="min-width:0"><b>${esc(q.file?.name || t('Datei gelöscht'))}</b><span class="meta">${materialsHTML(q.file?.meta)}</span></div></div>
       <div><span class="lbl">${t('Auftrag')}</span>${q.order ? `<b>${esc(q.order.nr)}</b><div class="meta">${esc(q.order.title)}</div>` : '<span class="meta">–</span>'}</div>
@@ -557,7 +558,7 @@ function vQueue() {
       <button class="b b-sm b-go" data-act="qAdd">${ICON.plus}${t('Datei einplanen')}</button></div>
     <div class="list">${list.length ? `<div class="row q-row head"><div>${t('Datei')}</div><div>${t('Auftrag')}</div><div>${t('Drucker')}</div><div>${t('Dauer')}</div><div>${t('Status')}</div><div></div></div>${rows}`
       : `<div class="empty"><h3>${S.qFilter === 'offen' ? t('Nichts in der Warteschlange') : t('Keine Einträge')}</h3><p>${t('Dateien aus der Bibliothek oder einem Auftrag einplanen – oder direkt aus dem Slicer senden.')}</p></div>`}</div>
-    <p class="meta" style="margin-top:10px">${t('Ein Druck startet von allein, wenn beim Drucker „Auto-Start“ an ist und die Druckplatte als frei bestätigt wurde. Nicht zugewiesene Einträge gehen nur an Drucker, deren Modell zur Datei passt.')}</p>`;
+    <p class="meta" style="margin-top:10px">${t('Ein Druck startet von allein, wenn beim Drucker „Auto-Start“ an ist und die Druckplatte als frei bestätigt wurde. Einträge ohne festen Drucker bekommt der freie Drucker, zu dessen Profil die Datei geslict ist und in dem das passende Filament liegt.')}</p>`;
 }
 
 function queueAddDialog({ fileId = null, printerId = null } = {}) {
@@ -610,6 +611,15 @@ function queueAddDialog({ fileId = null, printerId = null } = {}) {
   });
 }
 
+/** Passt die geslicte Datei zum Profil des Druckers? true/false, null = unbekannt (wie lib/production.js) */
+function profileFits(file, p) {
+  const norm = (x) => String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const a = norm(file?.meta?.printerModel);
+  const b = norm(p?.settings?.model || p?.status?.model);
+  if (!a || !b) return null;
+  return a.includes(b) || b.includes(a);
+}
+
 /**
  * Start-Dialog für einen Warteschlangen-Eintrag: Drucker wählen, Filament prüfen
  * und – Pflicht – bestätigen, dass die Druckplatte geräumt ist.
@@ -619,12 +629,14 @@ async function startItem(itemId, printerId = null) {
   if (!q) return;
   const ready = S.printers.filter(printerReady);
   if (!ready.length) return toast(t('Kein Drucker ist frei'), true);
-  const pre = ready.find((p) => p.id === (printerId || q.printerId)) || ready[0];
+  const fits = (p) => profileFits(q.file, p);
+  const pre = ready.find((p) => p.id === (printerId || q.printerId) && fits(p) !== false) || ready.find((p) => fits(p) === true) || ready.find((p) => fits(p) !== false) || ready[0];
   const mustConfirm = S.app?.plateCheck !== false;
   const d = openDialog(`<form class="dlg" method="dialog">
     <h2>${t('Druck starten')}</h2>
     <div class="cur-top">${thumbHTML(q.file)}<div style="min-width:0"><b>${esc(q.file?.name)}</b><div class="meta">${q.order ? `${esc(q.order.nr)} · ${esc(q.order.title)} · ` : ''}${fmtDur(q.file?.meta?.estimatedSec)}</div></div></div>
-    <label>${t('Drucker')}<select name="printerId">${ready.map((p) => `<option value="${p.id}" ${p.id === pre.id ? 'selected' : ''}>${esc(p.name)}${p.settings?.model ? ` · ${esc(p.settings.model)}` : ''}</option>`).join('')}</select></label>
+    <label>${t('Drucker')}<select name="printerId">${ready.map((p) => `<option value="${p.id}" ${p.id === pre.id ? 'selected' : ''} ${fits(p) === false ? 'disabled' : ''}>${esc(p.name)}${p.settings?.model ? ` · ${esc(p.settings.model)}` : ''}${fits(p) === false ? ` – ${esc(t('anderes Profil'))}` : ''}</option>`).join('')}</select></label>
+    ${q.file?.meta?.printerModel ? `<p class="meta" style="margin:-4px 0 0">${t('Geslict für {m}', { m: esc(q.file.meta.printerModel) })}</p>` : ''}
     <div data-fcheck></div>
     ${mustConfirm ? `<label class="check plate-check"><input type="checkbox" name="plate" required> <span>${ICON.plate}<b>${t('Druckplatte ist geräumt')}</b><br><span class="meta">${t('Altes Teil entnommen, Platte sauber und richtig eingelegt.')}</span></span></label>` : ''}
     <p class="form-error" hidden></p>
@@ -674,8 +686,8 @@ const PRIO = { 1: ['eilig', 'bad'], 2: ['normal', ''], 3: ['niedrig', 'done'] };
 const O_STATUS = { offen: '', geplant: 'pause', 'läuft': 'run', fertig: 'done', abgeschlossen: 'done' };
 
 function vOrders() {
-  const list = S.orders.filter((o) => (S.oFilter === 'aktiv' ? !o.closed && o.status !== 'fertig' : S.oFilter === 'fertig' ? o.closed || o.status === 'fertig' : true));
-  const chips = [['aktiv', 'Aktiv'], ['fertig', 'Fertig'], ['alle', 'Alle']]
+  const list = S.orders.filter((o) => (S.oFilter === 'archiv' ? o.archived : o.archived ? false : S.oFilter === 'aktiv' ? !o.closed && o.status !== 'fertig' : S.oFilter === 'fertig' ? o.closed || o.status === 'fertig' : true));
+  const chips = [['aktiv', 'Aktiv'], ['fertig', 'Fertig'], ['archiv', 'Archiv'], ['alle', 'Alle']]
     .map(([k, l]) => `<button class="chip" data-act="oFilter" data-k="${k}" aria-pressed="${S.oFilter === k}">${t(l)}</button>`).join('');
   const today = todayISO();
   const anyReady = S.printers.some(printerReady);
@@ -690,18 +702,18 @@ function vOrders() {
     const posN = o.positions.length;
     return `<div class="row o-row ${o.closed ? 'dim' : ''}">
       <div><span class="lbl">${t('Nr')}</span><b class="vl" style="white-space:nowrap">${esc(o.nr)}</b></div>
-      <div class="c-main"><b>${esc(o.title)}</b><div class="meta">${esc(o.customer || '')}${o.customer ? ' · ' : ''}${posN === 1 ? t('1 Position') : t('{n} Positionen', { n: posN })}</div></div>
+      <div class="c-main"><b>${esc(o.title)}</b><div class="meta">${esc(o.customer || '')}${o.customer ? ' · ' : ''}${posN === 1 ? t('1 Position') : t('{n} Positionen', { n: posN })}${o.costs?.estimate?.total ? ` · ${costPill(o.costs.estimate)}` : ''}${o.costs?.actual?.entries?.some((x) => x.photo) ? ' · 📷' : ''}</div></div>
       <div><span class="lbl">${t('Termin')}</span><span class="vl ${dueCls}">${dfmt(o.due)}</span>${o.late ? `<div class="meta" style="color:var(--fault)">${t('überfällig')}</div>` : ''}</div>
       <div><span class="lbl">${t('Prio')}</span><span class="pill ${prioC}">${t(prioL)}</span></div>
       <div><span class="lbl">${t('Fortschritt')}</span><div class="sub" style="margin:0 0 3px"><span class="num">${t('{a} von {b}', { a: `<b>${o.done}</b>`, b: o.qty })}</span><span>${pct} %</span></div><div class="bar"><i style="width:${pct}%"></i></div></div>
       <div><span class="lbl">${t('Status')}</span><span class="pill ${O_STATUS[o.status] || ''}">${esc(t(o.status))}</span></div>
       <div><span class="lbl">${t('Restzeit')}</span><span class="num">${o.restSec ? fmtDur(o.restSec) : '–'}</span></div>
-      <div class="acts">${canPrint && on('queue') ? `<button class="b b-sm b-go" data-act="oPrint" data-id="${o.id}" ${anyReady ? '' : 'disabled'} title="${anyReady ? esc(t('Nächsten Druck dieses Auftrags starten')) : esc(t('Kein Drucker ist frei'))}">${ICON.play}${t('Drucken')}</button>` : ''}${canPlan && on('queue') ? `<button class="b b-sm" data-act="oPlan" data-id="${o.id}">${t('Einplanen')}</button>` : ''}<button class="b b-sm" data-act="oEdit" data-id="${o.id}">${ICON.edit}${t('Öffnen')}</button></div>
+      <div class="acts">${canPrint && on('queue') ? `<button class="b b-sm b-go" data-act="oPrint" data-id="${o.id}" ${anyReady ? '' : 'disabled'} title="${anyReady ? esc(t('Nächsten Druck dieses Auftrags starten')) : esc(t('Kein Drucker ist frei'))}">${ICON.play}${t('Drucken')}</button>` : ''}${canPlan && on('queue') ? `<button class="b b-sm" data-act="oPlan" data-id="${o.id}">${t('Einplanen')}</button>` : ''}<button class="b b-sm" data-act="oEdit" data-id="${o.id}">${ICON.edit}${t('Öffnen')}</button>${o.archived ? `<button class="b b-sm" data-oarch="0" data-id="${o.id}">${t('Zurückholen')}</button>` : o.closed || o.status === 'fertig' ? `<button class="x" data-oarch="1" data-id="${o.id}" title="${esc(t('Archivieren'))}" aria-label="${esc(t('Archivieren'))}">🗄</button>` : ''}</div>
     </div>`;
   }).join('');
   return `${stripHTML()}<div class="bar-row"><h2>${t('Aufträge')}</h2><div class="chips">${chips}</div><button class="b b-sm b-go" data-act="oEdit">${ICON.plus}${t('Neuer Auftrag')}</button></div>
     <div class="list">${list.length ? `<div class="row o-row head"><div>${t('Nr')}</div><div>${t('Bezeichnung')}</div><div>${t('Termin')}</div><div>${t('Prio')}</div><div>${t('Fortschritt')}</div><div>${t('Status')}</div><div>${t('Restzeit')}</div><div></div></div>${rows}`
-      : `<div class="empty"><h3>${S.oFilter === 'aktiv' ? t('Keine offenen Aufträge') : t('Keine Aufträge')}</h3><p>${t('Ein Auftrag fasst Dateien und Stückzahlen zusammen – z. B. „20 Halter für die Werkstatt bis Freitag“.')}</p><button class="b b-go" data-act="oEdit">${ICON.plus}${t('Neuer Auftrag')}</button></div>`}</div>`;
+      : `<div class="empty"><h3>${S.oFilter === 'aktiv' ? t('Keine offenen Aufträge') : S.oFilter === 'archiv' ? t('Archiv ist leer') : t('Keine Aufträge')}</h3><p>${t('Ein Auftrag fasst Dateien und Stückzahlen zusammen – z. B. „20 Halter für die Werkstatt bis Freitag“.')}</p><button class="b b-go" data-act="oEdit">${ICON.plus}${t('Neuer Auftrag')}</button></div>`}</div>`;
 }
 
 /** „Drucken“ beim Auftrag: offene Stücke einplanen und den ersten Druck starten. */
@@ -742,6 +754,7 @@ function orderDialog(o = null) {
       <button class="b b-sm" type="button" data-addpos style="align-self:flex-start">${ICON.plus}${t('Position')}</button>
       <p class="hint" style="margin:0">${t('Pro Stück wird ein Druck eingeplant. Passen mehrere Teile auf eine Platte, die Platte als eine Datei slicen und die Anzahl Platten eintragen.')}</p>
     </fieldset>
+    ${o ? orderCostsHTML(o) : ''}
     <label>${t('Notizen')}<textarea name="notes" rows="3">${esc(o?.notes || '')}</textarea></label>
     ${o ? `<label class="check"><input type="checkbox" name="closed" ${o.closed ? 'checked' : ''}> ${t('Auftrag abgeschlossen (wartende Drucke werden entfernt)')}</label>` : ''}
     <p class="form-error" hidden></p>
@@ -968,7 +981,8 @@ function vHistory() {
     return `<div class="row h-row">
       <div class="num"><span class="lbl">${t('Ende')}</span>${tfmt(h.endedAt)}</div>
       <div><span class="lbl">${t('Drucker')}</span>${esc(h.printerName)}</div>
-      <div class="c-main"><b>${esc(h.file || '–')}</b>${h.orderId && orderNr(h.orderId) ? `<div class="meta">${esc(orderNr(h.orderId))}</div>` : ''}${h.message && h.result !== 'finished' ? `<div class="meta">${esc(t(h.message))}</div>` : ''}</div>
+      <div class="c-main h-file">${h.photo ? `<a class="h-photo" href="api/history/${esc(h.id)}/photo" target="_blank" rel="noopener" title="${esc(t('Foto des fertigen Teils'))}"><img src="api/history/${esc(h.id)}/photo" alt="" loading="lazy"></a>` : ''}<div style="min-width:0"><b>${esc(h.file || '–')}</b>${h.orderId && orderNr(h.orderId) ? `<div class="meta">${esc(orderNr(h.orderId))}</div>` : ''}${h.message && h.result !== 'finished' ? `<div class="meta">${esc(t(h.message))}</div>` : ''}
+        ${h.costs ? `<div class="meta">${costPill(h.costs)}${h.costs.grams ? ` · ${fnum(h.costs.grams, 0)} g` : ''}${h.costs.kwh ? ` · ${fnum(h.costs.kwh, 2)} kWh${h.costs.kwhMeasured ? '' : ` (${t('geschätzt')})`}` : ''}</div>` : ''}</div></div>
       <div class="num"><span class="lbl">${t('Dauer')}</span>${fmtDur(h.durationSec)}</div>
       <div><span class="lbl">${t('Bei')}</span>${h.result !== 'finished' && h.progress != null ? `${Math.floor(h.progress)} %` : ''}</div>
       <div><span class="pill ${c}">${t(l)}</span></div></div>`;

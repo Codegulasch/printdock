@@ -9,6 +9,8 @@ async function loadHaEntities() {
   } catch {
     S.haEntities = [];
   }
+  // Strommessung (Energiezähler kWh oder Leistung W) für den Verbrauch je Druck
+  S.haEnergy = await api('ha/energy-sensors').catch(() => []);
   return S.haEntities;
 }
 
@@ -20,7 +22,7 @@ function entityPickerHTML(name, value, cls = '', list = undefined, noneLabel = n
   const src = list === undefined ? S.haEntities : list;
   const ents = src || [];
   const val = value || '';
-  const input = (show) => `<input class="${cls}" style="width:100%;${show ? '' : 'display:none'}" name="${name}" value="${esc(val)}" placeholder="${name === 'humidityEntity' || name === 'entity' ? 'sensor.trockenbox_feuchte' : 'switch.drucker_werkstatt'}" autocomplete="off">`;
+  const input = (show) => `<input class="${cls}" style="width:100%;${show ? '' : 'display:none'}" name="${name}" value="${esc(val)}" placeholder="${name === 'humidityEntity' || name === 'entity' ? 'sensor.trockenbox_feuchte' : name === 'energyEntity' ? 'sensor.drucker_energie' : 'switch.drucker_werkstatt'}" autocomplete="off">`;
   if (!ents.length) {
     const hint = src === null && S.haEntLoading ? t('Entitäten werden geladen …') : t('Keine Entitäten gefunden – Verbindung zu Home Assistant prüfen oder von Hand eintragen.');
     return `<div class="epick">${input(true)}<div class="meta" style="margin-top:3px">${hint}</div></div>`;
@@ -29,7 +31,7 @@ function entityPickerHTML(name, value, cls = '', list = undefined, noneLabel = n
   const stateTxt = (st) => (st === 'on' ? t('an') : st === 'off' ? t('aus') : st === 'unavailable' ? t('nicht erreichbar') : st);
   const groups = {};
   for (const e of ents) (groups[e.area || t('Ohne Bereich')] ||= []).push(e);
-  const opts = Object.entries(groups).map(([area, list]) => `<optgroup label="${esc(area)}">${list.map((e) => `<option value="${esc(e.entity_id)}" ${e.entity_id === val ? 'selected' : ''}>${esc(e.name)} (${esc(stateTxt(e.state))}) · ${esc(e.entity_id)}</option>`).join('')}</optgroup>`).join('');
+  const opts = Object.entries(groups).map(([area, list]) => `<optgroup label="${esc(area)}">${list.map((e) => `<option value="${esc(e.entity_id)}" ${e.entity_id === val ? 'selected' : ''}>${esc(e.name)} (${esc(stateTxt(e.state))}${e.unit ? ` ${esc(e.unit)}` : ''}) · ${esc(e.entity_id)}</option>`).join('')}</optgroup>`).join('');
   return `<div class="epick"><select class="${cls}" style="width:100%" data-epick>
       <option value="" ${!val ? 'selected' : ''}>${noneLabel || t('– keine Steckdose –')}</option>
       ${val && !known ? `<option value="${esc(val)}" selected>${esc(val)} (${t('nicht gefunden')})</option>` : ''}
@@ -67,7 +69,8 @@ function vHa() {
     const pw = p.power === 'on' ? t('an') : p.power === 'off' ? t('aus') : t('nicht erreichbar');
     return `<div class="row" style="grid-template-columns:minmax(140px,1fr) minmax(200px,1.4fr) 110px 90px 90px auto" data-pp="${p.id}">
       <div class="c-main"><b>${esc(p.name)}</b><div class="meta">${p.power ? `${t('Steckdose')}: <b>${pw}</b>` : t('keine Steckdose')}</div></div>
-      <div><span class="lbl">${t('Entität')}</span>${entityPickerHTML('powerEntity', st.powerEntity, 'in')}</div>
+      <div><span class="lbl">${t('Entität')}</span>${entityPickerHTML('powerEntity', st.powerEntity, 'in')}
+        <span class="lbl" style="margin-top:6px">${t('Strommessung')}</span>${entityPickerHTML('energyEntity', st.energyEntity, 'in', S.haEnergy || [], t('– automatisch (Messung der Steckdose) –'))}</div>
       <label class="meta" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="autoOff" ${st.autoOff ? 'checked' : ''}> ${t('Auto-Aus')}</label>
       <div><span class="lbl">${t('nach Min.')}</span><input class="in" style="width:80px" type="number" min="1" name="autoOffDelay" value="${esc(st.autoOffDelay || 10)}" title="${esc(t('Minuten nach Druckende'))}"></div>
       <div><span class="lbl">${t('unter °C')}</span><input class="in" style="width:80px" type="number" min="30" name="autoOffMaxTemp" value="${esc(st.autoOffMaxTemp || 50)}" title="${esc(t('erst ausschalten, wenn die Düse kühler ist'))}"></div>
@@ -236,6 +239,7 @@ document.addEventListener('click', async (e) => {
     const settings = {
       ...p.settings,
       powerEntity: $('[name=powerEntity]', row).value.trim(),
+      energyEntity: $('[name=energyEntity]', row)?.value.trim() || '',
       autoOff: $('[name=autoOff]', row).checked,
       autoOffDelay: $('[name=autoOffDelay]', row).value,
       autoOffMaxTemp: $('[name=autoOffMaxTemp]', row).value,

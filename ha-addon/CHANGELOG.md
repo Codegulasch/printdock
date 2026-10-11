@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.13.0
+- **Electricity per print:** with a plug that measures in Home Assistant (energy meter in kWh or power in W) PrintDock records the consumption of every print – the meter of the plug's device is found automatically, or choose one under *Settings → Home Assistant*. Without metering it estimates from a power value and learns the average per printer once measurements exist
+- **Costs and quotes:** every print in the history shows its costs (filament by spool price, electricity, optional machine hour rate and markup). Orders show an estimate per item from the sliced files plus the actual costs so far, and *Print estimate / quote* opens a printable page. Prices under *Settings → Printers & filament → Costs*
+- **Automatic printer choice that respects the profile:** queue entries without a fixed printer go to the free printer (with auto-start) whose profile the file was sliced for **and** that has the needed filament loaded (material, similar colour, enough left) – the closest colours win. Files sliced for another profile are no longer started on the wrong printer: the start dialog greys such printers out and the start is refused with a clear message. The queue shows why an entry is still waiting
+- **Photos of finished parts:** at the end of a successful print PrintDock saves a camera image – shown in the history and on the order (switchable under *Costs*)
+- **Archive orders:** finished or closed orders can be archived and restored; new filter *Archive*
+
+## 0.12.9
+- Fix: **print end was missed on printers that jump straight back to "ready"** (e.g. Anycubic in LAN mode) – no "print finished" notification, no history entry, the order was not completed and no filament was booked. PrintDock now also detects the end from that jump: at 95 % progress or more (or less than 3 minutes left) as finished, otherwise as cancelled
+
 ## 0.12.8
 - **Inbox folder for Bambu Studio** (and any other slicer): files saved into it are picked up within seconds – into the library, or from the subfolder `warteschlange` straight into the queue. As add-on the folder is `/share/printdock`, reachable over the network as `\\homeassistant\share\printdock` with the Samba add-on. In Bambu Studio: slice, *Export plate sliced file* (Ctrl+G), save into the folder. Paths are shown under *Settings → Slicer*
 - **Bambu: "553 Could not create file" when starting a print.** If the printer does not allow writing to the root folder, PrintDock now tries its storage folders (e.g. `sdcard`, `usb`, `cache`). If that fails too, the message says what to check (SD card/USB stick inserted, free space) and lists the folders the printer offers

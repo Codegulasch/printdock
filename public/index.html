@@ -694,6 +694,20 @@ body.has-overlay{overflow:hidden}
 }
 .warn-txt{color:var(--warn-ink)}
 .st-pair small.warn-txt{display:block;color:var(--warn-ink);margin-top:0.125rem;white-space:normal;overflow:visible}
+.wait-reason{margin-top:0.125rem;white-space:normal}
+.oc{display:flex;flex-direction:column;gap:0.5rem}
+.ctab{width:100%;border-collapse:collapse;font-size:0.875rem}
+.ctab th{font-size:0.6875rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left;font-weight:600;padding:0.25rem 0.375rem;border-bottom:1px solid var(--line)}
+.ctab td{padding:0.3125rem 0.375rem;border-bottom:1px solid var(--line)}
+.ctab td.num,.ctab th:not(:first-child){text-align:right}
+.ctab tfoot td{border:0;color:var(--muted);font-size:0.8125rem}
+.ctab tfoot td.num{color:var(--ink);font-size:0.9375rem}
+.oc-act{font-size:0.8125rem;background:var(--panel2);border-radius:0.375rem;padding:0.375rem 0.5rem}
+.ophotos{display:flex;flex-wrap:wrap;gap:0.5rem}
+.ophotos img{width:7.5rem;height:5.25rem;object-fit:cover;border-radius:0.375rem;border:1px solid var(--line);display:block}
+.h-file{display:flex;gap:0.625rem;align-items:center}
+.h-photo img{width:3.5rem;height:2.5rem;object-fit:cover;border-radius:0.3125rem;display:block;border:1px solid var(--line)}
+.cin{display:inline-flex;align-items:center;gap:0.375rem}.cin input{width:6.5rem}
 .hd-err{font-size:0.8125rem;color:var(--fault);background:var(--fault-bg);border-radius:0.375rem;padding:0.375rem 0.5rem;line-height:1.35}
 .hd-anim{font-size:1.1rem;animation:stpulse 1.6s ease-in-out infinite}
 .newspool.hum-alert{background:var(--warn-bg);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
@@ -781,6 +795,7 @@ a.b{text-decoration:none}
 <script src="i18n-en.js"></script>
 <script src="i18n.js"></script>
 <script src="app.js"></script>
+<script src="costs-ui.js"></script>
 <script src="filament-ui.js"></script>
 <script src="humidity-ui.js"></script>
 <script src="board.js"></script>

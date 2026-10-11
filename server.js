@@ -213,22 +213,32 @@ function trackJob(cfg, rt, status) {
   if (ACTIVE.has(status.state)) {
     if (!rt.job || (status.file && rt.job.file !== status.file)) {
       rt.job = { file: status.file, startedAt: Date.now() - (status.elapsedSec || 0) * 1000 };
+      energy.start(cfg, rt.job).catch(() => {});
     }
     rt.job.lastProgress = status.progress;
+    if (status.remainingSec != null) rt.job.lastRemaining = status.remainingSec;
     if (status.activeSlot) rt.job.activeSlot = status.activeSlot;
     if (status.filamentUsedMm != null) rt.job.filamentMm = status.filamentUsedMm;
     return null;
   }
   let entry = null;
-  if (rt.job && ENDED[status.state]) {
+  // Manche Drucker (z. B. Anycubic im LAN-Modus, einige Klipper-Firmwares) springen nach dem Druck
+  // direkt auf „bereit“ – ohne „fertig“ dazwischen. Dann am Fortschritt entscheiden.
+  let endState = ENDED[status.state] ? status.state : null;
+  if (!endState && rt.job && status.state === 'idle') {
+    const nearlyDone = (rt.job.lastProgress ?? 0) >= 95 || (rt.job.lastRemaining != null && rt.job.lastRemaining <= 180 && (rt.job.lastProgress ?? 0) >= 80);
+    endState = nearlyDone ? 'finished' : 'cancelled';
+    console.log(`[${cfg.name}] Druckende ohne Abschlussmeldung erkannt (Fortschritt ${Math.round(rt.job.lastProgress ?? 0)} %) → ${endState === 'finished' ? 'fertig' : 'abgebrochen'}`);
+  }
+  if (rt.job && endState) {
     const endedAt = Date.now();
     entry = {
       id: crypto.randomUUID(),
       printerId: cfg.id,
       printerName: cfg.name,
       file: rt.job.file || status.file,
-      result: status.state,
-      progress: status.state === 'finished' ? 100 : rt.job.lastProgress ?? null,
+      result: endState,
+      progress: endState === 'finished' ? 100 : rt.job.lastProgress ?? null,
       startedAt: new Date(rt.job.startedAt).toISOString(),
       endedAt: new Date(endedAt).toISOString(),
       durationSec: Math.round((endedAt - rt.job.startedAt) / 1000),
@@ -239,11 +249,43 @@ function trackJob(cfg, rt, status) {
     history.push(entry);
     saveHistory();
     broadcast('history', entry);
-    console.log(`[${cfg.name}] Druck ${ENDED[status.state]}: ${entry.file}`);
+    console.log(`[${cfg.name}] Druck ${ENDED[endState]}: ${entry.file}`);
+    finishExtras(cfg, rt, rt.job, entry).catch((err) => console.warn(`[${cfg.name}] ${err.message}`));
   }
   // Bei 'offline' den Job behalten – der Drucker kann zurückkommen und weiterdrucken.
   if (status.state !== 'offline') rt.job = null;
   return entry;
+}
+
+// Automatische Druckerwahl: liegt das Filament der Datei im Drucker?
+production.ctx.fit = (p, f) => (require('./lib/app').moduleOn('filament') ? filament.fitFor(p, f) : { ok: true, score: 0 });
+const { Costs } = require('./lib/costs');
+const costs = new Costs({ filament, history: () => history, printers: () => printerConfigs });
+const { EnergyTracker } = require('./lib/energy');
+const energy = new EnergyTracker({ ha });
+const PHOTO_DIR = path.join(require('./lib/store').DATA_DIR, 'photos');
+
+/** Nach dem Druck: Stromverbrauch und Foto des fertigen Teils an den Verlaufseintrag hängen */
+async function finishExtras(cfg, rt, job, entry) {
+  let changed = false;
+  const kwh = await energy.finish(cfg, job);
+  if (kwh != null) {
+    entry.energyKwh = kwh;
+    changed = true;
+  }
+  if (require('./lib/app').photos && entry.result === 'finished' && rt.driver.status?.camera !== false) {
+    const jpg = await notifier.getSnapshot(cfg.id);
+    if (jpg?.length) {
+      fs.mkdirSync(PHOTO_DIR, { recursive: true });
+      fs.writeFileSync(path.join(PHOTO_DIR, `${entry.id}.jpg`), jpg);
+      entry.photo = true;
+      changed = true;
+    }
+  }
+  if (changed) {
+    saveHistory();
+    broadcast('history', null);
+  }
 }
 
 async function startPrinter(cfg) {
@@ -325,6 +367,7 @@ function validatePrinter(body, existing) {
     hoursOffset: Math.max(0, Number(st.hoursOffset) || 0),
     slots: String(st.slots || '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, 16).join(', '),
     powerEntity: /^(switch|light|input_boolean)\.[\w]+$/.test(String(st.powerEntity || '').trim()) ? String(st.powerEntity).trim() : '',
+    energyEntity: /^sensor\.[\w]+$/.test(String(st.energyEntity || '').trim()) ? String(st.energyEntity).trim() : '',
     autoOff: st.autoOff === true || st.autoOff === 'true',
     autoOffDelay: Math.max(1, Math.min(240, Number(st.autoOffDelay) || 10)),
     autoOffMaxTemp: Math.max(30, Math.min(120, Number(st.autoOffMaxTemp) || 50)),
@@ -508,12 +551,19 @@ async function handleApi(req, res, url) {
 
   // ---- Verlauf
   if (resource === 'history') {
+    if (id && action === 'photo' && req.method === 'GET') {
+      const file = path.join(PHOTO_DIR, `${String(id).replace(/[^\w-]/g, '')}.jpg`);
+      if (!fs.existsSync(file)) throw httpError(404, 'Kein Foto');
+      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=86400' });
+      return fs.createReadStream(file).pipe(res);
+    }
     if (req.method === 'GET') {
       const limit = Math.min(Number(url.searchParams.get('limit')) || 200, HISTORY_MAX);
-      return sendJson(res, 200, history.slice(-limit).reverse());
+      return sendJson(res, 200, history.slice(-limit).reverse().map((h) => ({ ...h, costs: costs.forEntry(h) })));
     }
     if (req.method === 'DELETE' && !id) {
       history = [];
+      fs.rmSync(PHOTO_DIR, { recursive: true, force: true });
       saveHistory();
       return sendJson(res, 200, { ok: true });
     }
@@ -589,6 +639,7 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, await ha.entities(kind === 'dryer' ? ['switch', 'input_boolean', 'button', 'input_button', 'script', 'number', 'input_number', 'climate', 'fan'] : undefined));
     }
     if (id === 'humidity-sensors' && req.method === 'GET') return sendJson(res, 200, await ha.humiditySensors());
+    if (id === 'energy-sensors' && req.method === 'GET') return sendJson(res, 200, await ha.energySensors());
     if (id === 'notify-services' && req.method === 'GET') return sendJson(res, 200, await ha.notifyServices());
     if (id === 'restart' && req.method === 'POST') return sendJson(res, 200, await ha.restartCore());
     if (id === 'card' && req.method === 'POST') {
@@ -860,7 +911,7 @@ async function handleApi(req, res, url) {
 
   // ---- Aufträge
   if (resource === 'orders') {
-    if (!id && req.method === 'GET') return sendJson(res, 200, production.orders());
+    if (!id && req.method === 'GET') return sendJson(res, 200, production.orders().map((o) => ({ ...o, costs: costs.forOrder(o) })));
     if (!id && req.method === 'POST') return sendJson(res, 201, production.saveOrder(await readBody(req)));
     if (!action && req.method === 'PUT') return sendJson(res, 200, production.saveOrder(await readBody(req), id));
     if (!action && req.method === 'DELETE') {
@@ -868,6 +919,7 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, { ok: true });
     }
     if (action === 'plan' && req.method === 'POST') return sendJson(res, 200, production.planOrder(id, await readBody(req)));
+    if (action === 'archive' && req.method === 'POST') return sendJson(res, 200, production.archiveOrder(id, (await readBody(req)).archived !== false));
   }
 
   // ---- Wartung

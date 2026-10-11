@@ -13,7 +13,7 @@ const SET_ICON = {
 /** Navigation in den Einstellungen: [Ansicht, Bezeichnung, Symbol, Beschreibung] */
 const SET_NAV = [
   ['general', 'Allgemein', NAV_ICON.gear, 'Sprache, Aussehen, Funktionen'],
-  ['workshop', 'Drucker & Filament', NAV_ICON.printer, 'Drucker, Druckstart, Filament, Feuchte & Trocknen'],
+  ['workshop', 'Drucker & Filament', NAV_ICON.printer, 'Drucker, Druckstart, Filament, Feuchte & Trocknen, Kosten'],
   ['station', 'PrintDock Station', SET_ICON.station, 'NFC-Leser und Waage'],
   ['notify', 'Benachrichtigungen', SET_ICON.bell, 'Wohin Meldungen gehen'],
   ['ha', 'Home Assistant', SET_ICON.home, 'Steckdosen, Karten, Sensoren'],
@@ -39,6 +39,7 @@ function vWorkshop() {
   const a = S.app || {};
   const parts = [['ws-printers', t('Drucker#pl')], ['ws-start', t('Druckstart')]];
   if (on('filament')) parts.push(['ws-fil', t('Filament')], ['ws-hum', t('Feuchte & Trocknen')]);
+  parts.push(['ws-costs', t('Kosten')]);
   const jump = `<div class="set-jump">${parts.map(([id, l]) => `<button class="chip" data-anchor="${id}">${esc(l)}</button>`).join('')}</div>`;
   const printers = setSection('ws-printers', t('Drucker#pl'), noHead(VIEW_FN.printers()), `<button class="b b-sm b-go" data-act="editPrinter">${ICON.plus}${t('Drucker hinzufügen')}</button>`);
   const start = setSection('ws-start', t('Druckstart'), `<div class="sbox">
@@ -47,7 +48,8 @@ function vWorkshop() {
     </div>`);
   const fil = on('filament') ? setSection('ws-fil', t('Filament'), noHead(vFilSettings())) : '';
   const hum = on('filament') ? setSection('ws-hum', t('Feuchte & Trocknen'), noHead(vHumSettings())) : '';
-  return `<div class="page-head"><h1>${t('Drucker & Filament')}</h1></div>${jump}${printers}${start}${fil}${hum}`;
+  const cost = setSection('ws-costs', t('Kosten'), costsSettingsHTML());
+  return `<div class="page-head"><h1>${t('Drucker & Filament')}</h1></div>${jump}${printers}${start}${fil}${hum}${cost}`;
 }
 
 // Einstellungsansichten in die Hülle setzen

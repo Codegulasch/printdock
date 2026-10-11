@@ -87,6 +87,10 @@ Passwörter werden mit scrypt gespeichert, Sitzungen per HttpOnly-Cookie, nach 5
 
 **Farben beim Druckstart zuordnen:** Beim Start aus der Warteschlange schlägt PrintDock nach Material und Farbe vor, welches Fach bzw. Werkzeug welches Filament aus dem Slice druckt – jede Zeile lässt sich ändern. Bambu bekommt die Zuordnung als AMS-Mapping, bei Klipper- und OctoPrint-Druckern nummeriert PrintDock die Werkzeuge im G-code um (z. B. T0 → T2).
 
+**Kosten, Strom und Fotos:** Jeder Druck im Verlauf zeigt seine Kosten – Filament nach Spulenpreis, Strom (über eine messende Steckdose in Home Assistant oder geschätzt), auf Wunsch Maschinenstunde und Aufschlag. Aufträge zeigen eine Kalkulation aus den geslicten Dateien und die Ist-Kosten; „Kalkulation / Angebot drucken“ erzeugt eine druckbare Seite. Am Druckende speichert PrintDock ein Kamerabild des fertigen Teils im Verlauf und am Auftrag. Fertige Aufträge lassen sich archivieren.
+
+**Automatische Druckerwahl:** Einträge ohne festen Drucker bekommt der freie Drucker mit Auto-Start, zu dessen Profil die Datei geslict ist und in dem das passende Filament liegt. Für ein anderes Profil geslicte Dateien startet PrintDock nicht.
+
 ## Unterstützte Drucker
 
 | Anbindung | Drucker | Was der Drucker braucht |
