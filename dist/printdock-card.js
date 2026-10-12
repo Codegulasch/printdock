@@ -11,7 +11,7 @@
  * https://github.com/Codegulasch/printdock
  */
 (() => {
-  const VERSION = '0.13.0';
+  const VERSION = '0.15.0';
 
   // ------------------------------------------------------------------ texts
   const TXT = {

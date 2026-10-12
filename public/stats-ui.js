@@ -88,7 +88,7 @@ function vStats() {
     ${kpi(T.prints, t('Drucke'), t('{a} erfolgreich · {b} abgebrochen/fehlgeschlagen', { a: T.ok, b: fail }))}
     ${kpi(T.successRate != null ? `${T.successRate} %` : '–', t('Erfolgsquote'), '', T.successRate != null && T.successRate < 80 ? 'warn' : '')}
     ${kpi(`${fnum(T.hours, 0)} h`, t('Druckzeit'), T.avgHours != null ? t('Ø {h} h je Druck', { h: fnum(T.avgHours, 1) }) : '')}
-    ${on('filament') ? kpi(`${fnum(T.grams / 1000, 2)} kg`, t('Filament'), T.cost ? t('{c} Materialkosten', { c: money(T.cost) }) : '') : ''}
+    ${on('filament') ? kpi(`${fnum(T.grams / 1000, 2)} kg`, t('Filament'), [T.cost ? t('{c} Materialkosten', { c: money(T.cost) }) : '', T.scrapGrams ? t('{g} g Ausschuss', { g: fnum(T.scrapGrams, 0) }) : ''].filter(Boolean).join(' · ')) : ''}
   </div>`;
   const printers = d.byPrinter.filter((p) => p.prints);
   return `${head}${kpis}
@@ -112,7 +112,8 @@ function vStats() {
       <section class="sec chart-card"><div class="cc-head"><h3>${t('Häufigste Dateien')}</h3></div>
         <div class="list flat">${d.topFiles.map((f) => `<div class="row" style="grid-template-columns:1fr auto auto"><b style="overflow-wrap:anywhere">${esc(f.file)}</b><span class="meta num">${t('{n} Drucke', { n: f.prints })}</span><span class="meta num">${fnum(f.hours, 1)} h</span></div>`).join('')}</div></section>
       <section class="sec chart-card"><div class="cc-head"><h3>${t('Häufigste Fehler')}</h3></div>
-        ${d.failReasons.length ? `<div class="list flat">${d.failReasons.map((r) => `<div class="row" style="grid-template-columns:1fr auto"><span>${esc(t(r.message))}</span><b class="num">${r.n}×</b></div>`).join('')}</div>` : `<p class="meta">${t('Keine fehlgeschlagenen Drucke – sehr gut.')}</p>`}</section>
+        ${d.failReasons.length ? `<div class="list flat">${d.failReasons.map((r) => `<div class="row" style="grid-template-columns:1fr auto"><span>${esc(t(r.message))}</span><b class="num">${r.n}×</b></div>`).join('')}</div>` : `<p class="meta">${t('Keine fehlgeschlagenen Drucke – sehr gut.')}</p>`}
+        ${printers.some((p) => p.failed + p.cancelled) ? `<h4 class="st-sub">${t('Fehldrucke je Drucker')}</h4><div class="list flat">${printers.filter((p) => p.failed + p.cancelled).map((p) => `<div class="row" style="grid-template-columns:1fr auto"><span><b>${esc(p.name)}</b>${p.reasons?.length ? `<span class="meta"> · ${p.reasons.map((r) => `${esc(t(r.reason))} ${r.n}×`).join(' · ')}</span>` : ''}</span><span class="meta num">${t('{n} von {m}', { n: p.failed + p.cancelled, m: p.prints })}${p.scrapGrams ? ` · ${fnum(p.scrapGrams, 0)} g` : ''}</span></div>`).join('')}</div>` : ''}</section>
     </div>`;
 }
 

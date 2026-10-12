@@ -136,6 +136,7 @@ function vHumSettings() {
           ${row(t('Warnung ab'), t('Gelb markieren – an Drucker, Karte und Belegung.'), num('humWarn', st.humWarn, '%'))}
           ${row(t('Alarm ab'), t('Rot markieren und melden („Filament zu feucht“).'), num('humAlarm', st.humAlarm, '%'))}
         </div>
+        ${typeof humCheckSettingsHTML === 'function' ? humCheckSettingsHTML() : ''}
         <h3 class="shead">${t('Feuchtesensoren')}</h3>
         ${stationsHTML(F, 'sensor')}
         <p class="meta">${t('Jeder Feuchtesensor aus Home Assistant geht ebenso – z. B. ein Zigbee- oder Bluetooth-Thermometer in der Box. Zuordnen über „Sensor zuordnen“ bei der Messstelle.')}</p>

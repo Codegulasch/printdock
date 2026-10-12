@@ -1,0 +1,67 @@
+blueprint:
+  name: "PrintDock: Druck fertig – Meldung mit „Platte ist frei“"
+  description: >
+    Schickt eine Meldung aufs Handy, sobald ein Drucker fertig ist und die Platte geräumt werden muss.
+    Mit der Taste „Platte ist frei“ in der Meldung bestätigst du das – danach startet PrintDock den nächsten Druck
+    (bei Auto-Start). Entitäten: „Platte räumen“ (binary_sensor) und „Platte ist frei“ (button) des PrintDock-Druckers.
+  domain: automation
+  source_url: https://github.com/Codegulasch/printdock/blob/main/blueprints/printdock-plate-notify.yaml
+  input:
+    plate_sensor:
+      name: Platte räumen
+      description: binary_sensor „… Platte räumen“ des Druckers
+      selector:
+        entity:
+          filter: [{ domain: binary_sensor, integration: mqtt }]
+    plate_button:
+      name: Platte ist frei
+      description: button „… Platte ist frei“ desselben Druckers
+      selector:
+        entity:
+          filter: [{ domain: button, integration: mqtt }]
+    notify_device:
+      name: Handy
+      description: Gerät mit der Home-Assistant-App
+      selector:
+        device:
+          filter: [{ integration: mobile_app }]
+    title:
+      name: Titel
+      default: "Druck fertig"
+      selector: { text: {} }
+mode: restart
+trigger:
+  - platform: state
+    entity_id: !input plate_sensor
+    to: "on"
+variables:
+  action_id: "PRINTDOCK_PLATE_{{ now().timestamp() | int }}"
+  printer: "{{ state_attr(trigger.entity_id, 'friendly_name') | replace(' Platte räumen', '') }}"
+action:
+  - domain: mobile_app
+    type: notify
+    device_id: !input notify_device
+    title: !input title
+    message: "{{ printer }}: Teil entnehmen und Platte freigeben."
+    data:
+      tag: "{{ action_id }}"
+      actions:
+        - action: "{{ action_id }}"
+          title: "Platte ist frei"
+  - wait_for_trigger:
+      - platform: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: "{{ action_id }}"
+      - platform: state
+        entity_id: !input plate_sensor
+        to: "off"
+    timeout: "24:00:00"
+    continue_on_timeout: false
+  - if:
+      - condition: template
+        value_template: "{{ wait.trigger is not none and wait.trigger.platform == 'event' }}"
+    then:
+      - service: button.press
+        target:
+          entity_id: !input plate_button

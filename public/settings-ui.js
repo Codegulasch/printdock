@@ -39,7 +39,7 @@ function vWorkshop() {
   const a = S.app || {};
   const parts = [['ws-printers', t('Drucker#pl')], ['ws-start', t('Druckstart')]];
   if (on('filament')) parts.push(['ws-fil', t('Filament')], ['ws-hum', t('Feuchte & Trocknen')]);
-  parts.push(['ws-costs', t('Kosten')]);
+  parts.push(['ws-costs', t('Kosten & nach dem Druck')]);
   const jump = `<div class="set-jump">${parts.map(([id, l]) => `<button class="chip" data-anchor="${id}">${esc(l)}</button>`).join('')}</div>`;
   const printers = setSection('ws-printers', t('Drucker#pl'), noHead(VIEW_FN.printers()), `<button class="b b-sm b-go" data-act="editPrinter">${ICON.plus}${t('Drucker hinzufügen')}</button>`);
   const start = setSection('ws-start', t('Druckstart'), `<div class="sbox">
@@ -48,7 +48,7 @@ function vWorkshop() {
     </div>`);
   const fil = on('filament') ? setSection('ws-fil', t('Filament'), noHead(vFilSettings())) : '';
   const hum = on('filament') ? setSection('ws-hum', t('Feuchte & Trocknen'), noHead(vHumSettings())) : '';
-  const cost = setSection('ws-costs', t('Kosten'), costsSettingsHTML());
+  const cost = setSection('ws-costs', t('Kosten & nach dem Druck'), costsSettingsHTML());
   return `<div class="page-head"><h1>${t('Drucker & Filament')}</h1></div>${jump}${printers}${start}${fil}${hum}${cost}`;
 }
 

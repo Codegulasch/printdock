@@ -1,5 +1,5 @@
 name: PrintDock
-version: "0.13.0"
+version: "0.15.0"
 slug: printdock
 description: Manage and monitor all your 3D printers – Bambu Lab, Snapmaker, Anycubic, Klipper, OctoPrint
 url: https://github.com/Codegulasch/printdock
@@ -39,5 +39,6 @@ backup_exclude:
   - "*.tmp"
   - "before-restore-*"
   - "restore-*"
+  - "bin"
 options: {}
 schema: {}

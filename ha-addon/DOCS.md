@@ -26,7 +26,7 @@ All data lives in the add-on's `/data` folder and is included in Home Assistant 
 
 Port 3080 is also reachable directly (`http://<home-assistant>:3080`). It is used for uploads from OrcaSlicer/PrusaSlicer, camera images in Home Assistant and phone access on your home network. Remove the port mapping in the add-on configuration if you don't need it. If port 3080 is reachable from outside, enable **login protection** under **Settings → General**.
 
-Remote access works through Home Assistant itself (Nabu Casa or your own HA remote access) – the sidebar entry uses Home Assistant's login.
+Remote access works through Home Assistant itself (Nabu Casa or your own HA remote access) – the sidebar entry uses Home Assistant's login. Alternatively switch on Tailscale or a Cloudflare Tunnel right in PrintDock under *Settings → Remote access*.
 
 ## Data
 
@@ -58,7 +58,7 @@ Alle Daten liegen im Ordner `/data` des Add-ons und stecken in jeder Home-Assist
 
 Für Slicer-Uploads, Kamerabilder in Home Assistant und das Handy im Heimnetz. Wer ihn nicht braucht, entfernt die Portzuordnung in der Add-on-Konfiguration. Ist Port 3080 von außen erreichbar, unter **Einstellungen → Allgemein** den **Login-Schutz** einschalten.
 
-Fernzugriff läuft am einfachsten über Home Assistant selbst (Nabu Casa oder eigener HA-Fernzugriff) – der Seitenleisten-Eintrag nutzt die Home-Assistant-Anmeldung.
+Fernzugriff läuft am einfachsten über Home Assistant selbst (Nabu Casa oder eigener HA-Fernzugriff) – der Seitenleisten-Eintrag nutzt die Home-Assistant-Anmeldung. Alternativ unter *Einstellungen → Fernzugriff* Tailscale oder einen Cloudflare Tunnel direkt in PrintDock einschalten.
 
 ## Daten
 

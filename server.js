@@ -185,6 +185,20 @@ const drying = new Drying({
   broadcast,
   notify: (event, who, entry) => notifier.dispatch(event, who, null, entry).catch((err) => console.warn(err.message)),
 });
+// Feuchte-Check vor dem Start (Grenzwerte je Material)
+const { HumCheck } = require('./lib/humcheck');
+const humcheck = new HumCheck({ filament, drying });
+production.ctx.humBlock = (p, f, options) => (require('./lib/app').moduleOn('filament') ? humcheck.blockReason(p, f, options) : null);
+production.ctx.dryActive = (key) => Boolean(drying.data.dryJobs[key]) || Boolean(drying.view().find((x) => x.key === key)?.active);
+// Trocknen gilt als erledigt, wenn die Spulen an der Stelle seit dem Start als getrocknet vermerkt sind
+production.ctx.dryDone = (a) => {
+  const cfg = printerConfigs.find((p) => p.id === a.printerId);
+  if (!cfg) return false;
+  const unit = a.key.split('|')[1] || null;
+  const spools = filament.slotsFor(cfg).filter((sl) => !unit || sl.unit === unit).map((sl) => filament.spoolAt(cfg.id, sl.key)).filter(Boolean);
+  return !spools.length || spools.some((sp) => sp.driedAt && Date.parse(sp.driedAt) >= Date.parse(a.at) - 60_000);
+};
+
 // Belegung an den Drucker übertragen (Bambu-AMS: Material und Farbe des Fachs)
 filament.ctx.pushSlot = async (cfg, key, spool) => {
   const rt = runtime.get(cfg.id);
@@ -246,6 +260,7 @@ function trackJob(cfg, rt, status) {
       activeSlot: rt.job.activeSlot || null,
       filamentMm: rt.job.filamentMm || null,
     };
+    failures.onEnded(entry);
     history.push(entry);
     saveHistory();
     broadcast('history', entry);
@@ -259,8 +274,17 @@ function trackJob(cfg, rt, status) {
 
 // Automatische Druckerwahl: liegt das Filament der Datei im Drucker?
 production.ctx.fit = (p, f) => (require('./lib/app').moduleOn('filament') ? filament.fitFor(p, f) : { ok: true, score: 0 });
+// Automatische Sicherung (täglich)
+const backupInfo = () => ({ version: require('./package.json').version, printers: printerConfigs.length, auto: true });
+require('./lib/autobackup').schedule(backupInfo);
 const { Costs } = require('./lib/costs');
 const costs = new Costs({ filament, history: () => history, printers: () => printerConfigs });
+const { Remote } = require('./lib/remote');
+const remote = new Remote({ port: PORT, broadcast, authEnabled: () => require('./lib/app').authEnabled });
+const { Reserve } = require('./lib/reserve');
+const reserve = new Reserve({ printers: () => printerConfigs, runtime, filament, production });
+const { Failures } = require('./lib/failures');
+const failures = new Failures({ history: () => history, saveHistory: () => saveHistory(), production, broadcast });
 const { EnergyTracker } = require('./lib/energy');
 const energy = new EnergyTracker({ ha });
 const PHOTO_DIR = path.join(require('./lib/store').DATA_DIR, 'photos');
@@ -282,10 +306,29 @@ async function finishExtras(cfg, rt, job, entry) {
       changed = true;
     }
   }
+  // Etikett für das fertige Teil vormerken (nur Auftragsdrucke)
+  if (require('./lib/app').partLabels && entry.result === 'finished' && entry.orderId) {
+    entry.labelPending = true;
+    changed = true;
+  }
   if (changed) {
     saveHistory();
     broadcast('history', null);
   }
+}
+
+/** Etiketten für fertige Auftragsteile: Daten je Verlaufseintrag */
+function partLabels(entries) {
+  return entries.map((h) => {
+    const o = production.orders().find((x) => x.id === h.orderId);
+    if (!o) return null;
+    const done = history.filter((x) => x.orderId === o.id && x.result === 'finished').sort((a, b) => Date.parse(a.endedAt) - Date.parse(b.endedAt));
+    return {
+      id: h.id, orderId: o.id, nr: o.nr, title: o.title, customer: o.customer || '', file: h.file, endedAt: h.endedAt,
+      n: done.findIndex((x) => x.id === h.id) + 1, of: o.qty, shareToken: o.shareToken || null,
+      color: filament.spoolRecords().find((sp) => sp.id === h.filament?.[0]?.spoolId)?.color || null,
+    };
+  }).filter(Boolean);
 }
 
 async function startPrinter(cfg) {
@@ -517,10 +560,18 @@ async function handleApi(req, res, url) {
   const setupOpen = !app.publicSettings(req).setupDone;
   if (!app.isAuthed(req) && !(setupOpen && resource === 'app')) throw httpError(401, 'Bitte anmelden');
 
+  // ---- Fernzugriff (Tailscale, Cloudflare Tunnel)
+  if (resource === 'remote') {
+    if (!id && req.method === 'GET') return sendJson(res, 200, remote.view());
+    if (!id && req.method === 'PUT') return sendJson(res, 200, await remote.save(await readBody(req)));
+    if (id === 'tailscale' && action === 'logout' && req.method === 'POST') return sendJson(res, 200, await remote.tailscaleLogout());
+  }
+
   if (resource === 'app') {
     if (!id && req.method === 'PUT') {
       const before = app.moduleOn('homeassistant');
       app.save(await readBody(req));
+      remote.authChanged();
       if (before !== app.moduleOn('homeassistant')) ha.init().catch(() => {});
       broadcast('app', null);
       return sendJson(res, 200, { ...app.publicSettings(req), directUrl: ha.directUrl, update: updateAvailable() });
@@ -556,6 +607,13 @@ async function handleApi(req, res, url) {
       if (!fs.existsSync(file)) throw httpError(404, 'Kein Foto');
       res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=86400' });
       return fs.createReadStream(file).pipe(res);
+    }
+    if (id && req.method === 'POST' && ['fail', 'unfail', 'requeue', 'dismiss'].includes(action)) {
+      const body = action === 'fail' || action === 'requeue' ? await readBody(req) : {};
+      if (action === 'fail') return sendJson(res, 200, failures.mark(id, body));
+      if (action === 'unfail') return sendJson(res, 200, failures.unmark(id));
+      if (action === 'requeue') return sendJson(res, 200, failures.requeue(id, body));
+      return sendJson(res, 200, failures.dismiss(id));
     }
     if (req.method === 'GET') {
       const limit = Math.min(Number(url.searchParams.get('limit')) || 200, HISTORY_MAX);
@@ -640,6 +698,14 @@ async function handleApi(req, res, url) {
     }
     if (id === 'humidity-sensors' && req.method === 'GET') return sendJson(res, 200, await ha.humiditySensors());
     if (id === 'energy-sensors' && req.method === 'GET') return sendJson(res, 200, await ha.energySensors());
+    if (id === 'blueprints' && !action && req.method === 'GET') return sendJson(res, 200, ha.blueprints());
+    if (id === 'blueprints' && action === 'install' && req.method === 'POST') return sendJson(res, 200, await ha.installBlueprints());
+    if (id === 'blueprints' && action && req.method === 'GET') {
+      const f = ha.blueprintPath(action);
+      if (!f) throw httpError(404, 'Vorlage nicht gefunden');
+      res.writeHead(200, { 'Content-Type': 'text/yaml; charset=utf-8', 'Content-Disposition': `attachment; filename="${path.basename(f)}"` });
+      return fs.createReadStream(f).pipe(res);
+    }
     if (id === 'notify-services' && req.method === 'GET') return sendJson(res, 200, await ha.notifyServices());
     if (id === 'restart' && req.method === 'POST') return sendJson(res, 200, await ha.restartCore());
     if (id === 'card' && req.method === 'POST') {
@@ -665,6 +731,18 @@ async function handleApi(req, res, url) {
   }
 
   // ---- Datensicherung
+  if (resource === 'autobackup') {
+    const ab = require('./lib/autobackup');
+    if (!id && req.method === 'GET') return sendJson(res, 200, ab.view());
+    if (!id && req.method === 'PUT') return sendJson(res, 200, ab.save(await readBody(req)));
+    if (id === 'run' && req.method === 'POST') return sendJson(res, 200, await ab.run(backupInfo()));
+    if (id === 'file' && req.method === 'GET') {
+      const f = ab.filePath(url.searchParams.get('name'));
+      if (!f) throw httpError(404, 'Sicherung nicht gefunden');
+      res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${path.basename(f)}"` });
+      return fs.createReadStream(f).pipe(res);
+    }
+  }
   if (resource === 'backup') {
     const backup = require('./lib/backup');
     const { DATA_DIR } = require('./lib/store');
@@ -763,12 +841,34 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, { ok: true });
     }
     if (id === 'settings' && req.method === 'PUT') return sendJson(res, 200, filament.saveSettings(await readBody(req)));
+    if (id === 'humcheck' && req.method === 'GET') return sendJson(res, 200, humcheck.view());
+    if (id === 'humcheck' && req.method === 'PUT') {
+      const r = humcheck.save(await readBody(req));
+      production.dispatch();
+      return sendJson(res, 200, r);
+    }
     if (id === 'mapping' && req.method === 'GET') {
       const cfg = printerConfigs.find((p) => p.id === url.searchParams.get('printerId'));
       const item = production.getItem(url.searchParams.get('queueId'));
       if (!cfg || !item) throw httpError(404, 'Drucker oder Eintrag nicht gefunden');
-      return sendJson(res, 200, filament.mappingFor(cfg, files.get(item.fileId), item.options));
+      const map = filament.mappingFor(cfg, files.get(item.fileId), item.options);
+      // Reservierungen anderer offener Drucke auf den Spulen dieses Druckers (Warnung im Startdialog)
+      try {
+        const r = reserve.compute();
+        const recs = filament.spoolRecords();
+        map.reservedOthers = {};
+        for (const sl of map.slots) {
+          const sp = sl.spool && recs.find((x) => x.nr === sl.spool.nr && !x.archived);
+          if (!sp) continue;
+          const others = Object.entries(r.items).filter(([qid]) => qid !== item.id).flatMap(([, it]) => it.uses.filter((u) => u.spoolId === sp.id));
+          if (others.length) map.reservedOthers[sl.key] = { grams: others.reduce((a, u) => a + u.grams, 0), jobs: others.length };
+        }
+      } catch (err) {
+        console.warn(`Reservierung: ${err.message}`);
+      }
+      return sendJson(res, 200, map);
     }
+    if (id === 'reservations' && req.method === 'GET') return sendJson(res, 200, reserve.compute());
     if (id === 'check' && req.method === 'GET') {
       const cfg = printerConfigs.find((p) => p.id === url.searchParams.get('printerId'));
       const item = production.getItem(url.searchParams.get('queueId'));
@@ -779,6 +879,7 @@ async function handleApi(req, res, url) {
   if (resource === 'spools' && action === 'dried' && req.method === 'POST') return sendJson(res, 200, filament.dried(id));
   // RFID/NFC: Leser am Drucker (ESPHome) oder Handy melden einen Tag bzw. eine Spulennummer
   if (resource === 'rfid' && !id && req.method === 'POST') return sendJson(res, 200, filament.rfidScan(await readBody(req)));
+  if (resource === 'rfid' && id === 'phone' && req.method === 'POST') return sendJson(res, 200, filament.phoneScan(await readBody(req)));
   if (resource === 'rfid' && id === 'assign' && req.method === 'POST') return sendJson(res, 200, filament.rfidAssign((await readBody(req)).spoolId));
   if (resource === 'rfid' && id === 'dismiss' && req.method === 'POST') { filament.pendingTag = null; filament.save(); return sendJson(res, 200, { ok: true }); }
   // Neue Spule aus einem gelesenen Tag (OpenSpool/Anycubic-Daten) anlegen
@@ -886,26 +987,47 @@ async function handleApi(req, res, url) {
       production.removeItem(id);
       return sendJson(res, 200, { ok: true });
     }
+    // Filament-Zuordnung aus dem Startdialog übernehmen (Bambu: als ams_mapping an den Drucker)
+    const applySlotMap = (body) => {
+      if (!Array.isArray(body.slotMap) || !body.slotMap.length) return;
+      const item = production.getItem(id);
+      const cfg = printerConfigs.find((p) => p.id === body.printerId);
+      if (!item || !cfg) return;
+      const options = { ...(item.options || {}), slotMap: body.slotMap };
+      const file = files.get(item.fileId);
+      if (filament.canMap(cfg, file)) {
+        if (['moonraker', 'octoprint', 'anycubic'].includes(cfg.driver)) options.toolMap = filament.toolMapFor(cfg, file, body.slotMap.map(String));
+        else options.amsMapping = filament.amsMappingFor(file, body.slotMap.map(String));
+      }
+      production.updateItem(id, { options });
+    };
     if (action === 'start' && req.method === 'POST') {
       const body = await readBody(req);
       if (app.plateCheck && body.plateConfirmed !== true) throw httpError(409, 'Bitte bestätigen, dass die Druckplatte geräumt ist');
-      // Filament-Zuordnung aus dem Startdialog übernehmen (Bambu: als ams_mapping an den Drucker)
-      if (Array.isArray(body.slotMap) && body.slotMap.length) {
-        const item = production.getItem(id);
-        const cfg = printerConfigs.find((p) => p.id === body.printerId);
-        if (item && cfg) {
-          const options = { ...(item.options || {}), slotMap: body.slotMap };
-          const file = files.get(item.fileId);
-          if (filament.canMap(cfg, file)) {
-            if (['moonraker', 'octoprint', 'anycubic'].includes(cfg.driver)) options.toolMap = filament.toolMapFor(cfg, file, body.slotMap.map(String));
-            else options.amsMapping = filament.amsMappingFor(file, body.slotMap.map(String));
-          }
-          production.updateItem(id, { options });
-        }
-      }
+      applySlotMap(body);
       if (body.printerId && body.plateConfirmed) production.setPlateClear(body.printerId, true);
       return sendJson(res, 200, await production.start(id, body.printerId, { manual: true }));
     }
+    // Feuchte-Check für den Startdialog
+    if (action === 'humcheck' && req.method === 'GET') {
+      const item = production.getItem(id);
+      const cfg = printerConfigs.find((p) => p.id === url.searchParams.get('printerId'));
+      if (!item || !cfg) throw httpError(404, 'Drucker oder Eintrag nicht gefunden');
+      const slotMap = url.searchParams.get('slotMap') ? url.searchParams.get('slotMap').split(',') : undefined;
+      return sendJson(res, 200, app.moduleOn('filament') ? humcheck.check(cfg, files.get(item.fileId), { ...(item.options || {}), ...(slotMap ? { slotMap } : {}) }) : { ok: true, issues: [] });
+    }
+    // Erst trocknen, danach automatisch starten
+    if (action === 'dry-start' && req.method === 'POST') {
+      const body = await readBody(req);
+      if (app.plateCheck && body.plateConfirmed !== true) throw httpError(409, 'Bitte bestätigen, dass die Druckplatte geräumt ist');
+      if (!printerConfigs.some((p) => p.id === body.printerId)) throw httpError(404, 'Drucker nicht gefunden');
+      const d = drying.find(String(body.key || ''));
+      applySlotMap(body);
+      if (!d.active) await drying.start(d.key, { unload: Boolean(d.loaded) });
+      if (body.plateConfirmed) production.setPlateClear(body.printerId, true);
+      return sendJson(res, 200, production.setAfterDry(id, { key: d.key, printerId: body.printerId, at: new Date().toISOString(), name: d.name }));
+    }
+    if (action === 'dry-cancel' && req.method === 'POST') return sendJson(res, 200, production.setAfterDry(id, null));
     if (action === 'requeue' && req.method === 'POST') return sendJson(res, 200, production.requeue(id));
   }
 
@@ -919,6 +1041,7 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, { ok: true });
     }
     if (action === 'plan' && req.method === 'POST') return sendJson(res, 200, production.planOrder(id, await readBody(req)));
+    if (action === 'share' && req.method === 'POST') return sendJson(res, 200, production.shareOrder(id, (await readBody(req)).enabled !== false));
     if (action === 'archive' && req.method === 'POST') return sendJson(res, 200, production.archiveOrder(id, (await readBody(req)).archived !== false));
   }
 
@@ -939,6 +1062,22 @@ async function handleApi(req, res, url) {
         production.taskDone(taskId, (await readBody(req)).note);
         return sendJson(res, 200, { ok: true });
       }
+    }
+  }
+
+  // ---- Etiketten für fertige Teile
+  if (resource === 'labels') {
+    if (!id && req.method === 'GET') {
+      const orderId = url.searchParams.get('order');
+      const list = orderId ? history.filter((h) => h.orderId === orderId && h.result === 'finished') : history.filter((h) => h.labelPending);
+      return sendJson(res, 200, partLabels(list));
+    }
+    if (id === 'printed' && req.method === 'POST') {
+      const ids = new Set((await readBody(req)).ids || []);
+      for (const h of history) if (ids.has(h.id)) delete h.labelPending;
+      saveHistory();
+      broadcast('history', null);
+      return sendJson(res, 200, { ok: true });
     }
   }
 
@@ -1058,6 +1197,21 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache' });
       return fs.createReadStream(path.join(__dirname, 'dist', 'printdock-card.js')).pipe(res);
     }
+    // Kunden-Statusseite: ohne Anmeldung, nur mit geheimem Link
+    const sm = /^\/status\/([a-f0-9]{24})(?:\/photo\/([\w-]+))?\/?$/.exec(url.pathname);
+    if (sm && req.method === 'GET') {
+      const sp = require('./lib/statuspage');
+      const sctx = { production, history: () => history, lang: app.lang, photoDir: PHOTO_DIR };
+      if (sm[2]) {
+        const f = sp.photo(sctx, sm[1], sm[2]);
+        if (!f) throw httpError(404, 'Nicht gefunden');
+        res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=3600' });
+        return fs.createReadStream(f).pipe(res);
+      }
+      const r = sp.render(sctx, sm[1]);
+      res.writeHead(r.status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' });
+      return res.end(r.html);
+    }
     if (url.pathname.startsWith('/api/')) await handleApi(req, res, url);
     else serveStatic(req, res);
   } catch (err) {
@@ -1092,11 +1246,14 @@ server.on('error', async (err) => {
   server.listen(PORT, () => {
     console.log(`PrintDock läuft auf http://localhost:${PORT}  (Daten: ${DATA_DIR})`);
     console.log(`${printerConfigs.length} Drucker, ${channels.length} Benachrichtigungskanal/-kanäle`);
+    remote.init();
     ffmpegAvailable().then((ok) => console.log(ok ? `ffmpeg: ${ffmpegPath()}` : 'ffmpeg nicht gefunden – RTSP-Kameras (Bambu X1/H2D/X2D) zeigen kein Bild. Windows: winget install Gyan.FFmpeg'));
   });
 })();
 
 async function shutdown() {
+  remote.kill('tailscale');
+  remote.kill('cloudflare');
   for (const id of [...runtime.keys()]) await stopPrinter(id);
   process.exit(0);
 }

@@ -22,7 +22,7 @@ function orderCostsHTML(o) {
     <table class="ctab"><thead><tr><th>${t('Position')}</th><th>${t('Stück')}</th><th>${t('Filament')}</th><th>${t('Druckzeit')}</th><th>${t('Kalkulation')}</th></tr></thead>
       <tbody>${posRows}</tbody>
       <tfoot><tr><td colspan="4">${t('Material')} ${cmoney(e.material, cur)} · ${t('Strom')} ${cmoney(e.energy, cur)}${e.machine ? ` · ${t('Maschine')} ${cmoney(e.machine, cur)}` : ''}${e.markup ? ` · ${t('Aufschlag')} ${cmoney(e.markup, cur)}` : ''}</td><td class="num"><b>${cmoney(e.total, cur)}</b></td></tr></tfoot></table>
-    ${a.prints ? `<div class="oc-act"><b>${t('Bisher gedruckt')}:</b> ${a.prints === 1 ? t('1 Druck') : t('{n} Drucke', { n: a.prints })}${a.failed ? ` (${t('{n} nicht erfolgreich', { n: a.failed })})` : ''} · ${fnum(a.grams, 0)} g · ${fmtDur(a.hours * 3600)} · ${fnum(a.kwh, 2)} kWh · <b>${cmoney(a.total, cur)}</b></div>` : ''}
+    ${a.prints ? `<div class="oc-act"><b>${t('Bisher gedruckt')}:</b> ${a.prints === 1 ? t('1 Druck') : t('{n} Drucke', { n: a.prints })}${a.failed ? ` (${t('{n} nicht erfolgreich', { n: a.failed })}${a.scrap ? `, ${t('Ausschuss {c}', { c: cmoney(a.scrap, cur) })}` : ''})` : ''} · ${fnum(a.grams, 0)} g · ${fmtDur(a.hours * 3600)} · ${fnum(a.kwh, 2)} kWh · <b>${cmoney(a.total, cur)}</b></div>` : ''}
     <div class="btns"><button class="b b-sm" type="button" data-quote="${esc(o.id)}">${t('Kalkulation / Angebot drucken …')}</button></div>
     <p class="hint" style="margin:0">${t('Preise unter Einstellungen → Drucker & Filament → Kosten. Filament nach Spulenpreis, Strom gemessen (Home Assistant) oder geschätzt.')}</p>
   </fieldset>
@@ -83,14 +83,102 @@ function costsSettingsHTML() {
     ${lrow(t('Aufschlag'), t('Auf die Summe, z. B. für Arbeit oder Gewinn.'), inp('markup', '1', '%'))}
     ${lrow(t('Währung'), '', `<input class="in" style="width:5rem" maxlength="4" data-cost="currency" value="${cur}">`)}
     ${lrow(t('Foto am Druckende'), t('Speichert ein Kamerabild des fertigen Teils im Verlauf und am Auftrag.'), `<label class="tgl"><input type="checkbox" data-photos ${S.app?.photos !== false ? 'checked' : ''}><span class="sw"></span></label>`)}
+    ${lrow(t('Etikett nach dem Druck'), t('Jedes fertige Teil eines Auftrags bekommt ein Etikett (Auftrag, Teil x von y, Kunde, QR-Code). Gedruckt wird gesammelt über „Heute“.'), `<label class="tgl"><input type="checkbox" data-plabelopt ${S.app?.partLabels ? 'checked' : ''}><span class="sw"></span></label>`)}
   </div>`;
 }
 
 document.addEventListener('change', async (e) => {
-  const el = e.target.closest('[data-cost],[data-photos]');
+  const el = e.target.closest('[data-cost],[data-photos],[data-plabelopt]');
   if (!el) return;
-  const body = el.matches('[data-photos]') ? { photos: el.checked } : { costs: { [el.dataset.cost]: el.value } };
+  const body = el.matches('[data-photos]') ? { photos: el.checked } : el.matches('[data-plabelopt]') ? { partLabels: el.checked } : { costs: { [el.dataset.cost]: el.value } };
   const r = await run(() => api('app', { method: 'PUT', body }), t('Gespeichert'));
   if (r) S.app = { ...S.app, ...r };
   reload('app', 'orders', 'history');
 });
+
+// ================================================================ Etiketten für fertige Teile
+
+/** Etikett für ein fertiges Teil: Auftrag, Teil x von y, Kunde, Datum, QR (Statuslink oder Auftrag in PrintDock) */
+function partLabelHTML(l, f) {
+  const base = S.app?.directUrl || location.origin;
+  const link = l.shareToken ? `${base}/status/${l.shareToken}` : `${base}/#orders`;
+  const name = String(l.file || '').replace(/\.(gcode\.3mf|3mf|gcode|stl)$/i, '');
+  return `<div class="lbl" style="--c:${esc(l.color || '#888')};width:${f.w}mm;height:${f.h}mm">
+    <div class="lbl-band"></div>
+    <div class="lbl-txt"><div class="lbl-mat" style="font-size:3.4mm">${esc(l.nr)}</div><div class="lbl-col" style="font-size:2.7mm">${esc(l.title)}</div>
+      ${l.customer ? `<div class="lbl-sub">${esc(l.customer)}</div>` : ''}<div class="lbl-sub">${esc(name)}</div>
+      <div class="lbl-nr" style="font-size:2.6mm">${t('Teil {n} von {m}', { n: l.n, m: l.of })} · ${new Date(l.endedAt).toLocaleDateString(LOC)}</div></div>
+    <div class="lbl-qr">${qrSVG(link)}</div></div>`;
+}
+
+/** Druckdialog: offene Etiketten (orderId = null) oder alle Teile eines Auftrags */
+async function partLabelsDialog(orderId = null) {
+  let list;
+  try {
+    list = orderId ? await api(`labels?order=${encodeURIComponent(orderId)}`) : S.labels || (await api('labels'));
+  } catch (err) {
+    return toast(err.message, true);
+  }
+  if (!list.length) return toast(t('Keine Etiketten offen'), true);
+  let fmt = 'ql62';
+  try { fmt = localStorage.getItem('pd-plabel') || localStorage.getItem('pd-label') || 'ql62'; } catch {}
+  const d = openDialog(`<div class="dlg" style="max-width:760px"><h2>${t('Etiketten für fertige Teile')}</h2>
+    <label>${t('Format')}<select name="fmt">${Object.entries(LABEL_FORMATS).map(([k, f]) => `<option value="${k}" ${k === fmt ? 'selected' : ''}>${esc(t(f.name))}</option>`).join('')}</select></label>
+    <div class="lbl-pick"><div class="lbl-list">${list.map((l) => `<label class="check"><input type="checkbox" value="${esc(l.id)}" checked> ${esc(l.nr)} · ${t('Teil {n} von {m}', { n: l.n, m: l.of })} · ${esc(l.file)}</label>`).join('')}</div></div>
+    <div class="meta">${t('Vorschau')}</div><div class="lbl-prev" data-prev></div>
+    <p class="meta">${t('Der QR-Code öffnet den Statuslink des Auftrags (wenn geteilt), sonst die Aufträge in PrintDock.')}</p>
+    <div class="dlg-actions"><button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-go" type="button" data-print>${t('Drucken')}</button></div></div>`);
+  const chosen = () => $$('.lbl-list input:checked', d).map((i) => list.find((l) => l.id === i.value)).filter(Boolean);
+  const prev = () => {
+    const f = LABEL_FORMATS[$('[name=fmt]', d).value];
+    const first = chosen()[0];
+    $('[data-prev]', d).innerHTML = first ? `<style>${LABEL_CSS.replace(/body\{[^}]*\}/, '')}</style><div class="lbl-scale">${partLabelHTML(first, f)}</div><span class="meta">${t('{n} Etiketten', { n: chosen().length })}</span>` : '';
+  };
+  d.addEventListener('change', prev);
+  $('[data-print]', d).addEventListener('click', async () => {
+    const key = $('[name=fmt]', d).value;
+    const f = LABEL_FORMATS[key];
+    try { localStorage.setItem('pd-plabel', key); } catch {}
+    const items = chosen();
+    if (!items.length) return;
+    const body = f.sheet ? `<div class="lsheet">${items.map((x) => partLabelHTML(x, f)).join('')}</div>` : items.map((x) => partLabelHTML(x, f)).join('');
+    const page = f.sheet ? '@page{size:A4;margin:10.8mm 0 0 0}' : `@page{size:${f.w}mm ${f.h}mm;margin:0}`;
+    const fr = document.createElement('iframe');
+    fr.style.cssText = 'position:fixed;width:0;height:0;border:0;right:0;bottom:0';
+    document.body.appendChild(fr);
+    fr.contentDocument.write(`<!doctype html><html><head><meta charset="utf-8"><title>PrintDock</title><style>${page}${LABEL_CSS}</style></head><body>${body}</body></html>`);
+    fr.contentDocument.close();
+    setTimeout(() => { fr.contentWindow.focus(); fr.contentWindow.print(); setTimeout(() => fr.remove(), 60_000); }, 300);
+    await api('labels/printed', { method: 'POST', body: { ids: items.map((x) => x.id) } }).catch(() => {});
+    d.close();
+    reload('labels');
+  });
+  prev();
+}
+
+// ================================================================ Statuslink für Kunden
+
+function orderShareHTML(o) {
+  if (!o) return '';
+  const link = o.shareToken ? `${S.app?.directUrl || location.origin}/status/${o.shareToken}` : null;
+  return `<fieldset class="oc"><legend>${t('Status für den Kunden')}</legend>
+    ${link ? `<div class="copyline"><code>${esc(link)}</code><button class="b b-sm" type="button" data-act="copy" data-text="${esc(link)}">${t('Kopieren')}</button></div>
+      <div class="btns"><button class="b b-sm" type="button" data-oshare="${esc(o.id)}" data-on="1">${t('Neuer Link')}</button><button class="b b-sm" type="button" data-oshare="${esc(o.id)}" data-on="0">${t('Link abschalten')}</button>
+        ${o.done ? `<button class="b b-sm" type="button" data-plabels="${esc(o.id)}">${t('Etiketten drucken …')}</button>` : ''}</div>`
+      : `<div class="btns"><button class="b b-sm" type="button" data-oshare="${esc(o.id)}" data-on="1">${t('Link erstellen')}</button>${o.done ? `<button class="b b-sm" type="button" data-plabels="${esc(o.id)}">${t('Etiketten drucken …')}</button>` : ''}</div>`}
+    <p class="hint" style="margin:0">${t('Eine Seite ohne Anmeldung mit Fortschritt, Termin und Fotos – ohne Kosten. Von außerhalb des Heimnetzes nur erreichbar, wenn PrintDock eine öffentliche Adresse hat (Einstellungen → Home Assistant → Öffentliche Adresse).')}</p>
+  </fieldset>`;
+}
+
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-oshare]');
+  if (!b) return;
+  const on1 = b.dataset.on === '1';
+  const r = await run(() => api(`orders/${b.dataset.oshare}/share`, { method: 'POST', body: { enabled: on1 } }), on1 ? t('Statuslink erstellt') : t('Statuslink abgeschaltet'));
+  if (!r) return;
+  await loaders.orders();
+  const box = b.closest('fieldset.oc');
+  const o = S.orders.find((x) => x.id === b.dataset.oshare);
+  if (box && o) box.outerHTML = orderShareHTML(o);
+});
+

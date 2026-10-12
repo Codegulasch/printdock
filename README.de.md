@@ -14,7 +14,10 @@ Inspiriert von [BamBuddy](https://github.com/maziggy/bambuddy), aber nicht auf B
 - **Akzentfarbe** wählbar (Kobalt, Violett, Petrol, Orange, Magenta, Graphit), hell und dunkel
 - **Rückfrage „Druckplatte geräumt?“** vor jedem Start aus Warteschlange oder Auftrag
 - **Läuft überall**: Docker auf NAS und Raspberry Pi (amd64, arm64, armv7), Installationsskript für den Pi, Home-Assistant-Add-on
-- **Fernzugriff** über Tailscale oder Cloudflare Tunnel, mit optionalem Login-Schutz
+- **Fernzugriff** über Tailscale oder Cloudflare Tunnel – direkt in PrintDock einschalten, mit Login-Schutz (immer oder nur von außen)
+- **Fehldrucke** mit einem Klick neu einreihen, Grund erfassen, Ausschuss in Kosten und Statistik
+- **Filament-Reservierung** für die Warteschlange mit Einkaufsliste und **Feuchte-Check** vor dem Start („erst trocknen, dann automatisch starten“)
+- **RFID/NFC-Tags mit dem Handy** lesen und beschreiben (Chrome auf Android)
 
 - Live-Status aller Drucker: Fortschritt, Restzeit, voraussichtliches Ende, Schicht, Temperaturen
 - Pausieren, Fortsetzen, Abbrechen
@@ -77,11 +80,13 @@ Unter **Einstellungen → Allgemein → Funktionen** (oder im Assistenten): Wart
 
 ## Sicherheit und Fernzugriff
 
-Im Heimnetz läuft PrintDock ohne Anmeldung. Für den Zugriff von außen unter **Einstellungen → Allgemein** den **Login-Schutz** einschalten und einen der Wege aus [docs/remote-access.md](docs/remote-access.md) nutzen:
+Im Heimnetz läuft PrintDock ohne Anmeldung. Für den Zugriff von unterwegs unter **Einstellungen → Fernzugriff** einschalten (Anleitung: [docs/remote-access.md](docs/remote-access.md)):
 
-- **Tailscale** – privates VPN, nichts öffentlich: `docker compose --profile tailscale up -d`
-- **Cloudflare Tunnel** – eigene Adresse mit HTTPS: `docker compose --profile cloudflare up -d`
+- **Tailscale** – privates VPN, nichts öffentlich; Anmeldung per Link oder Auth-Key, auf Wunsch mit HTTPS-Adresse
+- **Cloudflare Tunnel** – Schnelltest ohne Konto oder eigene Adresse mit Tunnel-Token; nur mit Login-Schutz
 - **Home Assistant** – das Add-on ist überall erreichbar, wo Home Assistant es ist
+
+PrintDock lädt `tailscale` bzw. `cloudflared` beim Einschalten selbst herunter und hält es am Laufen – als Add-on, in Docker und auf dem Pi gleich. Der **Login-Schutz** (Einstellungen → System) gilt wahlweise immer oder nur von außen; die Home-Assistant-Seitenleiste fragt nie nach dem PrintDock-Passwort.
 
 Passwörter werden mit scrypt gespeichert, Sitzungen per HttpOnly-Cookie, nach 5 Fehlversuchen eine Minute Sperre. Access Codes, API-Keys und Bot-Tokens liegen im Klartext in `data/`; die Oberfläche zeigt sie nie an.
 
@@ -90,6 +95,8 @@ Passwörter werden mit scrypt gespeichert, Sitzungen per HttpOnly-Cookie, nach 5
 **Kosten, Strom und Fotos:** Jeder Druck im Verlauf zeigt seine Kosten – Filament nach Spulenpreis, Strom (über eine messende Steckdose in Home Assistant oder geschätzt), auf Wunsch Maschinenstunde und Aufschlag. Aufträge zeigen eine Kalkulation aus den geslicten Dateien und die Ist-Kosten; „Kalkulation / Angebot drucken“ erzeugt eine druckbare Seite. Am Druckende speichert PrintDock ein Kamerabild des fertigen Teils im Verlauf und am Auftrag. Fertige Aufträge lassen sich archivieren.
 
 **Automatische Druckerwahl:** Einträge ohne festen Drucker bekommt der freie Drucker mit Auto-Start, zu dessen Profil die Datei geslict ist und in dem das passende Filament liegt. Für ein anderes Profil geslicte Dateien startet PrintDock nicht.
+
+**Heute, Sicherung, Kunden und Home Assistant:** Die Startseite „Heute“ zeigt, was zu tun ist (Platte räumen, Etiketten, Feuchte, Spulen, Wartung, Termine), was läuft und was als Nächstes kommt. PrintDock sichert sich täglich selbst (als Add-on nach `\\homeassistant\share\printdock\sicherungen`). Je Auftrag gibt es auf Wunsch einen Statuslink für Kunden und Etiketten für fertige Teile. Unter *Einstellungen → Home Assistant* liegen Automations-Vorlagen, z. B. „Druck fertig“ mit der Taste „Platte ist frei“ direkt in der Handy-Meldung.
 
 ## Unterstützte Drucker
 

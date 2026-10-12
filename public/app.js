@@ -542,7 +542,9 @@ function vQueue() {
     if (q.status === 'failed' || q.status === 'cancelled') acts.push(`<button class="b b-sm" data-act="qRequeue" data-id="${q.id}">${t('Erneut einreihen')}</button>`);
     if (!['sending', 'printing'].includes(q.status)) acts.push(`<button class="x del" data-act="qDel" data-id="${q.id}" title="${t('Entfernen')}" aria-label="${t('Entfernen')}">${ICON.trash}</button>`);
     const warn = (q.modelMatch === false ? ` <span class="pill bad" title="${esc(t('Datei wurde für ein anderes Druckerprofil geslict – so startet sie nicht'))}">${t('anderes Profil')}</span>` : '')
-      + (q.waitReason ? `<div class="meta wait-reason" title="${esc(t('Warum der Eintrag noch nicht automatisch startet'))}">⏳ ${esc(t(q.waitReason))}</div>` : '');
+      + (q.waitReason ? `<div class="meta wait-reason" title="${esc(t('Warum der Eintrag noch nicht automatisch startet'))}">⏳ ${esc(t(q.waitReason))}</div>` : '')
+      + (typeof reserveWarnHTML === 'function' ? reserveWarnHTML(q) : '')
+      + (q.afterDry && q.status === 'queued' ? `<div class="meta hc-wait">💧 ${t('wird zuerst getrocknet ({n}) – startet danach automatisch', { n: esc(q.afterDry.name || '') })} <button class="x" data-qdry-cancel="${q.id}">${t('Nicht automatisch starten')}</button></div>` : '');
     return `<div class="row q-row ${['done', 'retried'].includes(q.status) ? 'dim' : ''}">
       <div class="c-main filecell">${thumbHTML(q.file)}<div style="min-width:0"><b>${esc(q.file?.name || t('Datei gelöscht'))}</b><span class="meta">${materialsHTML(q.file?.meta)}</span></div></div>
       <div><span class="lbl">${t('Auftrag')}</span>${q.order ? `<b>${esc(q.order.nr)}</b><div class="meta">${esc(q.order.title)}</div>` : '<span class="meta">–</span>'}</div>
@@ -638,12 +640,43 @@ async function startItem(itemId, printerId = null) {
     <label>${t('Drucker')}<select name="printerId">${ready.map((p) => `<option value="${p.id}" ${p.id === pre.id ? 'selected' : ''} ${fits(p) === false ? 'disabled' : ''}>${esc(p.name)}${p.settings?.model ? ` · ${esc(p.settings.model)}` : ''}${fits(p) === false ? ` – ${esc(t('anderes Profil'))}` : ''}</option>`).join('')}</select></label>
     ${q.file?.meta?.printerModel ? `<p class="meta" style="margin:-4px 0 0">${t('Geslict für {m}', { m: esc(q.file.meta.printerModel) })}</p>` : ''}
     <div data-fcheck></div>
+    <div data-hcheck></div>
     ${mustConfirm ? `<label class="check plate-check"><input type="checkbox" name="plate" required> <span>${ICON.plate}<b>${t('Druckplatte ist geräumt')}</b><br><span class="meta">${t('Altes Teil entnommen, Platte sauber und richtig eingelegt.')}</span></span></label>` : ''}
     <p class="form-error" hidden></p>
     <div class="dlg-actions"><button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-go" data-ok ${mustConfirm ? 'disabled' : ''}>${ICON.play}${t('Jetzt starten')}</button></div></form>`);
   const form = $('form', d);
   const okBtn = $('[data-ok]', d);
   let fmap = null;
+  let hc = null;
+  const okState = () => (okBtn.disabled = (mustConfirm && !form.plate.checked) || Boolean(hc && !hc.ok && !form.humAnyway?.checked));
+  // Feuchte-Check: zu feuchtes Filament → trotzdem / erst trocknen / anderer Drucker
+  const loadHum = async () => {
+    const box = $('[data-hcheck]', d);
+    hc = null;
+    if (typeof humCheckBoxHTML !== 'function' || !on('filament')) return;
+    try {
+      const sm = fmap?.mappable && fmap.filaments.length ? `&slotMap=${encodeURIComponent(fmap.suggested.join(','))}` : '';
+      hc = await api(`queue/${itemId}/humcheck?printerId=${encodeURIComponent(form.printerId.value)}${sm}`);
+      box.innerHTML = humCheckBoxHTML(hc, { otherPrinters: ready.length - 1 });
+    } catch {
+      box.innerHTML = '';
+    }
+    okState();
+  };
+  $('[data-hcheck]', d).addEventListener('change', okState);
+  $('[data-hcheck]', d).addEventListener('click', async (e) => {
+    if (!e.target.closest('[data-hc-dry]') || !hc?.dryer) return;
+    if (mustConfirm && !form.plate.checked) return formError(d, t('Bitte bestätigen, dass die Druckplatte geräumt ist'));
+    const pid = form.printerId.value;
+    try {
+      await api(`queue/${itemId}/dry-start`, { method: 'POST', body: { printerId: pid, key: hc.dryer.key, plateConfirmed: mustConfirm ? form.plate.checked : true, slotMap: fmap?.mappable && fmap.filaments.length ? fmap.suggested : undefined } });
+      d.close();
+      toast(t('Trocknen gestartet – der Druck startet danach automatisch auf {p}', { p: printerById(pid)?.name }));
+      reload('queue', 'filament', 'summary');
+    } catch (err) {
+      formError(d, err.message);
+    }
+  });
   const loadCheck = async () => {
     const box = $('[data-fcheck]', d);
     box.innerHTML = '';
@@ -652,15 +685,19 @@ async function startItem(itemId, printerId = null) {
     try {
       // Welches Filament aus dem Slice kommt aus welchem Platz? Vorschlag nach Farbe und Material
       fmap = await api(`filament/mapping?printerId=${encodeURIComponent(form.printerId.value)}&queueId=${encodeURIComponent(itemId)}`);
-      box.innerHTML = filamentMapHTML(fmap);
+      box.innerHTML = filamentMapHTML(fmap) + (typeof reserveStartHTML === 'function' ? reserveStartHTML(fmap) : '');
     } catch { /* ohne Zuordnung */ }
+    loadHum();
   };
   $('[data-fcheck]', d).addEventListener('change', (e) => {
     const sel = e.target.closest('[data-fm]');
-    if (sel && fmap) filamentMapUpdate($('[data-fcheck]', d), fmap, sel);
+    if (sel && fmap) {
+      filamentMapUpdate($('[data-fcheck]', d), fmap, sel);
+      loadHum();
+    }
   });
   form.printerId.addEventListener('change', loadCheck);
-  form.plate?.addEventListener('change', () => (okBtn.disabled = !form.plate.checked));
+  form.plate?.addEventListener('change', okState);
   loadCheck();
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -674,7 +711,7 @@ async function startItem(itemId, printerId = null) {
       toast(t('Druck auf {p} gestartet', { p: p?.name }));
       reload('queue', 'summary', 'orders');
     } catch (err) {
-      okBtn.disabled = false;
+      okState();
       formError(d, err.message);
     }
   });
@@ -755,6 +792,7 @@ function orderDialog(o = null) {
       <p class="hint" style="margin:0">${t('Pro Stück wird ein Druck eingeplant. Passen mehrere Teile auf eine Platte, die Platte als eine Datei slicen und die Anzahl Platten eintragen.')}</p>
     </fieldset>
     ${o ? orderCostsHTML(o) : ''}
+    ${o ? orderShareHTML(o) : ''}
     <label>${t('Notizen')}<textarea name="notes" rows="3">${esc(o?.notes || '')}</textarea></label>
     ${o ? `<label class="check"><input type="checkbox" name="closed" ${o.closed ? 'checked' : ''}> ${t('Auftrag abgeschlossen (wartende Drucke werden entfernt)')}</label>` : ''}
     <p class="form-error" hidden></p>
@@ -975,16 +1013,18 @@ function taskDoneDialog(x) {
 
 function vHistory() {
   const RES = { finished: ['erfolgreich', 'run'], cancelled: ['abgebrochen', 'pause'], error: ['fehlgeschlagen', 'bad'] };
+  const label = (h) => (h.markedFailed ? ['Fehldruck', 'bad'] : RES[h.result] || [h.result, '']);
   const orderNr = (id) => S.orders.find((o) => o.id === id)?.nr;
   const rows = S.history.map((h) => {
-    const [l, c] = RES[h.result] || [h.result, ''];
+    const [l, c] = label(h);
     return `<div class="row h-row">
       <div class="num"><span class="lbl">${t('Ende')}</span>${tfmt(h.endedAt)}</div>
       <div><span class="lbl">${t('Drucker')}</span>${esc(h.printerName)}</div>
-      <div class="c-main h-file">${h.photo ? `<a class="h-photo" href="api/history/${esc(h.id)}/photo" target="_blank" rel="noopener" title="${esc(t('Foto des fertigen Teils'))}"><img src="api/history/${esc(h.id)}/photo" alt="" loading="lazy"></a>` : ''}<div style="min-width:0"><b>${esc(h.file || '–')}</b>${h.orderId && orderNr(h.orderId) ? `<div class="meta">${esc(orderNr(h.orderId))}</div>` : ''}${h.message && h.result !== 'finished' ? `<div class="meta">${esc(t(h.message))}</div>` : ''}
-        ${h.costs ? `<div class="meta">${costPill(h.costs)}${h.costs.grams ? ` · ${fnum(h.costs.grams, 0)} g` : ''}${h.costs.kwh ? ` · ${fnum(h.costs.kwh, 2)} kWh${h.costs.kwhMeasured ? '' : ` (${t('geschätzt')})`}` : ''}</div>` : ''}</div></div>
+      <div class="c-main h-file">${h.photo ? `<a class="h-photo" href="api/history/${esc(h.id)}/photo" target="_blank" rel="noopener" title="${esc(t('Foto des fertigen Teils'))}"><img src="api/history/${esc(h.id)}/photo" alt="" loading="lazy"></a>` : ''}<div style="min-width:0"><b>${esc(h.file || '–')}</b>${h.orderId && orderNr(h.orderId) ? `<div class="meta">${esc(orderNr(h.orderId))}</div>` : ''}${h.message && h.result !== 'finished' && !h.markedFailed ? `<div class="meta">${esc(t(h.message))}</div>` : ''}${typeof failInfoHTML === 'function' ? failInfoHTML(h) : ''}
+        ${h.costs ? `<div class="meta">${costPill(h.costs)}${h.costs.grams ? ` · ${fnum(h.costs.grams, 0)} g` : ''}${h.costs.kwh ? ` · ${fnum(h.costs.kwh, 2)} kWh${h.costs.kwhMeasured ? '' : ` (${t('geschätzt')})`}` : ''}${h.result === 'finished' && on('queue') && typeof failActionsHTML === 'function' ? ` · ${failActionsHTML(h)}` : ''}</div>` : ''}
+        ${typeof failActionsHTML === 'function' && on('queue') && h.result !== 'finished' ? `<div class="h-acts">${failActionsHTML(h)}</div>` : ''}</div></div>
       <div class="num"><span class="lbl">${t('Dauer')}</span>${fmtDur(h.durationSec)}</div>
-      <div><span class="lbl">${t('Bei')}</span>${h.result !== 'finished' && h.progress != null ? `${Math.floor(h.progress)} %` : ''}</div>
+      <div><span class="lbl">${t('Bei')}</span>${h.result !== 'finished' && !h.markedFailed && h.progress != null ? `${Math.floor(h.progress)} %` : ''}</div>
       <div><span class="pill ${c}">${t(l)}</span></div></div>`;
   }).join('');
   return `<div class="bar-row"><h2>${t('Verlauf')}</h2><span class="meta">${t('{n} Drucke', { n: S.history.length })}</span>${S.history.length ? `<button class="b b-sm b-fault" data-act="hClear">${t('Verlauf leeren')}</button>` : ''}</div>
@@ -1304,8 +1344,6 @@ function morphNode(na, nb) {
 }
 
 function tick() {
-  const d = new Date();
-  $('#clock').textContent = `${d.toLocaleDateString(LOC, { weekday: 'short', day: '2-digit', month: '2-digit' })} ${hm(d)}`;
   $$('[data-end]').forEach((el) => (el.textContent = fmtTimer((Number(el.dataset.end) - Date.now()) / 1000)));
 }
 
@@ -1475,21 +1513,22 @@ function connect() {
     }
   });
   es.addEventListener('printers', () => reload('printers', 'summary'));
-  es.addEventListener('production', () => reload('summary', 'queue', 'orders', 'maint'));
+  es.addEventListener('production', () => reload('summary', 'queue', 'orders', 'maint', 'reserve'));
   es.addEventListener('files', () => reload('files'));
   es.addEventListener('channels', () => reload('channels'));
   es.addEventListener('settings', () => reload('settings'));
-  es.addEventListener('filament', () => reload('filament', 'summary'));
+  es.addEventListener('filament', () => reload('filament', 'summary', 'reserve'));
   es.addEventListener('power', () => reload('printers'));
   es.addEventListener('ha', () => reload('ha'));
   es.addEventListener('app', () => reload('app'));
+  es.addEventListener('remote', () => reload('remote'));
   es.addEventListener('history', (e) => {
     const h = JSON.parse(e.data);
-    if (!h) return reload('history', 'maint', 'summary', 'filament', 'files', 'printers');
+    if (!h) return reload('history', 'maint', 'summary', 'filament', 'files', 'printers', 'labels', 'orders', 'reserve');
     const msg = { finished: 'Druck fertig', cancelled: 'Druck abgebrochen', error: 'Druck fehlgeschlagen' }[h.result] || h.result;
     toast(`${h.printerName}: ${t(msg)}`, h.result === 'error');
     S.statsData = null;
-    reload('history', 'maint', 'summary', 'filament');
+    reload('history', 'maint', 'summary', 'filament', 'labels', 'orders', 'reserve');
   });
 }
 

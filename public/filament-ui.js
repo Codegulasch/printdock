@@ -135,6 +135,7 @@ function vSpools() {
         <div class="meta">${esc(s.brand || t('Hersteller unbekannt'))}${s.diameter !== 1.75 ? ` · ${s.diameter} mm` : ''}${s.rfid ? ' · RFID' : ''}</div></div></div>
       <div class="sp-amt"><b class="num">${fnum(s.remaining, 0)} g</b><span class="meta">${t('von {g} g', { g: fnum(s.netWeight, 0) })}</span>${s.low && !s.archived ? `<span class="pill pause">${t('knapp')}</span>` : ''}</div>
       <div class="bar ${s.remaining <= low ? 'warn' : ''}"><i style="width:${pctOf(s)}%"></i></div>
+      ${typeof reserveSpoolHTML === 'function' ? reserveSpoolHTML(s) : ''}
       <div class="facts" style="margin-top:8px"><span>${spoolPlace(s)}</span>${s.pricePerKg ? `<span><b>${money(s.pricePerKg)}</b>/kg</span>` : ''}${s.lastUsedAt ? `<span>${t('zuletzt {t}', { t: tfmt(s.lastUsedAt) })}</span>` : ''}${s.driedAt ? `<span title="${esc(tfmt(s.driedAt))}">💧 ${t('getrocknet vor {d}', { d: agoDays(s.driedAt) })}</span>` : ''}${s.spoolmanId ? `<span class="pill">Spoolman #${s.spoolmanId}</span>` : ''}</div>
       <div class="btns">
         ${s.archived ? '' : s.slot ? `<button class="b b-sm" data-fact="unload" data-id="${s.id}">${t('Entnehmen')}</button>` : `<button class="b b-sm b-go" data-fact="load" data-id="${s.id}">${t('Einlegen')}</button>`}
@@ -144,12 +145,13 @@ function vSpools() {
       </div></article>`).join('');
   return `${stripHTML()}<div class="bar-row"><h2>${t('Spulen')}</h2><div class="chips">${chips}</div>
       ${mats.length > 1 ? `<select class="in" data-fact-change="spMaterial" aria-label="${t('Material')}"><option value="">${t('Alle Materialien')}</option>${mats.map((m) => `<option ${m === S.spMaterial ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>` : ''}
-      <button class="b b-sm" data-fact="labels">${t('Etiketten')}</button><button class="b b-sm b-go" data-fact="editSpool">${ICON.plus}${t('Neue Spule')}</button></div>
+      <button class="b b-sm" data-nfc="scan" title="${esc(t('RFID/NFC-Tag mit dem Handy lesen'))}">📱 ${t('Tag lesen')}</button><button class="b b-sm" data-fact="labels">${t('Etiketten')}</button><button class="b b-sm b-go" data-fact="editSpool">${ICON.plus}${t('Neue Spule')}</button></div>
     ${pendingTagHTML(F)}${armedHTML(F)}
     <div class="strip" style="margin-top:-4px"><div><b class="num">${active.length}</b><span>${t('Spulen')}</span></div>
       <div><b class="num">${fnum(active.reduce((a, s) => a + s.remaining, 0) / 1000, 1)} kg</b><span>${t('auf Lager')}</span></div>
       <div><b class="num">${active.filter((s) => s.slot).length}</b><span>${t('im Drucker')}</span></div>
       <div class="${active.some((s) => s.low) ? 'warn' : ''}"><b class="num">${active.filter((s) => s.low).length}</b><span>${t('unter {g} g', { g: low })}</span></div></div>
+    ${typeof shoppingHTML === 'function' && S.spFilter !== 'archiv' ? shoppingHTML() : ''}
     ${list.length ? `<div class="cards">${cards}</div>` : `<div class="list"><div class="empty"><h3>${F.spools.length ? t('Keine Spulen in dieser Auswahl') : t('Noch keine Spulen angelegt')}</h3>
       <p>${t('Spulen mit Material, Farbe und Gewicht anlegen, dann unter „Belegung“ in die Drucker legen. Nach jedem Druck bucht PrintDock den Verbrauch ab.')}</p>
       <button class="b b-go" data-fact="editSpool">${ICON.plus}${t('Neue Spule')}</button></div></div>`}`;
@@ -367,7 +369,7 @@ function qrSVG(text, px = 120) {
 /** Kompakte Spulen-Ansicht mit den wichtigsten Aktionen – öffnet sich beim Scannen von QR-Code oder NFC-Tag. */
 function spoolSheet(sp) {
   if (!sp) return toast(t('Spule nicht gefunden'), true);
-  const nfc = 'NDEFReader' in window;
+  const nfc = typeof nfcSupport === 'function' ? nfcSupport().ok : 'NDEFReader' in window;
   const d = openDialog(`<div class="dlg sheet">
     <div class="sh-top">${spoolRing(sp.color, pctOf(sp), 74)}<div style="min-width:0"><div class="meta num">${esc(sp.nr)}${sp.spoolmanId ? ` · Spoolman #${sp.spoolmanId}` : ''}</div>
       <h2 style="margin:0">${esc(sp.material)}${sp.colorName ? ` · ${esc(t(sp.colorName))}` : ''}</h2>
@@ -504,7 +506,7 @@ function pendingTagHTML(F) {
   if (!p) return '';
   const opts = F.spools.filter((x) => !x.archived).map((x) => `<option value="${x.id}">${esc(x.nr)} ${esc(x.material)} ${esc(t(x.colorName || ''))}${x.rfid ? ' (RFID)' : ''}</option>`).join('');
   const d = p.data;
-  const where = p.stationName ? t('an Station „{s}“', { s: esc(p.stationName) }) : p.printerName ? t('gelesen an {p}', { p: esc(p.printerName) }) : t('vom Leser gemeldet');
+  const where = p.phone ? t('mit dem Handy gelesen') : p.stationName ? t('an Station „{s}“', { s: esc(p.stationName) }) : p.printerName ? t('gelesen an {p}', { p: esc(p.printerName) }) : t('vom Leser gemeldet');
   const title = d ? t('Neue Spule auf dem Tag: {m}', { m: esc([d.brand, d.material].filter(Boolean).join(' ')) }) : p.blank ? t('Leerer Tag {t}', { t: esc(p.tag) }) : t('Unbekannter RFID-Tag {t}', { t: esc(p.tag) });
   const sub = d ? `${d.color ? `<span class="swatch" style="background:${esc(d.color)}"></span>` : ''}${t(TAG_FORMATS[p.format]?.[0] || p.format)} · ${where}` : `${where} · ${p.blank && p.writable ? t('anlegen oder zuordnen – danach lässt er sich beschreiben') : t('welche Spule ist das?')}`;
   return `<div class="newspool big"><span>${BI.spool}</span><div><b>${title}</b><small>${sub}</small></div>
@@ -528,7 +530,7 @@ function armedHTML(F) {
 function tagWriteDialog(sp) {
   const F = fil();
   const sts = (F.stations?.list || []).filter((x) => x.online && x.caps?.nfc !== false);
-  const nfc = 'NDEFReader' in window;
+  const nfc = typeof nfcSupport === 'function' ? nfcSupport().ok : 'NDEFReader' in window;
   let fmt = 'universal';
   try { fmt = localStorage.getItem('pd-tagfmt') || 'universal'; } catch {}
   const targets = [...sts.map((x) => `<option value="st:${esc(x.id)}">${t('Station „{s}“', { s: esc(x.name) })}${x.tag ? ` – ${t('Tag liegt auf')}` : ''}</option>`), nfc ? `<option value="phone">${t('Dieses Handy (NFC)')}</option>` : ''].join('');

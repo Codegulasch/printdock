@@ -78,8 +78,7 @@ function vHa() {
   }).join('');
   const m = h.mqtt;
   const example = S.printers[0] ? S.printers[0].name.toLowerCase().replace(/[^a-z0-9]+/g, '_') : 'werkstatt_x2d';
-  let n = 0;
-  const num = () => `${++n}. `;
+  const num = () => '';
   // Als Add-on: Verbindung und Broker sind automatisch – nur der Status oben, keine Eingaben
   const addonHead = h.addon ? `<div class="card" style="margin-bottom:18px"><b>${t('PrintDock läuft als Home-Assistant-Add-on')}</b> – ${t('Verbindung und MQTT-Broker werden automatisch eingerichtet.')}
       <div class="meta" style="margin-top:6px">Home Assistant: ${haStatusHTML(h.status.rest || 'ok', t('verbunden'))} · MQTT: ${h.mqttAuto ? haStatusHTML(m.enabled ? h.status.mqtt : null, t('verbunden')) + (m.enabled ? '' : ` (${t('Geräte unten einschalten')})`) : `<span class="vl warn">${t('kein Broker gefunden – Mosquitto-Add-on installieren')}</span>`}</div></div>` : '';
@@ -121,6 +120,7 @@ function vHa() {
           <p class="meta">${t('Funktioniert nur, wenn Home Assistant und PrintDock gleich erreichbar sind (beide http oder beide https).')}</p></div>
       </div>
     </section>`}
+    ${blueprintsHTML(h)}
     <section class="sec"><h3>${num()}${t('PrintDock-Karten im Dashboard')}</h3>
       <p class="intro">${t('„PrintDock Card“ zeigt einen Drucker, „PrintDock Overview“ alle Drucker mit Warteschlange, Aufträgen, Spulen und Wartung. Braucht die MQTT-Geräte.')}</p>
       <div class="cards">
@@ -269,4 +269,30 @@ document.addEventListener('click', async (e) => {
     await run(() => api('demo/remove', { method: 'POST' }), t('Demo-Daten entfernt'));
     return reload(...Object.keys(loaders));
   }
+});
+
+
+// ---------------------------------------------------------------- Vorlagen (Blueprints)
+loaders.blueprints = async () => (S.blueprints = on('homeassistant') ? await api('ha/blueprints') : []);
+
+function blueprintsHTML(h) {
+  const list = S.blueprints || [];
+  if (!list.length) return '';
+  const rows = list.map((b) => `<div class="srow"><div class="sl"><b>${esc(t(b.name.replace(/^PrintDock: /, '')))}</b><span>${esc(t(b.description))}</span></div>
+    <div class="sc">${b.installed ? `<span class="vl ok">${t('in Home Assistant')}</span>` : ''}<a class="b b-sm" href="api/ha/blueprints/${encodeURIComponent(b.file)}" download>${t('Herunterladen')}</a></div></div>`).join('');
+  return `<section class="sec"><h3>${t('Automationen (Vorlagen)')}</h3>
+    <p class="intro">${t('Fertige Vorlagen für Home Assistant, z. B. „Druck fertig“ mit der Taste „Platte ist frei“ direkt in der Meldung. Nach dem Einrichten in Home Assistant: Einstellungen → Automationen & Szenen → Blueprints → Vorlage wählen → Drucker und Handy auswählen.')}</p>
+    <div class="sbox">${rows}
+      ${h.addon ? `<div class="srow"><div class="sl"><b>${t('In Home Assistant einrichten')}</b><span>${t('Kopiert alle Vorlagen nach /config/blueprints/automation/printdock.')}</span></div><div class="sc"><button class="b b-sm b-done" data-hact="bpInstall">${t('Einrichten')}</button></div></div>`
+        : `<div class="srow"><div class="sl"><span>${t('Herunterladen und in Home Assistant unter Blueprints → Blueprint importieren, oder in den Ordner config/blueprints/automation/ legen.')}</span></div></div>`}
+    </div></section>`;
+}
+
+document.addEventListener('click', async (e) => {
+  const el = e.target.closest('[data-hact="bpInstall"]');
+  if (!el) return;
+  el.disabled = true;
+  const r = await run(() => api('ha/blueprints/install', { method: 'POST' }), t('Vorlagen in Home Assistant eingerichtet'));
+  if (r) S.blueprints = r;
+  render();
 });

@@ -311,6 +311,7 @@ function vSystem() {
       ${srow(t('Sicherung einspielen'), t('Ersetzt den aktuellen Stand – z. B. nach einem Umzug oder auf einer neuen Home-Assistant-Installation.'), `<label class="b b-sm">${t('Datei wählen …')}<input type="file" accept=".zip,application/zip" hidden data-restore></label>`)}
       ${srow(t('Datenordner'), a.addon ? t('Als Add-on steckt PrintDock außerdem in jeder Home-Assistant-Sicherung.') : '', `<span class="code">${esc(a.dataDir || '')}</span>`)}
     </div>
+    ${autoBackupHTML()}
     <h3 class="shead">${t('Zugriff')}</h3>
     <div class="sbox">
       ${srow(t('Adresse im Heimnetz'), t('Für Slicer, Handy und Downloads'), `<span class="code">${esc(a.directUrl || location.origin)}</span> <button class="b b-sm" data-act="copy" data-text="${esc(a.directUrl || location.origin)}">${t('Kopieren')}</button>`)}
@@ -319,7 +320,7 @@ function vSystem() {
           <input class="in" id="gPw" type="password" autocomplete="new-password" placeholder="${esc(a.auth.enabled ? t('Neues Passwort') : t('Passwort (mindestens 6 Zeichen)'))}"></div>
           <div class="btns" style="margin-top:8px"><button class="b b-sm b-done" data-gact="saveAuth">${t('Zugang speichern')}</button></div>`) : ''}
       ${srow(t('API-Key'), t('Für Kamerabilder in Home Assistant und Download-Links, wenn der Login-Schutz an ist.'), `<div class="btns" style="margin:0"><button class="b b-sm" data-gact="showKey">${t('Anzeigen')}</button><button class="b b-sm" data-gact="newKey">${t('Neu erzeugen')}</button></div><p class="code" data-key hidden></p>`)}
-      ${srow(t('Fernzugriff'), t('Tailscale oder Cloudflare Tunnel – Vorlagen in docker-compose.yml, Anleitung in docs/remote-access.md.'), '')}
+      ${srow(t('Fernzugriff'), t('Von unterwegs über Tailscale oder Cloudflare Tunnel – direkt in PrintDock einschalten.'), `<button class="b b-sm" data-view="remote">${t('Einrichten …')}</button>`)}
     </div>
     <h3 class="shead">${t('Einrichtung')}</h3>
     <div class="sbox">
@@ -509,4 +510,39 @@ document.addEventListener('change', (e) => {
     e.target.value = '';
     restoreBackup(f);
   }
+});
+
+
+// ---------------------------------------------------------------- Automatische Sicherung
+loaders.autobackup = async () => (S.autobackup = await api('autobackup'));
+
+function autoBackupHTML() {
+  const b = S.autobackup;
+  if (!b) return '';
+  const where = b.share || b.dir;
+  const files = (b.files || []).slice(0, 7).map((f) => `<a class="b b-sm" href="api/autobackup/file?name=${encodeURIComponent(f.name)}" download title="${esc(fmtSize(f.size))}">${esc(f.name.replace(/^printdock-|\.zip$/g, '').replace('_', ' '))}</a>`).join('');
+  return `<h3 class="shead">${t('Automatische Sicherung')}</h3>
+    <div class="sbox">
+      ${srow(t('Täglich sichern'), t('Einmal am Tag eine Sicherung in den Ordner {d}.', { d: esc(where) }), `<label class="tgl"><input type="checkbox" data-ab="enabled" ${b.enabled ? 'checked' : ''}><span class="sw"></span></label>`)}
+      ${srow(t('Uhrzeit und Anzahl'), t('Ab dieser Stunde, die ältesten werden gelöscht.'), `<span class="cin"><input class="in" type="number" min="0" max="23" data-ab="hour" value="${b.hour}" style="width:4.5rem"><span class="meta">${t('Uhr')}</span></span> <span class="cin"><input class="in" type="number" min="1" max="60" data-ab="keep" value="${b.keep}" style="width:4.5rem"><span class="meta">${t('behalten')}</span></span>`)}
+      ${srow(t('Druckdateien mitsichern'), t('Aus: nur Einstellungen, Spulen, Aufträge, Verlauf und Fotos – klein und schnell. Die Druckdateien sind ohnehin im Slicer.'), `<label class="tgl"><input type="checkbox" data-ab="withFiles" ${b.withFiles ? 'checked' : ''}><span class="sw"></span></label>`)}
+      ${srow(t('Letzte Sicherungen'), b.error ? `<span class="warn-txt">${t('Fehler: {e}', { e: esc(b.error.msg) })}</span>` : b.last ? t('zuletzt {t}', { t: tfmt(b.last.at) }) : t('noch keine'), `<div class="btns" style="margin:0">${files}<button class="b b-sm b-done" data-gact="abRun">${t('Jetzt sichern')}</button></div>`)}
+    </div>`;
+}
+
+document.addEventListener('change', async (e) => {
+  const el = e.target.closest?.('[data-ab]');
+  if (!el) return;
+  const k = el.dataset.ab;
+  const r = await run(() => api('autobackup', { method: 'PUT', body: { [k]: el.type === 'checkbox' ? el.checked : el.value } }), t('Gespeichert'));
+  if (r) S.autobackup = r;
+  render();
+});
+document.addEventListener('click', async (e) => {
+  const el = e.target.closest('[data-gact="abRun"]');
+  if (!el) return;
+  el.disabled = true;
+  const r = await run(() => api('autobackup/run', { method: 'POST' }), t('Sicherung erstellt'));
+  if (r) S.autobackup = r;
+  render();
 });

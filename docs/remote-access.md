@@ -12,6 +12,25 @@ PrintDock ist fürs Heimnetz gebaut. Für den Zugriff von unterwegs gibt es drei
 
 Zuerst die Einrichtung in PrintDock abschließen (der Assistent ist ohne Login erreichbar, solange er nicht abgeschlossen ist).
 
+## Am einfachsten: direkt in PrintDock (ab 0.15)
+
+**Einstellungen → Fernzugriff.** PrintDock lädt das passende Programm beim Einschalten selbst herunter (in den Datenordner unter `bin/`, bleibt bei Updates erhalten, nicht in Sicherungen) und startet es bei jedem Start wieder. Gleich für Home-Assistant-Add-on, Docker und Raspberry Pi – es braucht keine Root-Rechte und kein `/dev/net/tun`.
+
+**Tailscale**
+1. Schalter *Tailscale* einschalten.
+2. Ohne Auth-Key erscheint *Bei Tailscale anmelden* – Link öffnen, mit dem eigenen Tailscale-Konto bestätigen. Mit Auth-Key (*Tailscale-Admin → Settings → Keys*) geht es ohne Klick.
+3. Danach zeigt die Seite die Adresse, z. B. `http://printdock:3080`, und – wenn im Tailnet unter *DNS → HTTPS Certificates* eingeschaltet – `https://printdock.<tailnet>.ts.net`. Die HTTPS-Adresse braucht es für NFC am Handy.
+4. *Abmelden und zurücksetzen* verlässt das Tailnet; das Gerät danach im Tailscale-Admin entfernen.
+
+**Cloudflare Tunnel** (nur mit Login-Schutz)
+- *Schnelltest*: ohne Konto, zufällige Adresse `https://….trycloudflare.com` – ändert sich bei jedem Neustart.
+- *Eigene Adresse*: in Cloudflare Zero Trust einen Tunnel anlegen (*Networks → Tunnels → Create → Cloudflared*), den Token in PrintDock einfügen (auch der ganze angezeigte Befehl geht) und unter *Public Hostname* z. B. `drucker.example.com` mit Service **HTTP** und URL **`localhost:3080`** eintragen.
+- Wird der Login-Schutz ausgeschaltet, stoppt PrintDock den Tunnel sicherheitshalber.
+
+**Login-Schutz „nur von außen“**: Unter *Einstellungen → System* bzw. *Fernzugriff* lässt sich wählen, ob die Anmeldung immer oder nur von außen verlangt wird. „Nur von außen“ heißt: Geräte im Heimnetz (private Adresse, kein Proxy) und die Home-Assistant-Seitenleiste ohne Passwort; alles, was über Tunnel oder Tailscale kommt, mit Passwort. Die Home-Assistant-Seitenleiste fragt nie nach dem PrintDock-Passwort – Home Assistant hat schon angemeldet.
+
+Die Wege mit Docker Compose (unten) funktionieren weiterhin, z. B. wenn Tailscale schon auf dem Rechner läuft.
+
 ## Login-Schutz einschalten
 
 **Einstellungen → Allgemein → Zugriff und Sicherheit**: Benutzer und Passwort (mind. 6 Zeichen) eintragen, **Login-Schutz** einschalten. Danach braucht jeder Browser eine Anmeldung (30 Tage gültig). Nach 5 falschen Versuchen ist eine Minute Pause.
@@ -76,6 +95,13 @@ PrintDock is built for your home network. For access on the go there are three s
 | **Home Assistant** (add-on) | If you already use HA remotely | via HA | no (HA login) |
 
 Finish the setup wizard first (it is reachable without login until completed).
+
+**Easiest (0.15+): right in PrintDock** – *Settings → Remote access*. PrintDock downloads `tailscale` or `cloudflared` into its data folder (`bin/`, kept across updates, not in backups) and keeps it running – the same for the Home Assistant add-on, Docker and a Pi, no root or `/dev/net/tun` needed.
+- **Tailscale:** switch on, then *Sign in to Tailscale* via the link (or enter an auth key). The page shows `http://printdock:3080` and, if *HTTPS Certificates* is enabled in your tailnet's DNS settings, `https://printdock.<tailnet>.ts.net` (needed for NFC on the phone).
+- **Cloudflare Tunnel** (login protection required): *Quick test* without an account (random `…trycloudflare.com` address) or *Own address* with a tunnel token from Cloudflare Zero Trust; public hostname service **HTTP**, URL **`localhost:3080`**. Turning login protection off stops the tunnel.
+- **Login "only from outside":** no password on the home network and in the Home Assistant sidebar, password via tunnel and Tailscale. The Home Assistant sidebar never asks for the PrintDock password.
+
+The Docker Compose profiles below still work.
 
 **Login protection:** *Settings → General → Access and security* – set user and password (min. 6 characters), enable **Login protection**. Sessions last 30 days; 5 wrong attempts lock for a minute. Without login only `/slicer/…` (slicer API key) and camera/download links with `?k=<API key>` remain reachable.
 

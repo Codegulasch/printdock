@@ -13,6 +13,7 @@ COPY drivers ./drivers
 COPY lib ./lib
 COPY public ./public
 COPY dist ./dist
+COPY blueprints ./blueprints
 
 ENV NODE_ENV=production PORT=3080 DATA_DIR=/data PRINTDOCK_RESTART=exit
 VOLUME /data

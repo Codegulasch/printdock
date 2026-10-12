@@ -25,7 +25,10 @@ Inspired by [BamBuddy](https://github.com/maziggy/bambuddy), but not limited to 
 - **Setup wizard** and **every feature can be switched off**
 - **Selectable accent colour**, light and dark mode, works on phones
 - **Runs anywhere**: Docker on NAS and Raspberry Pi (amd64, arm64, armv7), native installer for the Pi, Home Assistant add-on
-- **Remote access** via Tailscale or Cloudflare Tunnel with optional login protection
+- **Remote access** via Tailscale or Cloudflare Tunnel – switched on right in PrintDock, with login protection (always or only from outside)
+- **Failed prints** requeued with one click, reasons, scrap in costs and statistics
+- **Filament reservation** for the queue with a shopping list and a **humidity check** before starting ("dry first, then start automatically")
+- **Read and write RFID/NFC tags with the phone** (Chrome on Android)
 - Fully local, no cloud, no account. Few dependencies, no database – data is plain JSON
 - **Demo data** with one click: 5 simulated printers, files, spools, orders and 30 days of history
 
@@ -58,6 +61,8 @@ Then open `http://<ip>:3080`. The setup wizard asks for language, look, features
 **Costs, electricity and photos:** every print in the history shows its costs – filament by spool price, electricity (from a metering plug in Home Assistant, or estimated), optionally machine hours and markup. Orders show an estimate from the sliced files and the actual costs; *Print estimate / quote* creates a printable page. At the end of a print PrintDock saves a camera image of the finished part. Finished orders can be archived.
 
 **Automatic printer choice:** queue entries without a fixed printer go to the free printer with auto-start whose profile the file was sliced for and that has the matching filament loaded. Files sliced for another profile are never started.
+
+**Today, backups, customers and Home Assistant:** the start page "Today" shows what needs doing, what is printing and what comes next. PrintDock backs itself up daily. Orders can get a customer status link and labels for finished parts. *Settings → Home Assistant* offers automation blueprints, e.g. "Print finished" with a "Plate is clear" button in the phone notification.
 
 ## Supported printers
 
@@ -103,11 +108,13 @@ Order (file × quantity) ───────────┤ "Schedule"
 
 ## Remote access and security
 
-On your home network PrintDock runs without login. For access from outside, enable **login protection** under **Settings → General** and use one of the options in [docs/remote-access.md](docs/remote-access.md):
+On your home network PrintDock runs without login. For access on the go, switch it on under **Settings → Remote access** (guide: [docs/remote-access.md](docs/remote-access.md)):
 
-- **Tailscale** – private VPN, nothing public: `docker compose --profile tailscale up -d`
-- **Cloudflare Tunnel** – your own HTTPS address: `docker compose --profile cloudflare up -d`
+- **Tailscale** – private VPN, nothing public; sign in via link or auth key, optionally with an HTTPS address
+- **Cloudflare Tunnel** – quick test without an account or your own address with a tunnel token; only with login protection
 - **Home Assistant** – the add-on is available wherever Home Assistant is
+
+PrintDock downloads `tailscale` or `cloudflared` itself when switched on and keeps it running – the same as add-on, in Docker and on a Pi. **Login protection** (Settings → System) applies always or only from outside; the Home Assistant sidebar never asks for the PrintDock password.
 
 Passwords are stored with scrypt, sessions use HttpOnly cookies, 5 wrong attempts lock for a minute. Never forward port 3080 directly on your router.
 
