@@ -188,6 +188,7 @@ function cardHTML(p) {
   const nextRow = !on('queue') ? '' : next && !item
     ? `<div class="nextq"><span class="ni">${BI.cal}</span><div class="nt"><small>${t('Als Nächstes')}${queued.length > 1 ? ` · ${t('+{n} weitere', { n: queued.length - 1 })}` : ''}</small><b>${esc(next.file?.name)}</b></div>
         ${v.mode === 'free' ? `<button class="b b-go b-sm" data-act="qStart" data-id="${next.id}" data-printer="${p.id}">${ICON.play}${t('Start')}</button>` : `<span class="meta">${p.settings?.autoStart ? t('startet automatisch') : t('wartet')}</span>`}</div>`
+      + (typeof startInfoHTML === 'function' ? startInfoHTML(p) : '')
     : !item && v.mode === 'free' ? `<div class="nextq"><span class="ni">${BI.cal}</span><div class="nt"><small>${t('Warteschlange')}</small><b>${t('Nichts eingeplant')}</b></div><button class="b b-sm" data-act="qAdd" data-printer="${p.id}">${ICON.plus}${t('Einplanen')}</button></div>` : '';
 
   // --- Temperaturen

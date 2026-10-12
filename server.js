@@ -19,6 +19,7 @@ const app = require('./lib/app');
 const stats = require('./lib/stats');
 const hms = require('./lib/hms');
 let ha = null; // wird nach Produktion/Filament angelegt
+let relay = null; // Status-Server für Kunden-Links
 
 const PORT = Number(process.env.PORT) || 3080;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, 'data'));
@@ -96,6 +97,7 @@ function broadcast(event, data) {
   for (const res of clients) res.write(msg);
   if (!ha) return;
   if (event === 'printers') setTimeout(() => ha.publishDiscovery(), 500);
+  if (['production', 'history'].includes(event)) relay?.changed();
   if (['production', 'filament', 'history'].includes(event)) {
     clearTimeout(broadcast.sumTimer);
     broadcast.sumTimer = setTimeout(() => {
@@ -369,6 +371,10 @@ const failures = new Failures({ history: () => history, saveHistory: () => saveH
 const { EnergyTracker } = require('./lib/energy');
 const energy = new EnergyTracker({ ha });
 const PHOTO_DIR = path.join(require('./lib/store').DATA_DIR, 'photos');
+// Status-Server für Kunden-Links (relay/): freigegebene Aufträge dorthin veröffentlichen
+const { Relay } = require('./lib/relay');
+relay = new Relay({ production, history: () => history, photoDir: PHOTO_DIR, lang: () => app.lang });
+production.ctx.onShareRemoved = (token) => relay.remove(token);
 
 /** Nach dem Druck: Stromverbrauch und Foto des fertigen Teils an den Verlaufseintrag hängen */
 async function finishExtras(cfg, rt, job, entry) {
@@ -665,7 +671,7 @@ async function handleApi(req, res, url) {
   const [, resource, id, action] = parts;
 
   // ---- App-Einstellungen und Login (ohne Anmeldung erreichbar)
-  if (resource === 'app' && !id && req.method === 'GET') return sendJson(res, 200, { ...app.publicSettings(req), directUrl: ha.directUrl, update: updateAvailable() });
+  if (resource === 'app' && !id && req.method === 'GET') return sendJson(res, 200, { ...app.publicSettings(req), directUrl: ha.directUrl, statusBase: relay?.linkBase() || null, update: updateAvailable() });
   if (resource === 'login' && req.method === 'POST') {
     const lb = await readBody(req);
     app.login(req, res, lb);
@@ -684,11 +690,22 @@ async function handleApi(req, res, url) {
   const me = app.who(req);
   const sub = parts.slice(1).join('/');
   if (me.role === 'operator') {
-    const adminGet = /^(backup|autobackup|remote|users|audit|printers\/[^/]+\/diagnostics|update)/.test(sub);
+    const adminGet = /^(backup|autobackup|remote|relay|users|audit|printers\/[^/]+\/diagnostics|update)/.test(sub);
     if ((req.method === 'GET' && adminGet) || (req.method !== 'GET' && !OPERATOR_WRITES.some((re) => re.test(sub)))) throw httpError(403, 'Nur für Admins – als Bediener nicht erlaubt');
   }
   if (req.method !== 'GET') {
     audit.log({ user: me.name || (me.kind === 'local' ? 'Heimnetz' : me.kind === 'open' ? null : me.kind), role: me.role, method: req.method, path: sub });
+  }
+
+  // ---- Status-Server für Kunden-Links
+  if (resource === 'relay') {
+    if (!id && req.method === 'GET') return sendJson(res, 200, relay.view());
+    if (!id && req.method === 'PUT') return sendJson(res, 200, await relay.save(await readBody(req)));
+    if (id === 'test' && req.method === 'POST') return sendJson(res, 200, await relay.test());
+    if (id === 'sync' && req.method === 'POST') {
+      await relay.syncAll();
+      return sendJson(res, 200, relay.view());
+    }
   }
 
   // ---- Plattform-Check
@@ -1214,7 +1231,7 @@ async function handleApi(req, res, url) {
 
   // ---- Aufträge
   if (resource === 'orders') {
-    if (!id && req.method === 'GET') return sendJson(res, 200, production.orders().map((o) => ({ ...o, costs: costs.forOrder(o) })));
+    if (!id && req.method === 'GET') return sendJson(res, 200, production.orders().map((o) => ({ ...o, costs: costs.forOrder(o), shareUrl: o.shareToken ? relay.linkFor(o.shareToken) : null })));
     if (!id && req.method === 'POST') return sendJson(res, 201, production.saveOrder(await readBody(req)));
     if (!action && req.method === 'PUT') return sendJson(res, 200, production.saveOrder(await readBody(req), id));
     if (!action && req.method === 'DELETE') {
@@ -1383,7 +1400,7 @@ const server = http.createServer(async (req, res) => {
     const sm = /^\/status\/([a-f0-9]{24})(?:\/photo\/([\w-]+))?\/?$/.exec(url.pathname);
     if (sm && req.method === 'GET') {
       const sp = require('./lib/statuspage');
-      const sctx = { production, history: () => history, lang: app.lang, photoDir: PHOTO_DIR };
+      const sctx = { production, history: () => history, lang: app.lang, photoDir: PHOTO_DIR, brand: relay?.view().brand?.name ? relay.view().brand : null };
       if (sm[2]) {
         const f = sp.photo(sctx, sm[1], sm[2]);
         if (!f) throw httpError(404, 'Nicht gefunden');

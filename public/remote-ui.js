@@ -12,6 +12,7 @@ const REMOTE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
 }
 
 loaders.remote = async () => (S.remote = await api('remote'));
+loaders.relay = async () => (S.relay = S.app?.me?.role === 'operator' ? null : await api('relay'));
 
 const RS = {
   off: ['aus', ''],
@@ -77,6 +78,7 @@ function vRemote() {
     <h3 class="shead">${t('Zugang')}</h3>${loginBox}
     <h3 class="shead">Tailscale</h3>${tsBox}
     <h3 class="shead">Cloudflare</h3>${cfBox}
+    ${relayHTML()}
     ${ha}${sec}`;
 }
 
@@ -125,4 +127,52 @@ document.addEventListener('change', async (e) => {
     await loaders.app();
     render();
   }
+});
+
+// ---------------------------------------------------------------- Kunden-Links über den Status-Server (relay/)
+
+function relayHTML() {
+  const R = S.relay;
+  if (!R) return '';
+  const st = R.state || {};
+  const row = (label, hint, control) => `<div class="lrow"><div class="lt"><b>${label}</b>${hint ? `<span>${hint}</span>` : ''}</div><div class="lc">${control}</div></div>`;
+  return `<h3 class="shead">${t('Kunden-Links')}</h3>
+    <div class="sbox">
+      ${row(`${t('Status-Server')} ${R.enabled ? (st.ok ? '<i class="pill run">' + t('verbunden') + '</i>' : st.ok === false ? '<i class="pill bad">' + t('Fehler') + '</i>' : '') : '<i class="pill">' + t('aus') + '</i>'}`, t('Kunden-Statusseiten liegen auf eurem eigenen Server – erreichbar von überall, ohne das Heimnetz zu öffnen. PrintDock schickt bei jeder Änderung die Daten (ohne Kosten) und die Fotos der fertigen Teile.'), `<label class="tgl"><input type="checkbox" data-rl-on ${R.enabled ? 'checked' : ''}><span class="sw"></span></label>`)}
+      ${st.ok === false && R.enabled ? `<div class="rm-note bad">${esc(t(st.error || ''))}</div>` : ''}
+      ${R.enabled && st.ok ? `<div class="rm-note ok">${t('Kunden-Links zeigen auf {u}', { u: `<b>${esc(R.url)}/s/…</b>` })}${st.name ? ` · ${t('Schlüssel „{n}“', { n: esc(st.name) })}` : ''}</div>` : ''}
+      ${row(t('Adresse des Status-Servers'), t('z. B. https://eure-domain.de/status – den Ordner „relay/php“ per FTP auf euer Webhosting laden (Anleitung: relay/README.md). Eigener Server: relay/server.js oder Docker.'), `<input class="in" data-rl="url" value="${esc(R.url || '')}" placeholder="https://status.example.com" style="min-width:16rem">`)}
+      ${row(t('Schlüssel'), t('Wie in RELAY_KEYS auf dem Server.'), `<input class="in" type="password" data-rl="key" value="${esc(R.key || '')}" autocomplete="off" style="max-width:16rem">`)}
+      ${row(t('Firmenname auf der Seite'), t('Steht unten auf jeder Statusseite, mit Link.'), `<div class="two"><input class="in" data-rl="bname" value="${esc(R.brand?.name || '')}" placeholder="schichtsalat3D"><input class="in" data-rl="burl" value="${esc(R.brand?.url || '')}" placeholder="https://…"></div>`)}
+      ${row(t('Nach Abschluss erreichbar'), t('So lange bleibt die Seite nach Fertigstellung des Auftrags auf dem Server.'), `<span class="inu"><input class="in" type="number" min="1" max="365" data-rl="keep" value="${esc(R.keepDays)}" style="width:5rem"><span>${t('Tage')}</span></span>`)}
+      <div class="st-foot"><button class="b b-sm" data-rlact="test">${t('Verbindung testen')}</button><button class="b b-sm" data-rlact="sync">${t('Alle Links jetzt senden')}</button><button class="b b-sm b-go" data-rlact="save">${t('Speichern')}</button></div>
+    </div>`;
+}
+
+const rlVal = (k) => $(`[data-rl="${k}"]`)?.value;
+async function relaySave(extra = {}) {
+  const r = await run(() => api('relay', { method: 'PUT', body: { url: rlVal('url'), key: rlVal('key'), keepDays: rlVal('keep'), brand: { name: rlVal('bname'), url: rlVal('burl') }, ...extra } }), t('Gespeichert'));
+  if (r) S.relay = r;
+  await loaders.app().catch(() => {});
+  reload('relay', 'orders');
+  render();
+}
+
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-rlact]');
+  if (!b) return;
+  if (b.dataset.rlact === 'save') return relaySave();
+  if (b.dataset.rlact === 'test') {
+    const r = await run(() => api('relay/test', { method: 'POST' }), t('Status-Server erreichbar'));
+    await loaders.relay().catch(() => {});
+    return render();
+  }
+  if (b.dataset.rlact === 'sync') {
+    const r = await run(() => api('relay/sync', { method: 'POST' }), t('Gesendet'));
+    if (r) S.relay = r;
+    render();
+  }
+});
+document.addEventListener('change', (e) => {
+  if (e.target.matches('[data-rl-on]')) relaySave({ enabled: e.target.checked });
 });

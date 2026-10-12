@@ -67,7 +67,8 @@ function vHum() {
         ? `<div class="hd-run"><span class="hd-anim">♨</span><div><b>${dr.preparing === 'heating' ? t('Düse heizt auf …') : dr.preparing ? t('Filament wird entladen …') : t('Wird gestartet …')}</b><small>${dr.preparing === 'heating' ? t('danach wird das Filament entladen') : dr.preparing ? t('danach startet das Trocknen') : t('warte auf Rückmeldung des Geräts')}</small></div><button class="b b-sm" data-hact="dryStop" data-key="${esc(dr.key)}">${t('Abbrechen')}</button></div>`
         : dr.active
         ? `<div class="hd-run"><span class="hd-anim">♨</span><div><b>${t('Trocknet')}${dr.temp ? ` · ${dr.temp} °C` : ''}</b><small>${dr.until ? t('noch {t}', { t: leftTxt(dr.until) }) : ''}</small></div><button class="b b-sm" data-hact="dryStop" data-key="${esc(dr.key)}">${t('Stopp')}</button></div>`
-        : `<button class="b b-sm ${pt.level === 'alarm' || pt.level === 'warn' ? 'b-go' : ''}" data-hact="dry" data-key="${esc(dr.key)}">♨ ${t('Trocknen …')}</button>`)
+        : dr.offline ? `<span class="meta" title="${esc(t('Trocknen geht, sobald der Drucker wieder erreichbar ist'))}">♨ ${esc(dr.model || t('Trockner'))} · ${t('Drucker offline')}</span>`
+          : `<button class="b b-sm ${pt.level === 'alarm' || pt.level === 'warn' ? 'b-go' : ''}" data-hact="dry" data-key="${esc(dr.key)}">♨ ${t('Trocknen …')}</button>`)
       : '';
     const spools = pt.type === 'storage' ? (pt.spools || []) : [];
     return `<article class="card humcard ${lvl}">
@@ -155,7 +156,7 @@ function humPointsHTML(F) {
   const rows = pts.map((pt) => {
     const dr = dryerFor(F, pt);
     const sens = pt.builtin ? t('misst selbst') : pt.source ? srcLabel(pt.source) : `<span class="hp-miss">${t('keine eigene Messung')}</span>`;
-    const dry = dr ? (dr.kind === 'builtin' ? `${t('trocknet selbst')} (${esc(dr.model || '')} ${dr.maxTemp ? `≤ ${dr.maxTemp} °C` : ''})` : `${dr.kind === 'gcode' ? t('Makro') : t('Home Assistant')}${dr.config?.label ? ` · ${esc(dr.config.label)}` : ''}`) : t('kein Trockner');
+    const dry = dr ? (dr.kind === 'builtin' ? `${t('trocknet selbst')} (${esc(dr.model || '')} ${dr.maxTemp ? `≤ ${dr.maxTemp} °C` : ''})${dr.offline ? ` · ${t('Drucker offline')}` : ''}` : `${dr.kind === 'gcode' ? t('Makro') : t('Home Assistant')}${dr.config?.label ? ` · ${esc(dr.config.label)}` : ''}`) : t('kein Trockner');
     const name = pt.type === 'storage' ? `<b>${esc(pt.name)}</b><small>${t('Trockenbox / Lagerort')}${pt.spools?.length ? ` · ${pt.spools.length === 1 ? t('1 Spule') : t('{n} Spulen', { n: pt.spools.length })}` : ''}</small>`
       : `<b>${esc(pt.printerName)}${pt.unit ? ` · ${esc(t(pt.unit))}` : ''}</b>`;
     return `<div class="hp-row2">

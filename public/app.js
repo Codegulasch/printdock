@@ -1434,8 +1434,14 @@ document.addEventListener('click', async (e) => {
     }
     case 'plateClear':
       if (!(await confirmBox(t('Druckplatte geräumt?'), t('Teil von „{p}“ entnommen und Platte wieder eingelegt? Danach kann der nächste Druck starten.', { p: p.name }), t('Ja, Platte ist frei'), 'b-done'))) return;
-      await run(() => api(`printers/${id}/plate-clear`, { method: 'POST' }), t('Platte frei bestätigt'));
-      return reload('summary', 'queue');
+      if (!(await run(() => api(`printers/${id}/plate-clear`, { method: 'POST' })))) return;
+      await Promise.all([loaders.summary(), loaders.queue()]).catch(() => {});
+      {
+        // Sagen, ob jetzt etwas startet – und wenn nicht, warum
+        const si = S.summary?.startInfo?.[id];
+        toast(!si ? t('Platte frei bestätigt') : si.ok ? `${t('Platte frei bestätigt')} – ${t(si.text)}` : `${t('Platte frei – startet nicht:')} ${t(si.text)}`, Boolean(si && !si.ok && si.kind !== 'empty' && si.kind !== 'manual'));
+      }
+      return render();
     case 'qStart': return startItem(id, el.dataset.printer || null);
     case 'qAdd': return queueAddDialog({ fileId: el.dataset.file, printerId: el.dataset.printer });
     case 'qFilter': S.qFilter = el.dataset.k; return render();

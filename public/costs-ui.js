@@ -108,7 +108,7 @@ document.addEventListener('change', async (e) => {
 /** Etikett für ein fertiges Teil: Auftrag, Teil x von y, Kunde, Datum, QR (Statuslink oder Auftrag in PrintDock) */
 function partLabelHTML(l, f) {
   const base = S.app?.directUrl || location.origin;
-  const link = l.shareToken ? `${base}/status/${l.shareToken}` : `${base}/#orders`;
+  const link = l.shareToken ? (S.app?.statusBase ? `${S.app.statusBase}/s/${l.shareToken}` : `${base}/status/${l.shareToken}`) : `${base}/#orders`;
   const name = String(l.file || '').replace(/\.(gcode\.3mf|3mf|gcode|stl)$/i, '');
   return `<div class="lbl" style="--c:${esc(l.color || '#888')};width:${f.w}mm;height:${f.h}mm">
     <div class="lbl-band"></div>
@@ -167,13 +167,13 @@ async function partLabelsDialog(orderId = null) {
 
 function orderShareHTML(o) {
   if (!o) return '';
-  const link = o.shareToken ? `${S.app?.directUrl || location.origin}/status/${o.shareToken}` : null;
+  const link = o.shareToken ? o.shareUrl || (S.app?.statusBase ? `${S.app.statusBase}/s/${o.shareToken}` : `${S.app?.directUrl || location.origin}/status/${o.shareToken}`) : null;
   return `<fieldset class="oc"><legend>${t('Status für den Kunden')}</legend>
     ${link ? `<div class="copyline"><code>${esc(link)}</code><button class="b b-sm" type="button" data-act="copy" data-text="${esc(link)}">${t('Kopieren')}</button></div>
       <div class="btns"><button class="b b-sm" type="button" data-oshare="${esc(o.id)}" data-on="1">${t('Neuer Link')}</button><button class="b b-sm" type="button" data-oshare="${esc(o.id)}" data-on="0">${t('Link abschalten')}</button>
         ${o.done ? `<button class="b b-sm" type="button" data-plabels="${esc(o.id)}">${t('Etiketten drucken …')}</button>` : ''}</div>`
       : `<div class="btns"><button class="b b-sm" type="button" data-oshare="${esc(o.id)}" data-on="1">${t('Link erstellen')}</button>${o.done ? `<button class="b b-sm" type="button" data-plabels="${esc(o.id)}">${t('Etiketten drucken …')}</button>` : ''}</div>`}
-    <p class="hint" style="margin:0">${t('Eine Seite ohne Anmeldung mit Fortschritt, Termin und Fotos – ohne Kosten. Von außerhalb des Heimnetzes nur erreichbar, wenn PrintDock eine öffentliche Adresse hat (Einstellungen → Home Assistant → Öffentliche Adresse).')}</p>
+    <p class="hint" style="margin:0">${t('Eine Seite ohne Anmeldung mit Fortschritt, Termin und Fotos – ohne Kosten.')} ${S.app?.statusBase ? t('Liegt auf eurem Status-Server und ist überall erreichbar.') : t('Für Kunden außerhalb des Heimnetzes einen Status-Server eintragen: Einstellungen → Fernzugriff → Kunden-Links.')}</p>
   </fieldset>`;
 }
 

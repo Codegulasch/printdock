@@ -31,6 +31,7 @@ Inspired by [BamBuddy](https://github.com/maziggy/bambuddy), but not limited to 
 - **Read and write RFID/NFC tags with the phone** (Chrome on Android)
 - **Keep printing orders** after "plate clear", **start windows** and cheap power, **several parts per plate**, **post-processing** steps
 - **PrintDock Station page** with live weight, tag data and **stocktake**; **emergency stop** via Home Assistant; **several users** (admin/operator) with a log
+- **Customer links via your own status server** (`relay/`) – status pages reachable from anywhere without opening the home network
 - **Arrange the menu**, choose the start page; **platform check** – same features as add-on, in Docker, on a Pi and on Windows/macOS
 - Fully local, no cloud, no account. Few dependencies, no database – data is plain JSON
 - **Demo data** with one click: 5 simulated printers, files, spools, orders and 30 days of history

@@ -20,6 +20,7 @@ Inspiriert von [BamBuddy](https://github.com/maziggy/bambuddy), aber nicht auf B
 - **RFID/NFC-Tags mit dem Handy** lesen und beschreiben (Chrome auf Android)
 - **Aufträge weiterdrucken** nach „Platte frei“, **Startzeitfenster** und günstiger Strom, **mehrere Teile pro Platte**, **Nachbearbeitung** mit Schritten
 - **PrintDock-Station-Seite** mit Live-Gewicht, Tag-Daten und **Inventur**; **Notaus** über Home Assistant; **mehrere Benutzer** (Admin/Bediener) mit Protokoll
+- **Kunden-Links über den eigenen Status-Server** (`relay/`) – Statusseiten von überall erreichbar, ohne das Heimnetz zu öffnen
 - **Menü frei anordnen**, Startseite wählen; **Plattform-Check** – gleiche Funktionen als Add-on, in Docker, auf dem Pi und unter Windows/macOS
 
 - Live-Status aller Drucker: Fortschritt, Restzeit, voraussichtliches Ende, Schicht, Temperaturen

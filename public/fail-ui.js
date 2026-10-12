@@ -97,3 +97,20 @@ document.addEventListener('click', (e) => {
     resolveItem(id, r.dataset.r);
   });
 });
+
+// ---------------------------------------------------------------- Nach „Platte frei“: startet – oder warum nicht
+
+function startInfoActions(p, si) {
+  if (si.kind === 'stuck') return `<button class="b b-sm b-done" data-qresolve="finished" data-id="${si.queueId}">${ICON.check}${t('War fertig')}</button><button class="b b-sm" data-qresolve="cancelled" data-id="${si.queueId}">${t('Abgebrochen')}</button>`;
+  if (si.kind === 'error') return `<button class="b b-sm b-go" data-act="qRetry" data-id="${si.queueId}">${t('Nochmal versuchen')}</button>`;
+  if (si.kind === 'manual' && si.queueId) return `<button class="b b-sm b-go" data-act="qStart" data-id="${si.queueId}" data-printer="${p.id}">${ICON.play}${t('Start')}</button>`;
+  if (si.kind === 'humidity') return `<button class="b b-sm b-go" data-act="qStart" data-id="${si.queueId}" data-printer="${p.id}">${t('Start …')}</button>`;
+  return `<button class="b b-sm" data-view="queue">${t('Warteschlange')}</button>`;
+}
+
+/** Zeile auf der Druckerkarte */
+function startInfoHTML(p) {
+  const si = S.summary?.startInfo?.[p.id];
+  if (!si || si.ok || si.kind === 'empty') return '';
+  return `<div class="nextq si-row"><span class="ni">⚠</span><div class="nt"><small>${t('Startet nicht')}</small><b>${esc(t(si.text))}</b></div><span class="si-acts">${startInfoActions(p, si)}</span></div>`;
+}

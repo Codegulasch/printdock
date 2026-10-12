@@ -27,6 +27,12 @@ function vToday() {
     else if (st.state === 'error') items.push(todo('bad', '⚠', t('{p}: Störung', { p: esc(p.name) }), esc(t(st.message || '')), goBtn('board', t('Ansehen'))));
     else if (st.state === 'paused') items.push(todo('warn', '⏸', t('{p}: pausiert', { p: esc(p.name) }), esc(t(st.message || '')), goBtn('board', t('Ansehen'))));
   }
+  // Nach „Platte frei“ nicht gestartet – mit Grund
+  for (const p of S.printers) {
+    const si = S.summary?.startInfo?.[p.id];
+    if (!si || si.ok || si.kind === 'empty' || si.kind === 'stuck') continue;
+    items.push(todo('warn td-wide', '▶', t('{p}: startet nicht', { p: esc(p.name) }), esc(t(si.text)), startInfoActions(p, si)));
+  }
   // Hängende Einträge: Drucker ist bereit, Eintrag „druckt“ noch
   for (const q of (S.queue || []).filter((x) => x.stale)) {
     items.push(todo('bad td-wide', '⏱', t('{p}: Druckende verpasst', { p: esc(printerById(q.printerId)?.name || '') }), `${esc(q.file?.name || '')} · ${t('Wie ging der Druck aus?')}`, `<button class="b b-sm b-done" data-qresolve="finished" data-id="${q.id}">${ICON.check}${t('War fertig')}</button><button class="b b-sm" data-qresolve="cancelled" data-id="${q.id}">${t('Abgebrochen')}</button>`));

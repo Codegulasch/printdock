@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.16.2
+- **Status server for regular web hosting:** PHP version (`relay/php`) – upload via FTP, enter a key, done. Same interface as the Node version; PrintDock now sends changes as POST with an override header so it also works with hosts that only allow GET/POST
+
+## 0.16.1
+- **Fix: nothing started after "plate clear".** PrintDock now tries to start immediately and says what happens – on the printer card, on *Today* and in a message: "Starting: X" or "Does not start because …" (auto-start off, entry still stuck on "printing", last start failed, humidity, start window, profile/filament) with a button to fix it. A stuck entry on that printer is asked about right away instead of after 3 minutes. Failed starts are retried automatically after 2 minutes (up to 3 times) instead of being blocked for good. *Keep printing orders* now also works after prints that were started on the printer itself
+- **Fix: dryer missing while the printer is offline.** The built-in dryer last reported (AMS 2 Pro/HT) stays visible – "printer offline", drying works again once it is reachable
+- **Customer links via your own server:** new **status server** (folder `relay/`, Docker or Node, no dependencies). PrintDock pushes the status page of shared orders (no costs) and the photos of finished parts there; customer links, QR codes and labels then point to `https://status.example.com/s/<code>` – reachable from anywhere without opening the home network. Several PrintDock installations with their own keys, company name and link in the footer, pages expire after the order is done (default 30 days), turning a link off deletes it on the server too. Two variants with the same interface: **PHP for regular web hosting** (`relay/php`, upload via FTP – works without URL rewriting and with hosts that block PUT/DELETE) and Node.js/Docker for your own server. Setup: *Settings → Remote access → Customer links*, guide in `relay/README.md`
+
 ## 0.16.0
 - **Stuck queue entries are cleaned up:** running prints now survive a restart of PrintDock (e.g. during an update), so the end of the print is no longer missed. If an entry still shows "printing" while the printer has been ready for 3 minutes, PrintDock closes it as finished at 95 % or more, otherwise it asks on *Today* and in the queue: *Was finished* / *Cancelled* – order, history and filament are updated. Every running entry has *Stuck?* for the same
 - **Arrange the menu:** order, hide items and choose the start page under *Settings → General → Menu* – for all devices or only this one (e.g. the phone)
