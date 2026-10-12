@@ -44,7 +44,7 @@ function vWorkshop() {
   const printers = setSection('ws-printers', t('Drucker#pl'), noHead(VIEW_FN.printers()), `<button class="b b-sm b-go" data-act="editPrinter">${ICON.plus}${t('Drucker hinzufügen')}</button>`);
   const start = setSection('ws-start', t('Druckstart'), `<div class="sbox">
       ${lrow(t('Druckplatte abfragen'), t('Vor jedem Start aus Warteschlange oder Auftrag bestätigen, dass die Platte geräumt ist.'), `<label class="tgl"><input type="checkbox" data-g-plate ${a.plateCheck ? 'checked' : ''}><span class="sw"></span></label>`)}
-      ${on('queue') ? lrow(t('Automatisch starten'), t('Je Drucker unter „Drucker“ einstellbar: der nächste Druck startet, sobald die Platte frei ist.'), `<span class="meta">${t('{n} von {m} Druckern', { n: S.printers.filter((p) => p.settings?.autoStart).length, m: S.printers.length })}</span>`) : ''}
+      ${on('queue') ? lrow(t('Standard-Druckart'), t('Für neue Einträge in der Warteschlange und neue Aufträge – an jedem Auftrag und Eintrag änderbar. Serie · auto: startet nach „Platte frei“ von selbst. Serie · manuell: jeder Start per Knopf. Einzeldruck: immer nur ein Druck.'), `<select class="in" data-g-pmode>${PMODES.map((m) => `<option value="${m}" ${pmodeOf(a.printMode) === m ? 'selected' : ''}>${t(PMODE_LABEL[m])}</option>`).join('')}</select>`) : ''}
     </div>`);
   const fil = on('filament') ? setSection('ws-fil', t('Filament'), noHead(vFilSettings())) : '';
   const hum = on('filament') ? setSection('ws-hum', t('Feuchte & Trocknen'), noHead(vHumSettings())) : '';
@@ -63,4 +63,10 @@ document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-anchor]');
   if (!el) return;
   document.getElementById(el.dataset.anchor)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+document.addEventListener('change', async (e) => {
+  const el = e.target.closest('[data-g-pmode]');
+  if (!el) return;
+  saveApp({ printMode: el.value });
 });

@@ -320,6 +320,7 @@ production.ctx.startRule = (p, f) => startRules.check(p, f);
 
 // Hängende Warteschlangen-Einträge („druckt“, Drucker aber längst bereit)
 production.ctx.hasJob = (printerId) => Boolean(runtime.get(printerId)?.job);
+production.ctx.onHistoryLinked = () => saveHistory();
 /** Druckende nachtragen, das PrintDock verpasst hat: Verlaufseintrag, Auftrag, Filament wie bei einem echten Ende */
 production.ctx.resolveLost = (q, result, { auto = false } = {}) => {
   const cfg = printerConfigs.find((p) => p.id === q.printerId);
@@ -638,10 +639,10 @@ const APP_VERSION = require('./package.json').version;
 const audit = require('./lib/audit');
 /** Was Bediener (Rolle „operator“) ändern dürfen: Druckbetrieb, Filament am Drucker, Nachbearbeitung */
 const OPERATOR_WRITES = [
-  /^queue$/, /^queue\/[^/]+\/(start|dry-start|dry-cancel|resolve|requeue)$/, /^queue\/reorder$/,
+  /^queue$/, /^queue\/[^/]+$/, /^queue\/[^/]+\/(start|dry-start|dry-cancel|resolve|requeue)$/, /^queue\/reorder$/,
   /^printers\/[^/]+\/(plate-clear|command|power)$/,
   /^history\/[^/]+\/(fail|unfail|requeue|dismiss)$/,
-  /^orders\/[^/]+\/(plan|post)$/, /^labels\/printed$/,
+  /^orders\/[^/]+\/(plan|post|mode)$/, /^labels\/printed$/,
   /^spools\/[^/]+\/(weigh|book|dried)$/, /^filament\/(assign|from-slot|ignore|disarm|dry)$/,
   /^rfid(\/.*)?$/, /^stations\/[^/]+\/(weigh|tare|identify|write)$/,
   /^filament\/shop\/order(\/[^/]+\/arrived)?$/,
@@ -1239,6 +1240,7 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, { ok: true });
     }
     if (action === 'plan' && req.method === 'POST') return sendJson(res, 200, production.planOrder(id, await readBody(req)));
+    if (action === 'mode' && req.method === 'POST') return sendJson(res, 200, production.orderMode(id, (await readBody(req)).mode));
     if (action === 'share' && req.method === 'POST') return sendJson(res, 200, production.shareOrder(id, (await readBody(req)).enabled !== false));
     if (action === 'post' && req.method === 'POST') return sendJson(res, 200, production.setPost(id, await readBody(req)));
     if (action === 'archive' && req.method === 'POST') return sendJson(res, 200, production.archiveOrder(id, (await readBody(req)).archived !== false));

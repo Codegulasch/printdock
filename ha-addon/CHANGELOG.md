@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.3
+- **Fix: automatic transfer stuck on "sending".** Some printers (e.g. Snapmaker U1) start the print but answer the upload late or never – PrintDock waited up to 15 minutes, the entry stayed on "sending" although the print had long finished, and nothing started after "plate clear". Now the start counts as done as soon as the printer reports the print; the entry follows the print, is closed at the end (history, order, filament) and the next print starts normally. If PrintDock restarts during a transfer, it matches the entry against the history instead of retrying – no file is printed twice. The printer card offers *Stuck?* when the printer has not reported the print after 3 minutes
+- **Print mode per order and queue entry:** *Series print (automatic)* – all prints queued, after "plate clear" the next one starts by itself. *Series print (manual)* – all prints queued, each start by button. *Single print* – only one print queued at a time and started by hand; *Print* on an order prints the next single part. Set it in the order (applies to its waiting entries), on every queue entry and when scheduling a file; default for new entries under *Settings → Printers & filament → Print start*. The printer settings *Auto start* and *Keep printing orders* are replaced by this; existing entries and orders take over the previous setting
+- **Clearer queue:** "Running now" and "Waiting" sections, a print-mode column, and the status says what happens next – "starts automatically", "waiting until X is done", "waiting for plate clear on X", "start by hand" or the reason why it waits
+
 ## 0.16.2
 - **Status server for regular web hosting:** PHP version (`relay/php`) – upload via FTP, enter a key, done. Same interface as the Node version; PrintDock now sends changes as POST with an override header so it also works with hosts that only allow GET/POST
 

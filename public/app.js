@@ -543,26 +543,68 @@ function materialsHTML(meta) {
   return m.slice(0, 6).map((x) => `<span title="${esc(x.type || '')}"><span class="swatch" style="background:${esc(x.color || 'transparent')}"></span>${esc(x.type || '')}</span>`).join(' ');
 }
 
+// Druckart: Seriendruck automatisch / manuell, Einzeldruck
+const PMODES = ['auto', 'manual', 'single'];
+const PMODE_LABEL = { auto: 'Seriendruck (automatisch)', manual: 'Seriendruck (manuell)', single: 'Einzeldruck' };
+const PMODE_SHORT = { auto: 'Serie · auto', manual: 'Serie · manuell', single: 'Einzeldruck' };
+const PMODE_HINT = {
+  auto: 'Nach „Platte frei“ startet der nächste Druck von selbst.',
+  manual: 'Alle Drucke stehen in der Warteschlange, jeder Start per Knopf.',
+  single: 'Immer nur ein Druck, von Hand gestartet – danach kommt nichts nach.',
+};
+const pmodeOf = (m) => (PMODES.includes(m) ? m : S.app?.printMode || 'auto');
+
+/** Auswahl im Dialog: drei Kacheln mit kurzer Erklärung */
+function pmodePickHTML(name, value) {
+  const v = pmodeOf(value);
+  return `<fieldset class="pmode"><legend>${t('Druckart')}</legend><div class="pmode-opts">${PMODES.map((m) => `<label class="pmode-opt">
+      <input type="radio" name="${name}" value="${m}" ${m === v ? 'checked' : ''}><span><b>${t(PMODE_LABEL[m])}</b><small>${t(PMODE_HINT[m])}</small></span></label>`).join('')}</div></fieldset>`;
+}
+
+/** Kleine Auswahl in Listenzeilen */
+function pmodeSelectHTML(attrs, value) {
+  const v = pmodeOf(value);
+  return `<select class="in pmode-sel ${v}" ${attrs} aria-label="${t('Druckart')}" title="${esc(t(PMODE_HINT[v]))}">${PMODES.map((m) => `<option value="${m}" ${m === v ? 'selected' : ''}>${t(PMODE_SHORT[m])}</option>`).join('')}</select>`;
+}
+
+const pmodeTag = (m) => `<span class="pmode-tag ${pmodeOf(m)}" title="${esc(t(PMODE_HINT[pmodeOf(m)]))}">${t(PMODE_SHORT[pmodeOf(m)])}</span>`;
+
+/** Statuszelle eines Eintrags: Zustand plus, bei wartenden, was als Nächstes passiert */
+function qStatusHTML(q) {
+  const [label, cls] = Q_STATUS[q.status] || [q.status, ''];
+  if (q.status !== 'queued') return `<span class="pill ${cls}">${t(label)}</span>`;
+  const m = pmodeOf(q.mode);
+  if (q.error) return `<span class="pill bad">${t('Start fehlgeschlagen')}</span>`;
+  if (q.afterDry) return `<span class="pill">${t('trocknet erst')}</span>`;
+  if (m !== 'auto') return `<span class="pill pause">${t('Start von Hand')}</span>`;
+  if (q.waitReason) return `<span class="pill">${t('wartet')}</span><div class="meta wait-reason" title="${esc(t('Warum der Eintrag noch nicht automatisch startet'))}">⏳ ${esc(t(q.waitReason))}</div>`;
+  const p = printerById(q.printerId);
+  const busy = p && (S.queue.some((x) => x.printerId === p.id && ['printing', 'sending'].includes(x.status)) || ['printing', 'preparing', 'paused'].includes(p.status?.state));
+  if (busy) return `<span class="pill">${t('wartet')}</span><div class="meta">${t('bis {p} fertig ist', { p: esc(p.name) })}</div>`;
+  if (p && S.summary?.plate?.[p.id] === false) return `<span class="pill">${t('wartet')}</span><div class="meta">${t('auf „Platte frei“ bei {p}', { p: esc(p.name) })}</div>`;
+  return `<span class="pill run">${t('startet automatisch')}</span>`;
+}
+
 function vQueue() {
   const open = ['queued', 'sending', 'printing'];
   const list = S.queue.filter((q) => (S.qFilter === 'offen' ? open.includes(q.status) : S.qFilter === 'erledigt' ? !open.includes(q.status) : true));
   const openList = list.filter((q) => q.status === 'queued');
   const chips = [['offen', 'Offen'], ['erledigt', 'Erledigt'], ['alle', 'Alle']]
     .map(([k, l]) => `<button class="chip" data-act="qFilter" data-k="${k}" aria-pressed="${S.qFilter === k}">${t(l)}</button>`).join('');
-  const rows = list.map((q) => {
-    const [label, cls] = Q_STATUS[q.status] || [q.status, ''];
+  const anyReady = S.printers.some(printerReady);
+  const rowHTML = (q) => {
     const p = printerById(q.printerId);
     const idx = openList.indexOf(q);
     const printerCell = q.status === 'queued'
       ? `<select class="in" data-act="qPrinter" data-id="${q.id}" aria-label="${t('Drucker')}"><option value="">${t('Passender Drucker')}</option>${S.printers.map((x) => `<option value="${x.id}" ${x.id === q.printerId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`
-      : esc(p?.name || '–');
+      : `<b>${esc(p?.name || '–')}</b>`;
+    const modeCell = q.status === 'queued' ? pmodeSelectHTML(`data-qmode="${q.id}"`, q.mode) : pmodeTag(q.mode);
     const acts = [];
     if (q.status === 'queued') {
       if (S.qFilter === 'offen') {
         acts.push(`<button class="x" data-act="qMove" data-id="${q.id}" data-dir="-1" title="${t('Nach oben')}" ${idx <= 0 ? 'disabled' : ''}>${ICON.up}</button>`);
         acts.push(`<button class="x" data-act="qMove" data-id="${q.id}" data-dir="1" title="${t('Nach unten')}" ${idx >= openList.length - 1 ? 'disabled' : ''}>${ICON.down}</button>`);
       }
-      const anyReady = S.printers.some(printerReady);
       acts.push(`<button class="b b-sm b-go" data-act="qStart" data-id="${q.id}" ${q.file?.printable && anyReady ? '' : 'disabled'} title="${anyReady ? '' : esc(t('Kein Drucker ist frei'))}">${ICON.play}${t('Start')}</button>`);
     }
     if (q.status === 'failed' || q.status === 'cancelled') acts.push(`<button class="b b-sm" data-act="qRequeue" data-id="${q.id}">${t('Erneut einreihen')}</button>`);
@@ -571,27 +613,39 @@ function vQueue() {
       : `<button class="x" data-qresolve="ask" data-id="${q.id}" title="${esc(t('Eintrag hängt? Druck ist am Drucker längst beendet'))}">${t('Hängt?')}</button>`);
     if (!['sending', 'printing'].includes(q.status)) acts.push(`<button class="x del" data-act="qDel" data-id="${q.id}" title="${t('Entfernen')}" aria-label="${t('Entfernen')}">${ICON.trash}</button>`);
     const warn = (q.modelMatch === false ? ` <span class="pill bad" title="${esc(t('Datei wurde für ein anderes Druckerprofil geslict – so startet sie nicht'))}">${t('anderes Profil')}</span>` : '')
-      + (q.waitReason ? `<div class="meta wait-reason" title="${esc(t('Warum der Eintrag noch nicht automatisch startet'))}">⏳ ${esc(t(q.waitReason))}</div>` : '')
-      + (q.autoNext && q.status === 'queued' ? `<div class="meta hc-wait">▶ ${t('startet automatisch, sobald die Platte frei ist')}</div>` : '')
       + (q.stale ? `<div class="meta res-warn">⚠ ${t('Der Drucker ist längst bereit – das Druckende wurde verpasst. Bitte sagen, wie der Druck ausging.')}</div>` : '')
       + (typeof reserveWarnHTML === 'function' ? reserveWarnHTML(q) : '')
       + (q.afterDry && q.status === 'queued' ? `<div class="meta hc-wait">💧 ${t('wird zuerst getrocknet ({n}) – startet danach automatisch', { n: esc(q.afterDry.name || '') })} <button class="x" data-qdry-cancel="${q.id}">${t('Nicht automatisch starten')}</button></div>` : '');
-    return `<div class="row q-row ${['done', 'retried'].includes(q.status) ? 'dim' : ''}">
+    return `<div class="row q-row ${['done', 'retried'].includes(q.status) ? 'dim' : ''} ${['printing', 'sending'].includes(q.status) ? 'q-live' : ''}">
       <div class="c-main filecell">${thumbHTML(q.file)}<div style="min-width:0"><b>${esc(q.file?.name || t('Datei gelöscht'))}</b><span class="meta">${materialsHTML(q.file?.meta)}</span></div></div>
       <div><span class="lbl">${t('Auftrag')}</span>${q.order ? `<b>${esc(q.order.nr)}</b><div class="meta">${esc(q.order.title)}</div>` : '<span class="meta">–</span>'}</div>
       <div><span class="lbl">${t('Drucker')}</span>${printerCell}${warn}</div>
+      <div><span class="lbl">${t('Druckart')}</span>${modeCell}</div>
       <div><span class="lbl">${t('Dauer')}</span><span class="num">${fmtDur(q.file?.meta?.estimatedSec)}</span></div>
-      <div><span class="lbl">${t('Status')}</span><span class="pill ${cls}">${t(label)}</span></div>
+      <div><span class="lbl">${t('Status')}</span>${qStatusHTML(q)}</div>
       <div class="acts">${acts.join('')}</div>
       ${q.error && q.status === 'queued' ? `<div class="err">${esc(t(q.error))} <button class="x" data-act="qRetry" data-id="${q.id}">${t('Nochmal versuchen')}</button></div>` : ''}
     </div>`;
-  }).join('');
+  };
+  // Gruppen: was gerade läuft, was als Nächstes kommt
+  const live = list.filter((q) => ['printing', 'sending'].includes(q.status));
+  const rest = list.filter((q) => !['printing', 'sending'].includes(q.status));
+  const group = (title, n, extra = '') => `<div class="q-group"><b>${esc(title)}</b><span class="meta">${n}</span>${extra}</div>`;
+  const head = `<div class="row q-row head"><div>${t('Datei')}</div><div>${t('Auftrag')}</div><div>${t('Drucker')}</div><div>${t('Druckart')}</div><div>${t('Dauer')}</div><div>${t('Status')}</div><div></div></div>`;
+  let body;
+  if (S.qFilter === 'offen' && list.length) {
+    const nAuto = openList.filter((q) => pmodeOf(q.mode) === 'auto').length;
+    const counts = [nAuto ? t('{n} automatisch', { n: nAuto }) : '', openList.length - nAuto ? t('{n} von Hand', { n: openList.length - nAuto }) : ''].filter(Boolean).join(' · ');
+    body = head
+      + (live.length ? group(t('Läuft gerade'), live.length) + live.map(rowHTML).join('') : '')
+      + (rest.length ? group(t('Wartet'), counts) + rest.map(rowHTML).join('') : '');
+  } else body = head + list.map(rowHTML).join('');
   return `${stripHTML()}<div class="bar-row"><h2>${t('Warteschlange')}</h2><div class="chips">${chips}</div>
       ${S.qFilter !== 'offen' ? `<button class="b b-sm" data-act="qClear">${t('Erledigte aufräumen')}</button>` : ''}
       <button class="b b-sm b-go" data-act="qAdd">${ICON.plus}${t('Datei einplanen')}</button></div>
-    <div class="list">${list.length ? `<div class="row q-row head"><div>${t('Datei')}</div><div>${t('Auftrag')}</div><div>${t('Drucker')}</div><div>${t('Dauer')}</div><div>${t('Status')}</div><div></div></div>${rows}`
+    <div class="list">${list.length ? body
       : `<div class="empty"><h3>${S.qFilter === 'offen' ? t('Nichts in der Warteschlange') : t('Keine Einträge')}</h3><p>${t('Dateien aus der Bibliothek oder einem Auftrag einplanen – oder direkt aus dem Slicer senden.')}</p></div>`}</div>
-    <p class="meta" style="margin-top:10px">${t('Ein Druck startet von allein, wenn beim Drucker „Auto-Start“ an ist und die Druckplatte als frei bestätigt wurde. Einträge ohne festen Drucker bekommt der freie Drucker, zu dessen Profil die Datei geslict ist und in dem das passende Filament liegt.')}</p>`;
+    <p class="meta" style="margin-top:10px">${t('Die Druckart steht an jedem Eintrag: „Serie · auto“ startet von selbst, sobald ein passender Drucker frei und die Platte als geräumt bestätigt ist. „Serie · manuell“ und „Einzeldruck“ starten nur per Knopf. Einträge ohne festen Drucker bekommt der Drucker, zu dessen Profil die Datei geslict ist und in dem das passende Filament liegt.')}</p>`;
 }
 
 function queueAddDialog({ fileId = null, printerId = null } = {}) {
@@ -605,8 +659,9 @@ function queueAddDialog({ fileId = null, printerId = null } = {}) {
     <label>${t('Datei')}<select name="fileId">${printable.map((f) => `<option value="${f.id}" ${f.id === fileId ? 'selected' : ''}>${esc(f.name)}${f.meta?.printerModel ? ` (${esc(f.meta.printerModel)})` : ''}</option>`).join('')}</select></label>
     <div class="two">
       <label>${t('Drucker')}<select name="printerId"><option value="">${t('Passender Drucker (nach Modell)')}</option>${S.printers.map((p) => `<option value="${p.id}" ${p.id === printerId ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
-      <label>${t('Anzahl Drucke')}<input name="count" type="number" min="1" max="200" value="1"></label>
+      <label data-count>${t('Anzahl Drucke')}<input name="count" type="number" min="1" max="200" value="1"></label>
     </div>
+    ${pmodePickHTML('mode', null)}
     <fieldset data-bambu hidden><legend>Bambu Lab</legend>
       <div class="two"><label>${t('Platte')}<select name="plate"></select></label>
       <label>${t('AMS-Zuordnung')}<input name="amsMapping" placeholder="${esc(t('automatisch, z. B. 0,1'))}"></label></div>
@@ -624,6 +679,11 @@ function queueAddDialog({ fileId = null, printerId = null } = {}) {
   };
   form.fileId.addEventListener('change', sync);
   sync();
+  const syncMode = () => {
+    $('[data-count]', d).hidden = form.mode.value === 'single';
+  };
+  $$('[name=mode]', d).forEach((r) => r.addEventListener('change', syncMode));
+  syncMode();
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
@@ -631,7 +691,7 @@ function queueAddDialog({ fileId = null, printerId = null } = {}) {
       await api('queue', {
         method: 'POST',
         body: {
-          fileId: form.fileId.value, printerId: form.printerId.value || null, count: form.count.value, top: form.top.checked,
+          fileId: form.fileId.value, printerId: form.printerId.value || null, count: form.mode.value === 'single' ? 1 : form.count.value, top: form.top.checked, mode: form.mode.value,
           options: f?.kind === '3mf' ? { plate: form.plate.value, useAms: form.useAms.checked, amsMapping: form.amsMapping.value } : {},
         },
       });
@@ -770,7 +830,7 @@ function vOrders() {
     const posN = o.positions.length;
     return `<div class="row o-row ${o.closed ? 'dim' : ''}">
       <div><span class="lbl">${t('Nr')}</span><b class="vl" style="white-space:nowrap">${esc(o.nr)}</b></div>
-      <div class="c-main"><b>${esc(o.title)}</b><div class="meta">${esc(o.customer || '')}${o.customer ? ' · ' : ''}${posN === 1 ? t('1 Position') : t('{n} Positionen', { n: posN })}${o.costs?.estimate?.total ? ` · ${costPill(o.costs.estimate)}` : ''}${o.costs?.actual?.entries?.some((x) => x.photo) ? ' · 📷' : ''}</div></div>
+      <div class="c-main"><b>${esc(o.title)}</b>${o.closed ? '' : `<div class="o-mode">${pmodeSelectHTML(`data-omode="${o.id}"`, o.mode)}</div>`}<div class="meta">${esc(o.customer || '')}${o.customer ? ' · ' : ''}${posN === 1 ? t('1 Position') : t('{n} Positionen', { n: posN })}${o.costs?.estimate?.total ? ` · ${costPill(o.costs.estimate)}` : ''}${o.costs?.actual?.entries?.some((x) => x.photo) ? ' · 📷' : ''}</div></div>
       <div><span class="lbl">${t('Termin')}</span><span class="vl ${dueCls}">${dfmt(o.due)}</span>${o.late ? `<div class="meta" style="color:var(--fault)">${t('überfällig')}</div>` : ''}</div>
       <div><span class="lbl">${t('Prio')}</span><span class="pill ${prioC}">${t(prioL)}</span></div>
       <div><span class="lbl">${t('Fortschritt')}</span><div class="sub" style="margin:0 0 3px"><span class="num">${t('{a} von {b}', { a: `<b>${o.done}</b>`, b: o.qty })}</span><span>${pct} %</span></div><div class="bar"><i style="width:${pct}%"></i></div></div>
@@ -818,6 +878,7 @@ function orderDialog(o = null) {
       <div class="two"><label>${t('Termin')}<input name="due" type="date" value="${esc(o?.due || '')}"></label>
       <label>${t('Priorität')}<select name="prio">${[1, 2, 3].map((n) => `<option value="${n}" ${(o?.prio || 2) === n ? 'selected' : ''}>${t(PRIO[n][0])}</option>`).join('')}</select></label></div>
     </div>
+    ${pmodePickHTML('mode', o?.mode)}
     <fieldset><legend>${t('Positionen: Datei und Stückzahl')}</legend>
       <div data-positions>${(o?.positions?.length ? o.positions : [{}]).map(posRow).join('')}</div>
       <button class="b b-sm" type="button" data-addpos style="align-self:flex-start">${ICON.plus}${t('Position')}</button>
@@ -851,7 +912,7 @@ function orderDialog(o = null) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const body = {
-      title: form.title.value, customer: form.customer.value, due: form.due.value, prio: Number(form.prio.value), notes: form.notes.value,
+      title: form.title.value, customer: form.customer.value, due: form.due.value, prio: Number(form.prio.value), notes: form.notes.value, mode: form.mode.value,
       closed: form.closed?.checked || false,
       positions: $$('.pos', d).map((el) => ({ id: el.dataset.pos || null, fileId: $('[name=pf]', el).value, qty: Number($('[name=pq]', el).value), perPlate: Number($('[name=ppl]', el).value) || 1 })),
     };
@@ -1077,7 +1138,7 @@ function vPrinters() {
       <span class="meta">${esc(p.settings?.model || t(drv?.label || p.driver))}</span>
       <span class="meta">${esc(v.lamp)}</span>
       <span class="meta num">${on('maintenance') ? `${fnum(st?.hours, 1)} h` : ''}</span>
-      <span class="meta">${on('queue') && p.settings?.autoStart ? t('Auto-Start') : ''}${on('homeassistant') && p.settings?.powerEntity ? `${on('queue') && p.settings?.autoStart ? ' · ' : ''}${t('Steckdose')}` : ''}</span>
+      <span class="meta">${on('homeassistant') && p.settings?.powerEntity ? t('Steckdose') : ''}</span>
       <span class="pr-edit">${ICON.edit}</span></div>`;
   }).join('');
   return `<div class="page-head"><h1>${NAV_ICON.gear}${t('Drucker#pl')}</h1><span class="grow"></span><button class="b b-sm b-go" data-act="editPrinter">${ICON.plus}${t('Drucker hinzufügen')}</button></div>
@@ -1099,14 +1160,12 @@ function printerDialog(p = null) {
       <label>${t('Druckermodell')}<input name="model" list="models" value="${esc(p?.settings?.model || '')}" placeholder="${esc(t('z. B. Snapmaker U1'))}"></label>
       <datalist id="models">${models.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>
       <p class="hint" style="margin-top:-4px">${t('Damit nicht zugewiesene Drucke nur auf passenden Druckern landen. Steht so im Slicer (z. B. „Bambu Lab X2D“).')}</p>
-      <label class="check" ${on('queue') ? '' : 'hidden'}><input type="checkbox" name="autoStart" ${p?.settings?.autoStart ? 'checked' : ''}> ${t('Auto-Start: nächsten Druck automatisch starten, sobald die Platte als frei bestätigt ist')}</label>
       <label ${on('maintenance') ? '' : 'hidden'}>${t('Betriebsstunden vor PrintDock')}<input name="hoursOffset" type="number" min="0" step="0.1" value="${esc(p?.settings?.hoursOffset || 0)}"></label>
       <label ${on('filament') ? '' : 'hidden'}>${t('Filament-Plätze')}<input name="slots" value="${esc(p?.settings?.slots || '')}" placeholder="${esc(t('z. B. ACE 1, ACE 2, ACE 3, ACE 4'))}"></label>
       <p class="hint" style="margin-top:-4px" ${on('filament') ? '' : 'hidden'}>${t('Nur nötig, wenn der Drucker seine Plätze nicht selbst meldet (Bambu-AMS meldet sie). Leer = ein Platz je Düse.')}</p>
     </fieldset>
-    <fieldset ${on('queue') ? '' : 'hidden'}><legend>${t('Automatisch starten')}</legend>
-      <label ${on('orders') ? '' : 'hidden'}>${t('Aufträge weiterdrucken')}<select name="orderNext">${[['off', 'Aus'], ['same', 'Ja – gleicher Auftrag zuerst'], ['prio', 'Ja – nach Priorität und Termin']].map(([k, l]) => `<option value="${k}" ${(p?.settings?.orderNext || 'off') === k ? 'selected' : ''}>${t(l)}</option>`).join('')}</select></label>
-      <p class="hint" style="margin-top:-4px" ${on('orders') ? '' : 'hidden'}>${t('Ist ein Druck fertig, reiht PrintDock das nächste offene Auftragsteil an diesem Drucker ein und startet es, sobald die Platte als frei bestätigt ist – auch ohne Auto-Start. Nur Dateien mit passendem Profil und Filament.')}</p>
+    <fieldset ${on('queue') ? '' : 'hidden'}><legend>${t('Startzeiten für automatische Drucke')}</legend>
+      <p class="hint" style="margin:0">${t('Ob ein Druck von selbst startet, steht jetzt am Auftrag bzw. Eintrag (Druckart). Hier lässt sich das für diesen Drucker zeitlich begrenzen.')}</p>
       <label class="check"><input type="checkbox" name="winOn" ${p?.settings?.winOn ? 'checked' : ''}> ${t('Nur zu bestimmten Zeiten automatisch starten')}</label>
       <div class="two"><label>${t('von')}<input name="winFrom" type="time" value="${esc(p?.settings?.winFrom || '07:00')}"></label><label>${t('bis')}<input name="winTo" type="time" value="${esc(p?.settings?.winTo || '22:00')}"></label></div>
       <label>${t('Außerhalb nur Drucke bis (Stunden, 0 = keine)')}<input name="winOutsideMaxH" type="number" min="0" max="48" step="0.5" value="${esc(p?.settings?.winOutsideMaxH ?? 0)}"></label>
@@ -1150,8 +1209,8 @@ function printerDialog(p = null) {
     e.preventDefault();
     const body = {
       name: form.name.value, driver: form.driver.value, config: readFields(form),
-      settings: { ...(p?.settings || {}), model: form.model.value, autoStart: form.autoStart.checked, hoursOffset: form.hoursOffset.value, slots: form.slots.value, powerEntity: form.powerEntity.value.trim(), autoOff: form.autoOff.checked,
-        orderNext: form.orderNext.value, winOn: form.winOn.checked, winFrom: form.winFrom.value, winTo: form.winTo.value, winOutsideMaxH: form.winOutsideMaxH.value,
+      settings: { ...(p?.settings || {}), model: form.model.value, hoursOffset: form.hoursOffset.value, slots: form.slots.value, powerEntity: form.powerEntity.value.trim(), autoOff: form.autoOff.checked,
+        winOn: form.winOn.checked, winFrom: form.winFrom.value, winTo: form.winTo.value, winOutsideMaxH: form.winOutsideMaxH.value,
         cheapEntity: form.cheapEntity.value.trim(), cheapMode: form.cheapMode.value, cheapValue: form.cheapValue.value, cheapMinH: form.cheapMinH.value },
     };
     try {
@@ -1522,6 +1581,17 @@ document.addEventListener('click', async (e) => {
 });
 
 document.addEventListener('change', async (e) => {
+  const qm = e.target.closest('[data-qmode]');
+  if (qm) {
+    await run(() => api(`queue/${qm.dataset.qmode}`, { method: 'PUT', body: { mode: qm.value } }), t('Druckart: {m}', { m: t(PMODE_LABEL[qm.value]) }));
+    return reload('queue', 'summary');
+  }
+  const om = e.target.closest('[data-omode]');
+  if (om) {
+    const o = S.orders.find((x) => x.id === om.dataset.omode);
+    if (o) await run(() => api(`orders/${o.id}/mode`, { method: 'POST', body: { mode: om.value } }), t('Druckart: {m}', { m: t(PMODE_LABEL[om.value]) }));
+    return reload('orders', 'queue', 'summary');
+  }
   const el = e.target.closest('[data-act="qPrinter"]');
   if (!el) return;
   await run(() => api(`queue/${el.dataset.id}`, { method: 'PUT', body: { printerId: el.value || null } }));

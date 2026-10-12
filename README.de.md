@@ -2,45 +2,75 @@
 
 *[English](README.md) · Deutsch*
 
-Eine Oberfläche für alle 3D-Drucker im Haus – egal von welchem Hersteller.
-Inspiriert von [BamBuddy](https://github.com/maziggy/bambuddy), aber nicht auf Bambu Lab beschränkt.
+**Eine Oberfläche für alle 3D-Drucker im Haus – egal von welchem Hersteller.**
+Bambu Lab, Snapmaker U1, Anycubic (mit ACE), Voron und alle Klipper/Moonraker- oder OctoPrint-Drucker. Inspiriert von [BamBuddy](https://github.com/maziggy/bambuddy), aber nicht auf Bambu Lab beschränkt.
 
 ![Druckerübersicht](docs/screenshots/board-dark.png)
 
-- **Statusampel** auf jeder Druckerkarte: frei = grün leuchtend, druckt = blaues Lauflicht, wartet = gelb blinkend, Störung = rot blinkend
-- **Deutsch und Englisch** – Oberfläche, Benachrichtigungen und Home-Assistant-Entitäten
-- **Einrichtungsassistent** beim ersten Start; **jede Funktion abschaltbar** (Filament, Warteschlange, Aufträge, Wartung, Statistik, Kamera …)
-- **Statistik**: Drucke, Erfolgsquote, Druckstunden, Material und Kosten, Drucker im Vergleich
-- **Akzentfarbe** wählbar (Kobalt, Violett, Petrol, Orange, Magenta, Graphit), hell und dunkel
-- **Rückfrage „Druckplatte geräumt?“** vor jedem Start aus Warteschlange oder Auftrag
-- **Läuft überall**: Docker auf NAS und Raspberry Pi (amd64, arm64, armv7), Installationsskript für den Pi, Home-Assistant-Add-on
-- **Fernzugriff** über Tailscale oder Cloudflare Tunnel – direkt in PrintDock einschalten, mit Login-Schutz (immer oder nur von außen)
-- **Fehldrucke** mit einem Klick neu einreihen, Grund erfassen, Ausschuss in Kosten und Statistik
-- **Filament-Reservierung** für die Warteschlange mit Einkaufsliste und **Feuchte-Check** vor dem Start („erst trocknen, dann automatisch starten“)
-- **RFID/NFC-Tags mit dem Handy** lesen und beschreiben (Chrome auf Android)
-- **Aufträge weiterdrucken** nach „Platte frei“, **Startzeitfenster** und günstiger Strom, **mehrere Teile pro Platte**, **Nachbearbeitung** mit Schritten
-- **PrintDock-Station-Seite** mit Live-Gewicht, Tag-Daten und **Inventur**; **Notaus** über Home Assistant; **mehrere Benutzer** (Admin/Bediener) mit Protokoll
-- **Kunden-Links über den eigenen Status-Server** (`relay/`) – Statusseiten von überall erreichbar, ohne das Heimnetz zu öffnen
-- **Menü frei anordnen**, Startseite wählen; **Plattform-Check** – gleiche Funktionen als Add-on, in Docker, auf dem Pi und unter Windows/macOS
+Läuft komplett lokal – keine Cloud, kein Konto, keine Datenbank. Als **Home-Assistant-Add-on**, in **Docker** (NAS, Server, Raspberry Pi), als **Systemdienst auf dem Pi** oder mit **Node.js unter Windows, macOS und Linux** – überall mit denselben Funktionen.
 
-- Live-Status aller Drucker: Fortschritt, Restzeit, voraussichtliches Ende, Schicht, Temperaturen
-- Pausieren, Fortsetzen, Abbrechen
-- **Aufträge** mit Positionen (Datei × Stückzahl), Termin, Priorität und Fortschritt
-- **Druckwarteschlange** mit „Platte frei“-Bestätigung und optionalem Auto-Start je Drucker
-- **Dateibibliothek**: G-code und 3MF mit automatisch erkannter Druckzeit, Filament, Druckermodell und Vorschaubild
-- **Slicer-Anbindung**: aus OrcaSlicer, PrusaSlicer & Co. direkt an PrintDock senden; Dateien per Klick im Slicer öffnen
-- **Wartungsplaner** nach Betriebsstunden, Drucken oder Tagen, mit Erinnerung
-- **Filamentverwaltung**: Spulenlager, Belegung von AMS/ACE/Werkzeugköpfen, automatische Abbuchung nach jedem Druck, Kosten, Warnung bei knappen Spulen
-- **Home Assistant**: Drucker über Steckdosen ein-/ausschalten (mit Auto-Aus nach dem Abkühlen), alle Drucker als Geräte in Home Assistant (MQTT), Betrieb als Add-on mit eigenem Seitenleisten-Eintrag
+## Was PrintDock kann
+
+### Drucker im Blick
+
+- **Live-Status** aller Drucker: Fortschritt, Restzeit, voraussichtliches Ende, Schicht, Temperaturen mit Verlauf, Lüfter, Licht, Geschwindigkeit; Pause, Weiter, Abbrechen
+- **Statusampel** auf jeder Karte: frei = grün, druckt = blaues Lauflicht, wartet = gelb blinkend, Störung = rot blinkend
+- **Kamera** für jeden Drucker (auch Bambu RTSP und JPEG-Stream) mit Großansicht und Bild speichern; auf Wunsch **Foto nach der ersten Schicht**
+- **Startseite „Heute“**: was zu tun ist (Platte räumen, Fehldrucke, hängende Einträge, Etiketten, Feuchte, Einkauf, Wartung, Termine), was gerade läuft und was als Nächstes kommt
+- **Benachrichtigungen** mit Kamerabild per ntfy, Telegram, Discord, Gotify oder Webhook
+- **Statistik**: Drucke, Erfolgsquote, Druckstunden, Material, Kosten, Fehldrucke und Ausschuss, Drucker im Vergleich
+
+### Produktion
+
+- **Dateibibliothek** für G-code und 3MF mit erkannter Druckzeit, Filament, Druckerprofil und Vorschaubild
+- **Slicer-Anbindung**: aus OrcaSlicer, PrusaSlicer & Co. direkt senden, aus Bambu Studio über den Eingangsordner; Dateien per Klick im Slicer öffnen
+- **Druckart je Auftrag und Eintrag**: *Seriendruck (automatisch)*, *Seriendruck (manuell)* oder *Einzeldruck*
+- **Warteschlange** mit „Platte frei“-Bestätigung und **automatischer Druckerwahl** nach Profil und eingelegtem Filament
+- **Aufträge** mit Positionen (Datei × Stückzahl), Termin, Priorität, **mehreren Teilen pro Platte**, Kalkulation/Angebot und Ist-Kosten
+- **Seriendruck**: Druck fertig → nächstes Teil des Auftrags wird am Drucker eingereiht → nach „Platte frei“ startet es von selbst
+- **Startzeitfenster** je Drucker und Warten auf günstigen Strom oder PV-Überschuss
+- **„Startet nicht, weil …“**: nach „Platte frei“ sagt PrintDock sofort, ob gestartet wird – oder warum nicht, mit passendem Knopf
+- **Fehldrucke** mit einem Klick neu einreihen, Grund erfassen, Ausschuss in Kosten und Statistik
+- **Hängende Einträge** („druckt“, obwohl der Drucker längst fertig ist) werden erkannt und aufgeräumt
+- **Nachbearbeitung** mit Schritten (Stützen entfernen → prüfen → verpackt → versendet)
+- **Farbzuordnung beim Start**: Bambu-AMS-Mapping, bei Klipper/OctoPrint werden die Werkzeuge im G-code umnummeriert
+- **Wartungsplaner** nach Betriebsstunden, Drucken oder Tagen
+
+### Filament
+
+- **Spulenlager** mit Belegung von AMS, ACE und Werkzeugköpfen, automatischer Abbuchung nach jedem Druck, Kosten und Warnung bei knappen Spulen
+- **Reservierung** für alle offenen Drucke, **Einkaufsliste** mit Shop-Link, „Bestellt“ und „Angekommen“
+- **Feuchte**: Überwachung von AMS/ACE, Home-Assistant-Sensoren und Stationen; **Feuchte-Check vor dem Start** („erst trocknen, dann automatisch starten“); **Trocknen per Knopf**
+- **PrintDock Station** (ESP32 mit NFC, Waage, Feuchtesensor) mit eigener Seite, Live-Gewicht und **Inventur**
+- **RFID/NFC-Tags mit dem Handy** lesen und beschreiben (Chrome auf Android); Spulen-Etiketten mit QR-Code
+- **Spoolman** optional – Bestand übernehmen und Verbrauch zurückmelden
+
+### Kunden
+
+- **Statuslink je Auftrag**: Fortschritt, Termin, voraussichtliches Ende, Nachbearbeitung und Fotos der fertigen Teile – ohne Kosten, ohne Anmeldung
+- **Eigener Status-Server** (`relay/`): Kunden-Links funktionieren von überall, ohne das Heimnetz zu öffnen – als **PHP für normales Webhosting** oder als Node.js/Docker
+- **Etiketten** für fertige Teile mit QR-Code zum Statuslink
+
+### Home Assistant
+
+- Drucker über **Steckdosen** ein- und ausschalten, **Auto-Aus** nach dem Abkühlen, **Stromverbrauch je Druck**
+- Alle Drucker als **MQTT-Geräte**, zwei **Dashboard-Karten**, **Automations-Vorlagen**
+- **Notaus**: Rauchmelder oder Temperatursensor schaltet die Drucker ab
+- Betrieb als **Add-on** mit Seitenleiste, automatischer Verbindung und Sicherung in den HA-Backups
+
+### Zugriff und Betrieb
+
+- **Fernzugriff** über Tailscale oder Cloudflare Tunnel – direkt in PrintDock eingeschaltet
+- **Login-Schutz** immer oder nur von außen; **mehrere Benutzer** (Admin, Bediener) mit **Protokoll**
+- **Updates** per Klick (Add-on, Docker, Pi, PC), **tägliche Sicherung**, Umzug per Sicherungs-Zip
+- **Plattform-Check** zeigt, was auf der jeweiligen Installation funktioniert
+- **Einrichtungsassistent**, **jede Funktion abschaltbar**, **Menü frei anordnen** und Startseite wählen
+- **Deutsch und Englisch**, Akzentfarbe, hell und dunkel, fürs Handy geeignet
 - **Demo-Daten** mit einem Klick: 5 simulierte Drucker, Dateien, Spulen, Aufträge und 30 Tage Verlauf
-- Kamera-Livebild für alle Drucker, auch Bambu Lab – mit Großansicht und Bild speichern
-- Benachrichtigungen bei Fertigstellung, Fehler, Pause, Abbruch oder Verbindungsverlust – mit Kamerabild,
-  per ntfy, Telegram, Discord, Gotify oder Webhook (z. B. Home Assistant)
-- Verlauf aller abgeschlossenen Drucke mit Dauer und Ergebnis
-- Läuft komplett lokal im Heimnetz, keine Cloud, kein Konto – Zugriff von unterwegs optional (siehe [Fernzugriff](docs/remote-access.md))
-- Wenige Abhängigkeiten (`mqtt`, `busboy`, `basic-ftp`), keine Datenbank – Daten liegen als JSON im Ordner `data/`
-- Bedienung im Stil des Leitstands: Seitenleiste, Kennzahlen-Leiste, große Knöpfe, hell und dunkel
-- Optional: `ffmpeg` für RTSP-Kameras (im Docker-Image enthalten)
+
+| Statistik | Einrichtung |
+|---|---|
+| ![Statistik](docs/screenshots/stats.png) | ![Einrichtung](docs/screenshots/setup.png) |
 
 ## Installation
 
@@ -60,7 +90,25 @@ npm install && npm start
 
 **Home Assistant:** *Einstellungen → Add-ons → Add-on-Store → ⋮ → Repositories* → `https://github.com/Codegulasch/printdock` → „PrintDock“ installieren.
 
-Dann `http://<ip>:3080` öffnen – der Einrichtungsassistent fragt Sprache, Aussehen, Funktionen und Zugang ab und spielt auf Wunsch Demo-Daten ein. Alles lässt sich später unter **Einstellungen → Allgemein** ändern.
+**Windows:** statt `npm start` besser `scripts\start-windows.cmd` starten – dann startet PrintDock nach einem Update oder dem Einspielen einer Sicherung von selbst neu.
+
+Dann `http://<ip>:3080` öffnen. Der Einrichtungsassistent fragt Sprache, Aussehen, Funktionen und Zugang ab und spielt auf Wunsch Demo-Daten ein. Alles lässt sich später unter **Einstellungen → Allgemein** ändern. Was auf der jeweiligen Installation funktioniert (Neustart, Update, ffmpeg, Fernzugriff, Home Assistant, Eingangsordner, Sicherung, Zeitzone), zeigt **Einstellungen → System → Plattform-Check**.
+
+## Unterstützte Drucker
+
+| Anbindung | Drucker | Was der Drucker braucht |
+|---|---|---|
+| **Klipper / Moonraker** | Snapmaker U1, Anycubic Kobra 3 / S1 / S1 Max (mit Rinkhals), Voron, Creality K1/K2 (gerootet), alle anderen Klipper-Drucker | Moonraker erreichbar (Standard-Port 7125) |
+| **Anycubic (LAN-Modus)** | Kobra S1 / S1 Max, Kobra 3 / 3 Max, Kobra 2 Pro mit Original-Firmware, samt ACE Pro | LAN-Modus am Drucker eingeschaltet; IP-Adresse |
+| **Bambu Lab (LAN)** | X1, P1, A1, H2D, X2D | LAN-Modus, bei neuer Firmware zusätzlich Entwicklermodus; IP, Seriennummer, Access Code |
+| **OctoPrint** | Alle Marlin-Drucker mit OctoPrint | API-Key |
+| **Demo** | – | Simulierter Drucker zum Ausprobieren |
+
+**Snapmaker U1** – Moonraker ist ab Werk aktiv. IP am Touchscreen nachsehen und als *Klipper / Moonraker* einbinden.
+
+**Anycubic Kobra S1 / Kobra 3** – Mit der Original-Firmware am Drucker den *LAN-Modus* einschalten und als *Anycubic (LAN-Modus)* einbinden: Status, Pause/Weiter/Abbrechen, Licht, Kamera, ACE-Fächer (Material und Farbe) und ACE-Trocknen. Drucke starten: Mit [Rinkhals](https://github.com/rinkhals-community/Rinkhals) zusätzlich den Moonraker-Port (meist 7125) beim Drucker eintragen – Status, ACE und Trocknen laufen dann über den LAN-Modus, Drucke über Moonraker. Ohne Rinkhals am Drucker oder im Slicer starten. Alternativ mit Rinkhals komplett als *Klipper / Moonraker* einbinden. Das LAN-Protokoll folgt [anycubic-lan](https://github.com/Nino6689/anycubic-lan).
+
+**Bambu Lab** – Am Drucker LAN-Modus aktivieren; der Access Code steht im Netzwerkmenü. Seit den Firmware-Änderungen 2025 lassen neuere Modelle Steuerbefehle von Drittsoftware nur im Entwicklermodus zu. Druckstart und die zweite Düse von H2D/X2D sind noch **experimentell** – Rückmeldungen mit echten Geräten sind willkommen.
 
 ## Statusampel
 
@@ -74,92 +122,115 @@ Dann `http://<ip>:3080` öffnen – der Einrichtungsassistent fragt Sprache, Aus
 
 Die Farben sind fest und unabhängig von der gewählten Akzentfarbe. Neben jeder Leuchte steht der Zustand als Text.
 
-## Funktionen an- und abschalten
-
-Unter **Einstellungen → Allgemein → Funktionen** (oder im Assistenten): Warteschlange, Aufträge, Dateien, Filamentverwaltung, Wartungsplaner, Verlauf, Statistik, Kamera, Benachrichtigungen, Home Assistant, Slicer-Anbindung, Demo-Daten. Abgeschaltete Bereiche verschwinden aus Menü und Druckerkarten, ihre Daten bleiben erhalten. Abhängigkeiten werden automatisch beachtet (Aufträge brauchen Warteschlange und Dateien).
-
-## Statistik
-
-**Auswertung → Statistik** für 7, 30, 90 Tage, 12 Monate oder gesamt: Anzahl Drucke, Erfolgsquote, Druckstunden, Filament und Materialkosten, Drucke und Stunden je Tag/Woche, Drucker im Vergleich (Stunden, Auslastung, Erfolgsquote), Verbrauch je Material, häufigste Dateien und Fehler.
-
-## Sicherheit und Fernzugriff
-
-Im Heimnetz läuft PrintDock ohne Anmeldung. Für den Zugriff von unterwegs unter **Einstellungen → Fernzugriff** einschalten (Anleitung: [docs/remote-access.md](docs/remote-access.md)):
-
-- **Tailscale** – privates VPN, nichts öffentlich; Anmeldung per Link oder Auth-Key, auf Wunsch mit HTTPS-Adresse
-- **Cloudflare Tunnel** – Schnelltest ohne Konto oder eigene Adresse mit Tunnel-Token; nur mit Login-Schutz
-- **Home Assistant** – das Add-on ist überall erreichbar, wo Home Assistant es ist
-
-PrintDock lädt `tailscale` bzw. `cloudflared` beim Einschalten selbst herunter und hält es am Laufen – als Add-on, in Docker und auf dem Pi gleich. Der **Login-Schutz** (Einstellungen → System) gilt wahlweise immer oder nur von außen; die Home-Assistant-Seitenleiste fragt nie nach dem PrintDock-Passwort.
-
-Passwörter werden mit scrypt gespeichert, Sitzungen per HttpOnly-Cookie, nach 5 Fehlversuchen eine Minute Sperre. Access Codes, API-Keys und Bot-Tokens liegen im Klartext in `data/`; die Oberfläche zeigt sie nie an.
-
-**Farben beim Druckstart zuordnen:** Beim Start aus der Warteschlange schlägt PrintDock nach Material und Farbe vor, welches Fach bzw. Werkzeug welches Filament aus dem Slice druckt – jede Zeile lässt sich ändern. Bambu bekommt die Zuordnung als AMS-Mapping, bei Klipper- und OctoPrint-Druckern nummeriert PrintDock die Werkzeuge im G-code um (z. B. T0 → T2).
-
-**Kosten, Strom und Fotos:** Jeder Druck im Verlauf zeigt seine Kosten – Filament nach Spulenpreis, Strom (über eine messende Steckdose in Home Assistant oder geschätzt), auf Wunsch Maschinenstunde und Aufschlag. Aufträge zeigen eine Kalkulation aus den geslicten Dateien und die Ist-Kosten; „Kalkulation / Angebot drucken“ erzeugt eine druckbare Seite. Am Druckende speichert PrintDock ein Kamerabild des fertigen Teils im Verlauf und am Auftrag. Fertige Aufträge lassen sich archivieren.
-
-**Automatische Druckerwahl:** Einträge ohne festen Drucker bekommt der freie Drucker mit Auto-Start, zu dessen Profil die Datei geslict ist und in dem das passende Filament liegt. Für ein anderes Profil geslicte Dateien startet PrintDock nicht.
-
-**Heute, Sicherung, Kunden und Home Assistant:** Die Startseite „Heute“ zeigt, was zu tun ist (Platte räumen, Etiketten, Feuchte, Spulen, Wartung, Termine), was läuft und was als Nächstes kommt. PrintDock sichert sich täglich selbst (als Add-on nach `\\homeassistant\share\printdock\sicherungen`). Je Auftrag gibt es auf Wunsch einen Statuslink für Kunden und Etiketten für fertige Teile. Unter *Einstellungen → Home Assistant* liegen Automations-Vorlagen, z. B. „Druck fertig“ mit der Taste „Platte ist frei“ direkt in der Handy-Meldung.
-
-## Unterstützte Drucker
-
-| Anbindung | Drucker | Was der Drucker braucht |
-|---|---|---|
-| **Klipper / Moonraker** | Snapmaker U1, Anycubic Kobra 3 / S1 / S1 Max (mit Rinkhals), Voron, Creality K1/K2 (gerootet), alle anderen Klipper-Drucker | Moonraker erreichbar (Standard-Port 7125) |
-| **Anycubic (LAN-Modus)** | Kobra S1 / S1 Max, Kobra 3 / 3 Max, Kobra 2 Pro mit Original-Firmware, samt ACE Pro | LAN-Modus am Drucker eingeschaltet; IP-Adresse |
-| **Bambu Lab (LAN)** | X1, P1, A1, H2D, X2D | LAN-Modus, bei neuer Firmware zusätzlich Entwicklermodus; IP, Seriennummer, Access Code |
-| **OctoPrint** | Alle Marlin-Drucker mit OctoPrint | API-Key |
-| **Demo** | – | Simulierter Drucker zum Ausprobieren |
-
-### Hinweise zu einzelnen Herstellern
-
-**Snapmaker U1** – Moonraker ist ab Werk aktiv. IP am Touchscreen nachsehen und als Anbindung *Klipper / Moonraker* wählen.
-
-**Anycubic Kobra S1 / Kobra 3** – Mit der Original-Firmware am Drucker den *LAN-Modus* einschalten und als *Anycubic (LAN-Modus)* einbinden: Status, Pause/Weiter/Abbrechen, Licht, Kamera, ACE-Fächer (Material und Farbe) und ACE-Trocknen. Drucke starten: Mit Rinkhals zusätzlich den Moonraker-Port (meist 7125) beim Drucker eintragen – Status, ACE und Trocknen laufen dann über den LAN-Modus, Drucke über Moonraker. Ohne Rinkhals am Drucker oder im Slicer starten.
-Alternativ die Community-Firmware [Rinkhals](https://github.com/rinkhals-community/Rinkhals) – sie ergänzt Moonraker, dann als *Klipper / Moonraker* einbinden. Das LAN-Protokoll folgt [anycubic-lan](https://github.com/Nino6689/anycubic-lan).
-
-**Bambu Lab** – Am Drucker LAN-Modus aktivieren; der Access Code steht im Netzwerkmenü. Seit den Firmware-Änderungen 2025 lassen neuere Modelle Steuerbefehle von Drittsoftware nur im Entwicklermodus zu.
-Die Temperaturen der zweiten Düse (H2D, X2D) werden aus einem gepackten Wert gelesen – das ist noch **experimentell**. Rückmeldungen mit echten Geräten sind willkommen.
-
 ## Oberfläche
 
-Seitenleiste mit allen Bereichen, Zähler für offene Punkte. Jede Druckerkarte zeigt:
+Seitenleiste mit allen Bereichen und Zählern für offene Punkte; unten Sprache (DE/EN), hell/dunkel und Abmelden. **Reihenfolge, ausgeblendete Menüpunkte und Startseite** lassen sich unter *Einstellungen → Allgemein → Menü* festlegen – für alle Geräte oder nur für dieses (z. B. das Handy). Abgeschaltete Funktionen (*Einstellungen → Allgemein → Funktionen*) verschwinden aus Menü und Druckerkarten, ihre Daten bleiben erhalten.
+
+Jede Druckerkarte zeigt:
 
 - **Kopf**: Bauform-Bild, Name, Modell und Düsendurchmesser, Steckdosen-Knopf (Home Assistant), Einstellungen
-- **Plaketten**: Verbindung, WLAN-Signal, Gerätemeldungen (Bambu HMS), Wartungsstand, eingeplante Drucke
-- **Status**: Vorschaubild, Datei, Auftrag, Fortschritt, Restzeit, Endzeit, Schicht – bzw. „Platte räumen“ oder „Bereit“; darunter der nächste Druck aus der Warteschlange
+- **Plaketten**: Verbindung, WLAN-Signal, Gerätemeldungen (Bambu HMS), Feuchte, Wartungsstand, eingeplante Drucke
+- **Status**: Vorschaubild, Datei, Auftrag, Fortschritt, Restzeit, Endzeit, Schicht – bzw. „Platte räumen“ oder „Bereit“; darunter der nächste Druck aus der Warteschlange oder „Startet nicht: …“ mit Grund
 - **Temperaturen** mit Verlauf der letzten Minuten, aktive Düse hervorgehoben; **Lüfter** in Prozent
 - **Steuerung**: Licht, Kamera, Geschwindigkeit (Leise/Standard/Sport/Turbo), Pause/Weiter/Stopp
-- **Filament**: AMS/ACE-Einheiten mit Feuchte und Temperatur, jedes Fach mit Farbe, Material und Restmenge
+- **Filament**: AMS/ACE-Einheiten mit Feuchte, Temperatur und Trockner, jedes Fach mit Farbe, Material und Restmenge
 
-Oben fasst eine Zeile zusammen, wie viele Drucker frei sind, drucken, warten oder eine Störung haben, und welcher als Nächstes frei wird. Suche und Filter helfen bei vielen Druckern. Sprache (DE/EN) und Hell/Dunkel lassen sich unten links umschalten.
+Oben fasst eine Zeile zusammen, wie viele Drucker frei sind, drucken, warten oder eine Störung haben, und welcher als Nächstes frei wird.
 
-## Demo-Daten
+## So läuft ein Druck durch PrintDock
 
-**Einstellungen → Demo-Daten → Demo-Daten einspielen** legt einen kompletten, laufenden Druckerpark an: Bambu X2D mit AMS (druckt), Snapmaker U1 mit 4 Werkzeugen (druckt), Anycubic Kobra S1 mit ACE (fertig), Voron 2.4 (bereit) und Bambu A1 (pausiert), dazu 9 Dateien mit Vorschaubildern, 20 Spulen, 4 Aufträge, Warteschlange, 30 Tage Verlauf und Wartungsaufgaben. Alles ist als Demo markiert und lässt sich mit einem Klick wieder entfernen – eigene Daten bleiben unberührt.
+```
+Slicer ──„An Drucker senden“──┐
+Hochladen (Planung → Dateien) ─┴─> Dateibibliothek
+                                       │
+Auftrag anlegen (Datei × Stückzahl) ───┤ „Einplanen“
+                                       ▼
+                              Warteschlange ──Start / automatisch──> Drucker druckt
+                                       ▲                                   │
+                         „Platte ist frei“ bestätigen  <── Druck fertig ───┘
+                                                         (Verlauf, Auftrag zählt mit, Filament
+                                                          abgebucht, Wartung zählt Stunden)
+```
 
-## Filament: Spoolman, Feuchte, Etiketten, RFID
+- **Platte frei:** Nach jedem Druck zeigt die Druckerkarte „Platte räumen“ (gelb blinkend). Erst nach **Platte ist frei** startet der nächste Druck. Wer von Hand aus Warteschlange oder Auftrag startet, kreuzt im Start-Dialog zusätzlich **„Druckplatte ist geräumt“** an (abschaltbar) – so landet nie ein Druck auf einem belegten Bett.
+- **Druckart** (am Auftrag und an jedem Eintrag, Standard unter *Einstellungen → Drucker & Filament → Druckstart*):
+  - **Seriendruck (automatisch)** – alle Drucke stehen in der Warteschlange, nach „Platte frei“ startet der nächste von selbst.
+  - **Seriendruck (manuell)** – alle Drucke stehen in der Warteschlange, der nächste steht mit **Start** auf der Druckerkarte, startet aber nie von selbst.
+  - **Einzeldruck** – es wird immer nur ein Druck eingereiht und von Hand gestartet; beim Auftrag druckt *Drucken* jeweils das nächste einzelne Teil.
+- **Startet nicht?** PrintDock versucht nach „Platte frei“ sofort zu starten und meldet auf der Karte, auf *Heute* und als Hinweis „Startet: X“ oder „Startet nicht, weil …“ – Druckart manuell oder Einzeldruck, Eintrag hängt noch auf „druckt“, letzter Start fehlgeschlagen, Filament zu feucht, außerhalb des Startfensters, Profil oder Filament passt nicht – jeweils mit dem Knopf, der es behebt. Fehlgeschlagene Starts werden nach 2 Minuten automatisch erneut versucht (bis zu 3-mal).
+- **Zuweisung:** Ein Eintrag gehört fest zu einem Drucker oder zu „passender Drucker“. Letzteres bekommt der freie Drucker, zu dessen Profil die Datei geslict ist und in dem das passende Filament liegt (nächstliegende Farbe gewinnt). Für ein anderes Profil geslicte Dateien startet PrintDock nie.
+- **Reihenfolge:** neu eingereihte Fehldrucke zuerst, dann Priorität des Auftrags (eilig vor normal), Termin und manuelle Reihenfolge (▲▼).
+- **Farben zuordnen:** Beim Start schlägt PrintDock nach Material und Farbe vor, welches Fach bzw. Werkzeug welches Filament aus dem Slice druckt – jede Zeile lässt sich ändern. Bambu bekommt die Zuordnung als AMS-Mapping, bei Klipper und OctoPrint nummeriert PrintDock die Werkzeuge im G-code um (z. B. T0 → T2).
+- **Dateiformat:** Klipper und OctoPrint brauchen `.gcode`, Bambu eine geslicte `.gcode.3mf`. PrintDock prüft das vor dem Start.
+- **Bambu-Druckstart ist experimentell:** Übertragung per FTPS (Port 990) und Start über MQTT, nur im LAN-/Entwicklermodus.
+- **Übertragung:** Meldet der Drucker den Druck, gilt der Start als gelungen – auch wenn die Antwort auf das Hochladen ausbleibt (z. B. Snapmaker U1). Wird PrintDock während einer Übertragung neu gestartet, gleicht es den Eintrag mit dem Verlauf ab, statt die Datei ein zweites Mal zu drucken.
 
-- **PrintDock Station (neu in 0.9):** ein ESP32 mit NFC-Leser (PN532), Waage (HX711) und kleinem Display, mit eigener Firmware: [printdock-station](https://github.com/Codegulasch/printdock-station). Spule auflegen → PrintDock erkennt sie (Tag-Kennung, Spulen-Link, OpenSpool- oder Anycubic-Daten), bucht die Restmenge nach Gewicht (das Leergewicht lernt es an einer neuen, vollen Spule) und merkt sie sich 3 Minuten: Das nächste Fach, das eine frisch eingelegte Spule meldet, bekommt sie – bei Bambu gehen Material und Farbe gleich ans AMS. Leere Tags lassen sich aus der Spulenansicht in vier Formaten beschreiben (PrintDock + OpenSpool, OpenSpool, Nur Link, Anycubic ACE) – an der Station oder mit dem Handy. Koppeln per sechsstelligem Code unter *Einstellungen → PrintDock Station*; ohne Hardware simuliert `node scripts/station-sim.js` eine Station.
+### Seriendruck und Startzeitfenster
 
-- **Spoolman (optional):** *Einstellungen → Drucker & Filament → Filament* übernimmt den Spulenbestand aus Spoolman und meldet Verbrauch, gewogene Restmengen und den aktuellen Drucker/Platz zurück. In PrintDock angelegte Spulen landen auf Wunsch auch in Spoolman. Ist Spoolman kurz weg, holt PrintDock die Buchungen nach.
-- **Filamentfeuchte:** AMS- und ACE-Einheiten, die selbst messen, überwacht PrintDock automatisch. Einheiten ohne Messung, Drucker und Trockenboxen/Lagerorte bekommen unter *Einstellungen → Drucker & Filament → Feuchte & Trocknen* einen Sensor: einen beliebigen Feuchtesensor aus Home Assistant (z. B. Zigbee- oder Bluetooth-Thermometer in der Box) oder eine PrintDock Station mit Feuchtesensor (SHT31/SHT40/AHT20/HTU21D – auch als reiner Feuchtemesser). Warn- und Alarmwert erscheinen an den Druckerkarten (Plakette und Einheit), in der Kopfzeile, auf der Home-Assistant-Karte und unter *Filament → Feuchte & Trocknen*; die Meldung „Filament zu feucht“ nennt die betroffenen Spulen (bei einer Trockenbox alle Spulen mit diesem Lagerort). Dazu Verlauf über 48 Stunden und Trocknungsdatum je Spule.
-- **Trocknen per Knopf** (*Filament → Feuchte & Trocknen*): Bambu AMS 2 Pro (45–65 °C) und AMS HT (45–85 °C) direkt per MQTT (LAN-Modus mit Entwicklermodus), Anycubic ACE Pro direkt im LAN-Modus; Klipper/Moonraker-Drucker über ein G-Code-Makro (Vorlage für den ACE Pro mit Klipper-ACE-Treiber); alles andere über Home Assistant – Trockenbox an einer Steckdose (an, nach Ablauf aus) oder ein Trockner mit eigener Integration (Start-/Stopp-Taste und Zahl-Entitäten für Temperatur und Dauer, z. B. die Anycubic-Integration für das ACE). Vorschlag für Temperatur und Dauer aus den Spulen der Einheit (die empfindlichste bestimmt die Temperatur, begrenzt aufs Gerät); Meldung „Trocknen fertig“ und Trocknungsdatum an den Spulen.
-- **Spulen-Etiketten:** mit QR-Code in 62 × 29 mm (Brother QL), 50 × 30, 40 × 30, 57 × 25 mm oder als A4-Bogen. Scannen öffnet die Spule mit Schnellaktionen.
-- **RFID/NFC:** Spulen-Link vom Handy auf einen NFC-Sticker schreiben (Chrome auf Android) – als Leser dient die PrintDock Station. Vorhandene ESPHome-Leser funktionieren weiter über die Schnittstelle `POST /api/rfid` mit `{"tag": "…", "printer": "…", "slot": "…"}`.
+- **Seriendruck (automatisch):** Ist ein Druck fertig, reiht PrintDock das nächste offene Teil – desselben Auftrags zuerst, sonst eines anderen automatischen Auftrags nach Priorität und Termin – an diesem Drucker ein und startet es, sobald die Platte als frei bestätigt ist. Nur Dateien mit passendem Profil, Filament und Feuchte.
+- **Startzeitfenster** (in den Druckereinstellungen): automatische Starts nur z. B. zwischen 07:00 und 22:00 (außerhalb nur kurze Drucke). Lange Drucke können auf günstigen Strom warten – mit einer beliebigen Home-Assistant-Entität: Preis unter einem Wert, Einspeisung über einem Wert oder ein PV-Überschuss-Schalter. Von Hand starten geht immer.
 
-## Updates
+### Teile pro Platte, Nachbearbeitung, Fehldrucke
 
-*Einstellungen → System → Updates* sieht auf GitHub nach einer neuen Version (auch automatisch alle 6 Stunden, auf Wunsch mit Benachrichtigung) und installiert sie per Klick: als Add-on baut Home Assistant PrintDock neu, auf PC und Raspberry Pi ersetzt PrintDock seine Dateien und startet neu. Für ein privates Repository unter „Update-Quelle“ einen GitHub-Token mit Leserecht eintragen. Docker: `docker compose pull && docker compose up -d`.
+- **Teile pro Druck** je Auftragsposition: 20 Teile mit 4 pro Druck ergeben 5 Drucke; Fortschritt, Kosten, Restzeit und Reservierung rechnen entsprechend.
+- **Nachbearbeitung** (Option): Schritte wie Stützen entfernen → prüfen → verpackt → versendet mit Zählern je Auftrag, Übersicht auf *Heute* und Anzeige im Kunden-Statuslink.
+- **Fehldrucke:** Abgebrochene oder fehlgeschlagene Drucke erscheinen auf *Heute* mit **Neu einreihen** (gleiche Datei, gleiche Farbzuordnung, oben in der Warteschlange) oder *Passt so*. Ein fertiges, aber unbrauchbares Teil lässt sich im Verlauf als **Fehldruck** werten – es zählt dann nicht mehr als erledigt, das Material wird als Ausschuss gebucht. Gründe erscheinen in der Statistik je Drucker.
+- **Hängende Einträge:** Laufende Drucke überstehen einen Neustart von PrintDock (z. B. beim Update). Zeigt ein Eintrag trotzdem noch „druckt“, obwohl der Drucker seit 3 Minuten bereit ist, schließt PrintDock ihn ab 95 % als fertig ab, sonst fragt es auf *Heute* und in der Warteschlange: *War fertig* / *Abgebrochen*. Auftrag, Verlauf und Filament werden nachgetragen. Jeder laufende Eintrag hat dafür auch *Hängt?*.
 
-## Datensicherung und Umzug
+### Kosten, Strom und Fotos
 
-*Einstellungen → System → Datensicherung* lädt eine `.zip` mit allem herunter: Einstellungen, Drucker, Warteschlange, Aufträge, Spulen, Wartung, Verlauf und Druckdateien. Einspielen lässt sie sich dort oder direkt im Einrichtungsassistenten einer neuen Installation (z. B. eines neuen Home Assistant). Als Add-on, Docker-Container oder systemd-Dienst startet PrintDock danach von selbst neu, sonst von Hand neu starten. Der vorherige Stand bleibt im Datenordner unter `before-restore-…` erhalten. Als Add-on steckt PrintDock außerdem in jeder Home-Assistant-Sicherung.
+Jeder Druck im Verlauf zeigt seine Kosten – Filament nach Spulenpreis, Strom (über eine messende Steckdose in Home Assistant oder geschätzt), auf Wunsch Maschinenstunde und Aufschlag. Aufträge zeigen eine Kalkulation aus den geslicten Dateien, die Ist-Kosten und Ausschuss; „Kalkulation / Angebot drucken“ erzeugt eine druckbare Seite. Am Druckende speichert PrintDock ein Kamerabild des fertigen Teils im Verlauf und am Auftrag, auf Wunsch zusätzlich nach der ersten Schicht. Fertige Aufträge lassen sich archivieren.
+
+## Kunden-Links
+
+Je Auftrag gibt es auf Wunsch einen **Statuslink** mit QR-Code: Fortschritt, Termin, voraussichtliches Ende, Nachbearbeitung und Fotos der fertigen Teile – **ohne Kosten**, ohne Anmeldung, nicht erratbar. Dazu **Etiketten** für fertige Teile (Auftrag, Teil x von y, Kunde, Datum, QR-Code), gesammelt druckbar von *Heute* oder aus dem Auftrag.
+
+Läuft PrintDock im Heimnetz, zeigt ein solcher Link auf eine Adresse wie `192.168.x.x`, die Kunden nicht erreichen. Dafür gibt es den **Status-Server** im Ordner [`relay/`](relay/README.md): Er läuft auf einem eigenen Server oder Webhosting im Internet, PrintDock **schickt** ihm bei jeder Änderung die Statusdaten und Fotos. Verbindungen gehen nur von PrintDock nach außen, das Heimnetz bleibt zu.
+
+- **PHP-Version** (`relay/php`) für normales Webhosting: per FTP hochladen, Schlüssel in `config.php` eintragen, fertig – auch ohne URL-Umschreibung und bei Hostern, die nur GET/POST erlauben
+- **Node.js/Docker-Version** (`relay/server.js`) für eigene Server
+- mehrere PrintDock-Installationen mit eigenen Schlüsseln, Firmenname und Link im Seitenfuß, Seiten verfallen nach Abschluss des Auftrags (Standard 30 Tage), Link abschalten löscht die Seite auch auf dem Server
+
+Einrichten unter *Einstellungen → Fernzugriff → Kunden-Links*, Anleitung in [relay/README.md](relay/README.md).
+
+## Filament
+
+**Spulen** (*Filament → Spulen*): Material, Hersteller, Farbe, Netto- und Leergewicht, Preis, Lagerort. Mehrere gleiche Spulen lassen sich in einem Schritt anlegen. Restmenge per **Wiegen** (direkt von der PrintDock Station oder von Hand: Brutto minus Leerspule), per **− g** oder automatisch.
+
+**Belegung** (*Filament → Belegung*): Jeder Drucker hat Filament-Plätze. Platz antippen, Spule wählen.
+
+| Drucker | Plätze | Was PrintDock automatisch weiß |
+|---|---|---|
+| Bambu mit AMS | AMS-Fächer + externe Spule | Material, Farbe, aktives Fach; bei Bambu-Spulen RFID und Restmenge in %. **RFID-Spulen werden automatisch zugeordnet**, unbekannte lassen sich mit einem Klick als Spule anlegen. |
+| Anycubic mit ACE (LAN-Modus) | ACE-Fächer | Material und Farbe je Fach, Trockner |
+| Snapmaker U1 | Werkzeug 1–4 (je Düse) | aktives Werkzeug, Verbrauch in mm |
+| andere | ein Platz je Düse | je nach Firmware |
+
+Meldet der Drucker ein anderes Material als die zugeordnete Spule, markiert PrintDock den Platz rot.
+
+**Abbuchung nach jedem Druck:** Aus PrintDock gestartet: Gramm je Filament aus der Slicer-Datei (auch mehrfarbig), bei Abbruch oder Fehler anteilig nach Fortschritt. Direkt am Drucker gestartet: Klipper meldet die verbrauchte Länge, PrintDock rechnet sie in Gramm um („geschätzt“); Bambu meldet keine Menge. Ohne zugeordnete Spule wird der Verbrauch nur protokolliert. Fällt eine Spule unter die Warnschwelle (Standard 100 g), kommt „Spule wird knapp“. *Filament → Verbrauch* zeigt alle Abbuchungen mit Kosten.
+
+**Reservierung und Einkauf:** Jeder offene Druck reserviert die Gramm aus seiner Datei auf der Spule, von der er drucken wird. Spulen zeigen *reserviert / frei*, Einträge warnen bei zu wenig Filament mit Vorschlag für eine andere Spule. Die **Einkaufsliste** (Spulen-Seite und *Heute*, druckbar) zeigt, was für alle offenen Drucke und Aufträge fehlt – je Material und Farbe mit gemerktem Shop und Link. *Bestellt …* zählt gegen den Fehlbestand, *Angekommen* legt die Spulen an.
+
+**Filamentfeuchte:** AMS- und ACE-Einheiten, die selbst messen, überwacht PrintDock automatisch. Einheiten ohne Messung, Drucker und Trockenboxen/Lagerorte bekommen unter *Einstellungen → Drucker & Filament → Feuchte & Trocknen* einen Sensor: einen beliebigen Feuchtesensor aus Home Assistant oder eine PrintDock Station mit Feuchtesensor (SHT31/SHT40/AHT20/HTU21D). Warn- und Alarmwert erscheinen an den Druckerkarten, in der Kopfzeile, auf der Home-Assistant-Karte und unter *Filament → Feuchte & Trocknen*, mit Verlauf über 48 Stunden und Trocknungsdatum je Spule. Ist ein Drucker offline, bleibt sein zuletzt gemeldeter Trockner sichtbar.
+
+**Feuchte-Check vor dem Start:** Grenzwerte je Material (z. B. PLA 60 %, PETG 50 %, PA 30 % und alle 7 Tage trocknen). Ist das Filament zu feucht, bietet der Start-Dialog *erst trocknen, dann automatisch starten*, einen anderen Drucker oder *trotzdem drucken*. Auto-Start wartet, solange das Filament zu feucht ist (abschaltbar).
+
+**Trocknen per Knopf** (*Filament → Feuchte & Trocknen*): Bambu AMS 2 Pro (45–65 °C) und AMS HT (45–85 °C) direkt per MQTT (LAN-Modus mit Entwicklermodus), Anycubic ACE Pro direkt im LAN-Modus; Klipper/Moonraker-Drucker über ein G-Code-Makro; alles andere über Home Assistant – Trockenbox an einer Steckdose oder ein Trockner mit eigener Integration (Start-/Stopp-Taste, Temperatur, Dauer). Temperatur und Dauer schlägt PrintDock aus den Spulen der Einheit vor (die empfindlichste bestimmt die Temperatur).
+
+**PrintDock Station:** ein ESP32 mit NFC-Leser (PN532), Waage (HX711), optional Feuchtesensor und kleinem Display, mit eigener Firmware: [printdock-station](https://github.com/Codegulasch/printdock-station). Spule auflegen → PrintDock erkennt sie (Tag-Kennung, Spulen-Link, OpenSpool- oder Anycubic-Daten), bucht die Restmenge nach Gewicht (das Leergewicht lernt es an einer neuen, vollen Spule) und merkt sie sich 3 Minuten: Das nächste Fach, das eine frisch eingelegte Spule meldet, bekommt sie – bei Bambu gehen Material und Farbe gleich ans AMS. Die Seite *Filament → Station* zeigt Brutto-/Nettogewicht live, die Tag-Daten und die erkannte Spule – Gewicht übernehmen, Tag beschreiben, tarieren. Bei der **Inventur** legt man Spule für Spule auf. Koppeln per sechsstelligem Code unter *Einstellungen → PrintDock Station*; ohne Hardware simuliert `node scripts/station-sim.js` eine Station.
+
+**RFID/NFC mit dem Handy** (Chrome auf Android, über HTTPS): *Tag lesen* auf der Spulen-Seite öffnet bekannte Spulen, macht aus OpenSpool-Tags eine neue Spule und lässt unbekannte Tags zuordnen. Leere Tags lassen sich in vier Formaten beschreiben (PrintDock + OpenSpool, OpenSpool, nur Link, Anycubic ACE) – mit dem Handy oder an der Station. Auf dem iPhone erlaubt Apple kein NFC in Webseiten (QR-Etiketten funktionieren); Original-Bambu-Tags sind verschlüsselt, lesbar ist nur ihre Kennung. Vorhandene ESPHome-Leser funktionieren über `POST /api/rfid` mit `{"tag": "…", "printer": "…", "slot": "…"}`.
+
+**Spulen-Etiketten** mit QR-Code in 62 × 29 mm (Brother QL), 50 × 30, 40 × 30, 57 × 25 mm oder als A4-Bogen. Scannen öffnet die Spule mit Schnellaktionen.
+
+**Spoolman (optional):** *Einstellungen → Drucker & Filament → Filament* übernimmt den Spulenbestand aus Spoolman und meldet Verbrauch, gewogene Restmengen und den aktuellen Drucker/Platz zurück. Ist Spoolman kurz weg, holt PrintDock die Buchungen nach.
 
 ## Home Assistant
 
-**Drucker ein- und ausschalten.** Unter *Einstellungen → Home Assistant* Adresse und Langzeit-Token eintragen (beim Add-on automatisch). Je Drucker eine schaltbare Entität (`switch.…`, `light.…`, `input_boolean.…`) wählen. Die Druckerkarte bekommt einen Ein/Aus-Knopf; ausgeschaltete Drucker lassen sich direkt aus der Karte einschalten. **Auto-Aus** schaltet nach Druckende ab, aber erst wenn die Düse unter der eingestellten Temperatur ist und kein neuer Druck läuft. Während eines Drucks verweigert PrintDock das Ausschalten.
+**Drucker ein- und ausschalten.** Unter *Einstellungen → Home Assistant* Adresse und Langzeit-Token eintragen (beim Add-on automatisch). Je Drucker eine schaltbare Entität (`switch.…`, `light.…`, `input_boolean.…`) wählen; die Druckerkarte bekommt einen Ein/Aus-Knopf. **Auto-Aus** schaltet nach Druckende ab, sobald die Düse abgekühlt ist und kein neuer Druck läuft. Während eines Drucks verweigert PrintDock das Ausschalten. Misst die Steckdose, erfasst PrintDock den **Stromverbrauch je Druck**.
+
+**Notaus.** Ein Rauchmelder oder Temperatursensor aus Home Assistant löst Alarm aus → PrintDock schaltet die Steckdosen der Drucker ab und meldet „Notaus“. Mit Probealarm ohne Abschalten.
 
 **PrintDock in Home Assistant.** Mit eingeschalteten *MQTT-Geräten* meldet PrintDock jeden Drucker per MQTT-Discovery an:
 
@@ -172,14 +243,14 @@ Oben fasst eine Zeile zusammen, wie viele Drucker frei sind, drucken, warten ode
 | Bild | Kamera |
 | Gerät „PrintDock“ | Warteschlange, aktive Drucker, überfällige Aufträge, knappe Spulen, fällige Wartungen |
 
-Damit lassen sich Automationen bauen, z. B. „Licht in der Werkstatt an, wenn ein Druck fertig ist“ oder „Benachrichtigung, wenn die Platte geräumt werden muss“.
+**Automations-Vorlagen** (*Einstellungen → Home Assistant*): „Druck fertig“ mit der Taste *Platte ist frei* direkt in der Handy-Meldung, Licht an bei Fertig, Abluft während des Drucks, Alarm bei Störung/Pause. Als Add-on mit einem Klick in Home Assistant kopiert, sonst zum Herunterladen.
 
-**PrintDock-Karten fürs Dashboard.** Zwei eigene Karten zeigen PrintDock direkt im Home-Assistant-Dashboard (Voraussetzung: *MQTT-Geräte* sind eingeschaltet):
+**Dashboard-Karten** (Voraussetzung: *MQTT-Geräte* eingeschaltet):
 
 - `custom:printdock-card` – ein Drucker mit Statusampel, Auftrag, Fortschritt, Kamera, Temperaturen, Lüftern, Filamentbelegung und Steuerung (Licht, Geschwindigkeit, Pause/Weiter/Stopp, „Platte ist frei“, Ein/Aus).
-- `custom:printdock-overview-card` – alle Drucker auf einen Blick plus Warteschlange, Aufträge, knappe Spulen und fällige Wartungen. Bereiche und Listenlänge sind wählbar.
+- `custom:printdock-overview-card` – alle Drucker plus Warteschlange, Aufträge, knappe Spulen und fällige Wartungen.
 
-Beide Karten haben einen grafischen Editor (*Karte hinzufügen → PrintDock Card / PrintDock Overview*). Installation: beim Add-on automatisch; sonst *Einstellungen → Home Assistant → In Home Assistant eintragen*, über HACS (dieses Repository als *Dashboard* hinzufügen) oder von Hand als Ressource `http://<printdock>:3080/printdock-card.js` (JavaScript-Modul).
+Beide haben einen grafischen Editor. Installation: beim Add-on automatisch; sonst *Einstellungen → Home Assistant → In Home Assistant eintragen*, über HACS (dieses Repository als *Dashboard*) oder von Hand als Ressource `http://<printdock>:3080/printdock-card.js` (JavaScript-Modul).
 
 ![PrintDock-Karten in Home Assistant](docs/screenshots/ha-cards.png)
 
@@ -194,36 +265,29 @@ sections: [printers, queue, orders, spools, maintenance]
 max_items: 6
 ```
 
-**Als Add-on.** PrintDock läuft auch direkt in Home Assistant – mit Eintrag in der Seitenleiste (Ingress), automatischer Verbindung zu Home Assistant und zum Mosquitto-Broker sowie Datensicherung über die Home-Assistant-Backups:
+**Als Add-on** läuft PrintDock direkt in Home Assistant – mit Eintrag in der Seitenleiste (Ingress), automatischer Verbindung zu Home Assistant und zum Mosquitto-Broker und Sicherung in den Home-Assistant-Backups. Das Image (amd64, aarch64, armv7) liegt unter `ghcr.io/codegulasch/printdock-addon-*`. Port 3080 bleibt zusätzlich erreichbar – für Slicer-Uploads, Kamerabilder und das Handy im Heimnetz. Läuft PrintDock auf einem NAS oder PC, lässt es sich in Home Assistant als *Webseite*-Dashboard einbinden.
 
-1. In Home Assistant: *Einstellungen → Add-ons → Add-on-Store → ⋮ → Repositories* → `https://github.com/Codegulasch/printdock`.
-2. Das Add-on-Image (amd64, aarch64, armv7) baut die GitHub-Action und legt es unter `ghcr.io/codegulasch/printdock-addon-*` ab.
-3. „PrintDock“ installieren, starten, „In Seitenleiste anzeigen“.
+## Fernzugriff, Benutzer und Sicherheit
 
-Port 3080 bleibt zusätzlich direkt erreichbar – für Slicer-Uploads, Kamerabilder in Home Assistant und das Handy im Heimnetz.
+Im Heimnetz läuft PrintDock ohne Anmeldung. Für den Zugriff von unterwegs unter **Einstellungen → Fernzugriff** einschalten (Anleitung: [docs/remote-access.md](docs/remote-access.md)):
 
-**Als Dashboard-Seite.** Läuft PrintDock auf einem NAS oder PC, lässt es sich in Home Assistant als *Webseite*-Dashboard einbinden (Adresse unter *Einstellungen → Home Assistant*).
+- **Tailscale** – privates VPN, nichts öffentlich; Anmeldung per Link oder Auth-Key, auf Wunsch mit HTTPS-Adresse `https://printdock.<tailnet>.ts.net`
+- **Cloudflare Tunnel** – Schnelltest ohne Konto oder eigene Adresse mit Tunnel-Token; nur mit Login-Schutz
+- **Home Assistant** – das Add-on ist überall erreichbar, wo Home Assistant es ist
 
-## So läuft ein Druck durch PrintDock
+PrintDock lädt `tailscale` bzw. `cloudflared` beim Einschalten selbst herunter und hält es am Laufen – als Add-on, in Docker und auf dem Pi gleich. Unter Windows und macOS lädt es `cloudflared` passend herunter; für Tailscale nutzt es die installierte Tailscale-App (auch ein vorhandenes Tailscale auf Pi oder Server).
 
-```
-Slicer ──„An Drucker senden“──┐
-Hochladen (Planung → Dateien) ─┴─> Dateibibliothek
-                                       │
-Auftrag anlegen (Datei × Stückzahl) ───┤ „Einplanen“
-                                       ▼
-                              Warteschlange ──Start / Auto-Start──> Drucker druckt
-                                       ▲                                   │
-                         „Platte ist frei“ bestätigen  <── Druck fertig ───┘
-                                                         (Verlauf, Auftrag zählt mit, Wartung zählt Stunden)
-```
+**Login-Schutz** (*Einstellungen → System*) gilt wahlweise immer oder nur von außen; die Home-Assistant-Seitenleiste fragt nie nach dem PrintDock-Passwort. **Mehrere Benutzer:** *Admin* darf alles, *Bediener* darf Drucke starten, „Platte frei“ bestätigen, neu einreihen, Spulen wiegen und zuordnen – aber keine Einstellungen ändern. Das **Protokoll** unter *System* zeigt, wer was geändert hat.
 
-- **Platte frei:** Nach jedem Druck zeigt die Druckerkachel „Platte räumen“ (gelb blinkend). Erst nach dem Tippen auf **Platte ist frei** startet der nächste Druck. Wer einen Druck von Hand aus Warteschlange oder Auftrag startet, muss im Start-Dialog zusätzlich **„Druckplatte ist geräumt“** ankreuzen (abschaltbar unter Einstellungen → Allgemein) – so landet nie ein Druck auf einem belegten Bett.
-- **Auto-Start** (pro Drucker einstellbar): Ist er an, startet der nächste passende Eintrag sofort nach der Bestätigung. Ist er aus, steht der nächste Druck mit einem **Start**-Knopf auf der Kachel.
-- **Zuweisung:** Ein Eintrag gehört entweder fest zu einem Drucker oder zu „passender Drucker“. Letzteres geht nur an Drucker, deren eingetragenes **Druckermodell** zu dem Modell passt, für das die Datei gesliced wurde.
-- **Reihenfolge:** Priorität des Auftrags (eilig vor normal), dann Termin, dann manuelle Reihenfolge (▲▼).
-- **Dateiformat:** Klipper und OctoPrint brauchen `.gcode`, Bambu eine geslicte `.gcode.3mf`. PrintDock prüft das vor dem Start.
-- **Bambu-Druckstart ist experimentell:** Übertragung per FTPS (Port 990) und Start über MQTT. Funktioniert nur im LAN-/Entwicklermodus. AMS-Zuordnung und Platte lassen sich beim Einplanen wählen.
+Passwörter werden mit scrypt gespeichert, Sitzungen per HttpOnly-Cookie, nach 5 Fehlversuchen eine Minute Sperre. Access Codes, API-Keys und Bot-Tokens liegen im Klartext in `data/`; die Oberfläche zeigt sie nie an. Port 3080 nie direkt im Router freigeben.
+
+## Updates, Sicherung, Plattformen
+
+**Updates:** *Einstellungen → System → Updates* sieht auf GitHub nach einer neuen Version (auch automatisch alle 6 Stunden, auf Wunsch mit Benachrichtigung) und installiert sie per Klick: als Add-on baut Home Assistant PrintDock neu, auf PC und Raspberry Pi ersetzt PrintDock seine Dateien und startet neu, **in Docker** liegt die neue Version im Datenordner (ein neueres Image per `docker compose pull` hat wieder Vorrang). Für ein privates Repository unter „Update-Quelle“ einen GitHub-Token mit Leserecht eintragen.
+
+**Sicherung:** PrintDock sichert sich täglich selbst – als Add-on nach `/share/printdock/sicherungen` (per Samba `\\homeassistant\share\printdock\sicherungen`), sonst in den Datenordner; die letzten 7 bleiben (einstellbar), mit oder ohne Druckdateien. *Einstellungen → System → Datensicherung* lädt eine `.zip` mit allem herunter. Einspielen lässt sie sich dort oder im Einrichtungsassistenten einer neuen Installation. Als Add-on, Docker-Container, systemd-Dienst oder mit `start-windows.cmd` startet PrintDock danach von selbst neu. Der vorherige Stand bleibt im Datenordner unter `before-restore-…` erhalten.
+
+**Plattform-Check:** *Einstellungen → System → Plattform-Check* zeigt Installationsart, Datenordner, ffmpeg, Neustart, Update, Fernzugriff, Home Assistant, Eingangsordner, Sicherung und Zeitzone – und was fehlt, damit alles wie auf den anderen Plattformen läuft.
 
 ## Slicer
 
@@ -237,38 +301,13 @@ Auftrag anlegen (Datei × Stückzahl) ───┤ „Einplanen“
    - `http://<printdock>:3080/slicer/<Drucker-ID>` – in die Warteschlange eines bestimmten Druckers
 4. *Test* drücken. Danach landet „Hochladen“ bzw. „Hochladen und drucken“ direkt in PrintDock (letzteres ganz oben in der Warteschlange).
 
-**Bambu Studio** kann Bambu-Drucker nicht über OctoPrint ansprechen. Dafür gibt es den **Eingangsordner**: Platte slicen, *Geslicte Platte exportieren* (Strg+G) und in den Ordner speichern – als Add-on `\\homeassistant\share\printdock` (Samba-Add-on nötig), der Unterordner `warteschlange` legt die Datei gleich in die Warteschlange. PrintDock übernimmt sie nach wenigen Sekunden. Pfade stehen unter *Einstellungen → Slicer*.
+**Bambu Studio** kann Bambu-Drucker nicht über OctoPrint ansprechen. Dafür gibt es den **Eingangsordner**: Platte slicen, *Geslicte Platte exportieren* (Strg+G) und in den Ordner speichern – als Add-on `\\homeassistant\share\printdock` (Samba-Add-on nötig), der Unterordner `warteschlange` legt die Datei gleich in die Warteschlange. Pfade stehen unter *Einstellungen → Slicer*.
 
-**Im Slicer öffnen.** Bei jeder Datei öffnet „Öffnen in …“ den Slicer auf dem eigenen Rechner (`orcaslicer://`, `bambustudio://`, `prusaslicer://`). Weitere Slicer lassen sich mit ihrem Link-Schema ergänzen. Manche Slicer akzeptieren nur Links bestimmter Webseiten – dann „Herunterladen“ nutzen.
-
-## Filament
-
-**Spulen** (Filament → Spulen): Material, Hersteller, Farbe, Netto- und Leergewicht, Preis, Lagerort. Mehrere gleiche Spulen lassen sich in einem Schritt anlegen. Restmenge per **Wiegen** (Brutto minus Leerspule), per **− g** von Hand oder automatisch.
-
-**Belegung** (Filament → Belegung): Jeder Drucker hat Filament-Plätze. Platz antippen, Spule wählen.
-
-| Drucker | Plätze | Was PrintDock automatisch weiß |
-|---|---|---|
-| Bambu mit AMS | AMS-Fächer + externe Spule | Material, Farbe, aktives Fach; bei Bambu-Spulen RFID und Restmenge in %. **RFID-Spulen werden automatisch zugeordnet**, unbekannte lassen sich mit einem Klick als Spule anlegen. |
-| Snapmaker U1 | Werkzeug 1–4 (je Düse) | aktives Werkzeug, Verbrauch in mm |
-| Anycubic mit ACE (Rinkhals) | beim Drucker benennen, z. B. „ACE 1, ACE 2, ACE 3, ACE 4“ | Verbrauch in mm |
-| andere | ein Platz je Düse | je nach Firmware |
-
-Meldet der Drucker ein anderes Material als die zugeordnete Spule, markiert PrintDock den Platz rot.
-
-**Abbuchung nach jedem Druck**
-
-- Aus PrintDock gestartet: Gramm je Filament aus der Slicer-Datei (auch mehrfarbig), bei Abbruch oder Fehler anteilig nach Fortschritt. Filament 1, 2, … geht an Werkzeug 1, 2, … bzw. bei Bambu an die gewählte AMS-Zuordnung.
-- Direkt am Drucker gestartet: Klipper meldet die verbrauchte Länge, PrintDock rechnet sie über Dichte und Durchmesser in Gramm um („geschätzt“). Bambu meldet keine Menge – dort bei Bedarf von Hand abbuchen.
-- Ohne zugeordnete Spule wird der Verbrauch protokolliert, aber nicht abgebucht.
-
-Vor jedem Start zeigt PrintDock, welche Spule wie viel braucht und ob es reicht oder das Material nicht passt. Fällt eine Spule unter die Warnschwelle (Standard 100 g, unter Filament → Verbrauch einstellbar), kommt eine Benachrichtigung „Spule wird knapp“.
-
-**Verbrauch** (Filament → Verbrauch): Protokoll aller Abbuchungen mit Kosten sowie Summen der letzten 30 Tage je Material.
+**Im Slicer öffnen.** Bei jeder Datei öffnet „Öffnen in …“ den Slicer auf dem eigenen Rechner (`orcaslicer://`, `bambustudio://`, `prusaslicer://`). Weitere Slicer lassen sich mit ihrem Link-Schema ergänzen.
 
 ## Wartungsplan
 
-Aufgaben je Drucker mit Intervall in **Betriebsstunden**, **Drucken** oder **Tagen**. Stunden und Drucke zählt PrintDock aus dem Verlauf; Stunden aus der Zeit vor PrintDock trägt man beim Drucker unter „Betriebsstunden vor PrintDock“ ein. „Vorschläge übernehmen“ legt übliche Aufgaben an (Platte reinigen, Düse, Führungen, Riemen, Lüfter/Filter, Firmware) – das sind allgemeine Richtwerte, bitte mit der Anleitung des Druckers abgleichen. Wird eine Aufgabe fällig, kommt einmalig eine Benachrichtigung.
+Aufgaben je Drucker mit Intervall in **Betriebsstunden**, **Drucken** oder **Tagen**. Stunden und Drucke zählt PrintDock aus dem Verlauf; Stunden aus der Zeit vor PrintDock trägt man beim Drucker ein. „Vorschläge übernehmen“ legt übliche Aufgaben an (Platte reinigen, Düse, Führungen, Riemen, Lüfter/Filter, Firmware) – allgemeine Richtwerte, bitte mit der Anleitung des Druckers abgleichen. Wird eine Aufgabe fällig, kommt einmalig eine Benachrichtigung.
 
 ## Kamera
 
@@ -278,13 +317,11 @@ PrintDock holt die Bilder auf dem Server und reicht sie an den Browser weiter. D
 |---|---|---|
 | Bambu X1, H2D, H2S, X2D | RTSPS (Port 322) | Am Drucker „LAN-Liveview“ aktivieren. Braucht `ffmpeg`. |
 | Bambu P1, A1 | JPEG-Stream (Port 6000) | Läuft ohne Zusatzsoftware. |
+| Anycubic (LAN-Modus) | über den Drucker | Kamera am Drucker einschalten. |
 | Klipper / Moonraker | Snapshot-URL | Wird automatisch aus Moonraker gelesen, sonst im Drucker-Dialog eintragen. |
 | OctoPrint | Snapshot-URL | Standard `/webcam/?action=snapshot`, anpassbar. |
 
-Bei Bambu erkennt PrintDock das Protokoll automatisch; im Drucker-Dialog lässt es sich auch fest einstellen.
-Ohne Docker `ffmpeg` installieren: Windows `winget install ffmpeg`, macOS `brew install ffmpeg`, Linux über die Paketverwaltung.
-
-Endpunkte: `/api/printers/:id/camera.jpg` (Einzelbild) und `/api/printers/:id/camera.mjpg` (Livebild) – lassen sich z. B. auch in Home Assistant einbinden.
+`ffmpeg` ist im Docker-Image und im Add-on enthalten. Sonst: Windows `winget install ffmpeg`, macOS `brew install ffmpeg`, Linux über die Paketverwaltung. Endpunkte: `/api/printers/:id/camera.jpg` (Einzelbild) und `/api/printers/:id/camera.mjpg` (Livebild).
 
 ## Benachrichtigungen
 
@@ -292,14 +329,14 @@ Unter **Benachrichtigungen** beliebig viele Kanäle anlegen und je Kanal wählen
 
 | Ereignis | Wann |
 |---|---|
-| Druck fertig | Job erfolgreich beendet (mit Dauer) |
+| Druck fertig / Gestartet / Pausiert / Abgebrochen | mit Dauer bzw. voraussichtlicher Endzeit |
 | Fehler | Drucker meldet einen Fehler oder Klipper fällt aus |
-| Pausiert | Druck pausiert – oft Filament leer oder Bambu-Fehlererkennung |
-| Abgebrochen | Job abgebrochen |
-| Gestartet | Neuer Job beginnt (mit voraussichtlicher Endzeit) |
 | Nicht erreichbar | Drucker seit 2 Minuten ohne Verbindung |
+| Erste Schicht | Foto nach der ersten Schicht (Option) |
 | Wartung fällig | Eine Wartungsaufgabe hat ihr Intervall erreicht |
-| Spule wird knapp | Restmenge einer Spule unter der Warnschwelle |
+| Spule wird knapp / Filament zu feucht / Trocknen fertig | Filament |
+| Notaus | Alarm aus Home Assistant, Drucker abgeschaltet |
+| Update verfügbar | neue PrintDock-Version |
 
 | Kanal | Bild | Einrichtung |
 |---|---|---|
@@ -309,7 +346,11 @@ Unter **Benachrichtigungen** beliebig viele Kanäle anlegen und je Kanal wählen
 | Gotify | nein | Server-URL und App-Token. |
 | Webhook | ja (Base64) | JSON per POST, z. B. an Home Assistant oder Node-RED. |
 
-Nach einem Serverneustart meldet PrintDock nichts für Zustände, die schon vorher bestanden – nur echte Wechsel. Dasselbe Ereignis wird pro Drucker höchstens einmal pro Minute verschickt.
+Nach einem Neustart meldet PrintDock nur echte Zustandswechsel. Dasselbe Ereignis wird pro Drucker höchstens einmal pro Minute verschickt.
+
+## Demo-Daten
+
+**Einstellungen → Demo-Daten → Demo-Daten einspielen** legt einen kompletten, laufenden Druckerpark an: Bambu X2D mit AMS (druckt), Snapmaker U1 mit 4 Werkzeugen (druckt), Anycubic Kobra S1 mit ACE (fertig), Voron 2.4 (bereit) und Bambu A1 (pausiert), dazu Dateien mit Vorschaubildern, 20 Spulen, Aufträge, Warteschlange, 30 Tage Verlauf und Wartungsaufgaben. Alles ist als Demo markiert und lässt sich mit einem Klick wieder entfernen – eigene Daten bleiben unberührt.
 
 ## Einen neuen Drucker-Treiber schreiben
 
@@ -318,119 +359,106 @@ Jeder Hersteller ist ein Treiber in `drivers/`. Ein Treiber:
 1. erbt von `BaseDriver` (`drivers/base.js`),
 2. beschreibt in `static meta` seine Einstellungsfelder – daraus baut die Oberfläche das Formular,
 3. meldet seinen Zustand mit `this.update({...})` im gemeinsamen Statusformat (dokumentiert in `base.js`),
-4. setzt optional `command(cmd)` für `pause`, `resume` und `cancel` um,
-5. liefert optional mit `cameraSource()` eine Kameraquelle (siehe `camera.js`),
-6. wird in `drivers/index.js` eingetragen.
+4. setzt optional `command(cmd)` (pause, resume, cancel, light, speed), `startPrint(job)` und `cameraSource()` um,
+5. wird in `drivers/index.js` eingetragen.
 
-Benachrichtigungen, Kamera-Großansicht und Verlauf funktionieren dann automatisch.
-
-`drivers/demo.js` ist die kürzeste Vorlage. Server, Oberfläche und Verlauf müssen dafür nicht angefasst werden.
+Benachrichtigungen, Kamera-Großansicht, Verlauf, Warteschlange und Filament funktionieren dann automatisch. `drivers/demo.js` ist die kürzeste Vorlage.
 
 ## Aufbau
 
 ```
-server.js            HTTP-Server, REST-API, Live-Updates (Server-Sent Events), Verlauf
-camera.js            Kamera-Proxy: HTTP-Snapshots, RTSP über ffmpeg, Bambu-JPEG-Stream
-notify.js            Ereigniserkennung und Benachrichtigungskanäle
-lib/production.js    Aufträge, Warteschlange, Druckstart, Wartungsplan
-lib/filament.js      Spulen, Filament-Plätze, Abbuchung, Verbrauch
-lib/homeassistant.js Home Assistant: Steckdosen schalten, MQTT-Discovery
-lib/demo-data.js     Demo-Daten einspielen/entfernen
-lib/demo-assets.js   Erzeugt Vorschaubilder, G-code und 3MF für die Demo
-lib/files.js         Dateibibliothek, Auswertung von G-code/3MF
-lib/slicer.js        OctoPrint-kompatibler Upload, Slicer-Links
-lib/zip.js           Minimaler ZIP-Leser für 3MF
-lib/store.js         JSON-Ablage
-drivers/
-  base.js            Basisklasse und gemeinsames Statusformat
-  moonraker.js       Klipper / Moonraker
-  bambu.js           Bambu Lab über LAN-MQTT
-  octoprint.js       OctoPrint
-  demo.js            Simulierter Drucker
-public/index.html    Oberfläche: Gestaltung (angelehnt an den Leitstand)
-public/app.js        Oberfläche: Logik (ohne Build-Schritt)
-public/filament-ui.js  Oberfläche: Filament
-public/board.js      Oberfläche: Druckerkarten
-public/ha-ui.js      Oberfläche: Home Assistant, Demo-Daten
-public/stats-ui.js   Oberfläche: Statistik
-public/setup-ui.js   Oberfläche: Einrichtungsassistent, Anmeldung, Einstellungen → Allgemein
-public/i18n.js       Übersetzung (deutsche Texte sind die Schlüssel)
-public/i18n-en.js    Englische Wörterliste
-lib/app.js           Sprache, Akzentfarbe, Module, Login
-lib/stats.js         Statistik
-lib/i18n.js          Übersetzung auf dem Server (Meldungen, Home Assistant)
-scripts/install.sh   Installation auf Raspberry Pi / Debian als Systemdienst
-scripts/check.js     Schnelltest (npm run check)
-docs/                Installation, Fernzugriff, Screenshots
-.github/workflows/   Prüfung, Docker-Images, Home-Assistant-Add-on
-ha-addon/            Home-Assistant-Add-on (config.yaml, Dockerfile)
-repository.yaml      Add-on-Repository für Home Assistant
-data/                JSON-Dateien und hochgeladene Dateien (wird angelegt)
+server.js              HTTP-Server, REST-API, Live-Updates (SSE), Verlauf, laufende Jobs
+launcher.js            Start im Docker-Image (nimmt eine per Update geladene neuere Version)
+camera.js              Kamera-Proxy: HTTP-Snapshots, RTSP über ffmpeg, Bambu-JPEG-Stream
+notify.js              Ereigniserkennung und Benachrichtigungskanäle
+drivers/               moonraker.js, anycubic.js, bambu.js, octoprint.js, demo.js, base.js
+lib/
+  app.js               Sprache, Akzentfarbe, Module, Menü, Login, Benutzer
+  production.js        Aufträge, Warteschlange, Druckstart, Druckart, Wartungsplan
+  startrules.js        Startzeitfenster, günstiger Strom
+  failures.js          Fehldrucke, neu einreihen
+  filament.js          Spulen, Plätze, Abbuchung, Verbrauch, RFID
+  reserve.js, shop.js  Reservierung, Einkaufsliste, Bestellungen
+  drying.js, humcheck.js  Feuchte, Trocknen, Feuchte-Check vor dem Start
+  stations.js, tags.js PrintDock Station, Tag-Formate
+  spoolman.js          Spoolman-Abgleich
+  homeassistant.js     Steckdosen, MQTT-Discovery, Karten, Vorlagen
+  emergency.js         Notaus
+  energy.js, costs.js  Strom und Kosten
+  statuspage.js        Kunden-Statusseite (Daten)
+  statusrender.js      Kunden-Statusseite (HTML, auch vom Status-Server genutzt)
+  relay.js             Abgleich mit dem Status-Server
+  remote.js            Fernzugriff: Tailscale, Cloudflare Tunnel
+  audit.js             Protokoll
+  platform.js, env.js, hostinfo.js  Plattform-Check, Umgebung
+  updater.js           Updates
+  backup.js, autobackup.js  Sicherung
+  files.js, zip.js, inbox.js, slicer.js  Dateibibliothek, 3MF, Eingangsordner, Slicer
+  stats.js, i18n.js, store.js, …
+public/                Oberfläche ohne Build-Schritt (app.js, board.js, today-ui.js, *-ui.js, i18n.js, i18n-en.js)
+dist/printdock-card.js Home-Assistant-Karten
+blueprints/            Home-Assistant-Automationsvorlagen
+relay/                 Status-Server für Kunden-Links (php/, server.js, Docker)
+scripts/               install.sh, start-windows.cmd, station-sim.js, check.js, build-ha-addon.js
+ha-addon/              Home-Assistant-Add-on (config.yaml, Dockerfile, CHANGELOG.md)
+docs/                  Installation, Fernzugriff, Screenshots
+data/                  JSON-Dateien, Druckdateien, Fotos (wird angelegt)
 ```
 
 ### API
 
+Alle Endpunkte unter `/api/`. Mit Login-Schutz per Sitzung oder API-Key (*Einstellungen → System*). Änderungen gehen live per SSE an alle offenen Oberflächen.
+
 | Methode | Pfad | Zweck |
 |---|---|---|
-| GET | `/api/printers` | Alle Drucker mit aktuellem Status |
-| POST | `/api/printers` | Drucker anlegen `{name, driver, config}` |
+| GET / POST | `/api/printers` | Drucker mit Status / anlegen `{name, driver, config}` |
 | PUT / DELETE | `/api/printers/:id` | Drucker ändern / entfernen |
-| POST | `/api/printers/:id/command` | `{cmd: "pause" \| "resume" \| "cancel"}` |
-| GET / DELETE | `/api/history` | Verlauf lesen / leeren |
-| GET | `/api/printers/:id/camera.jpg` | Aktuelles Kamerabild |
-| GET | `/api/printers/:id/camera.mjpg` | Kamera-Livebild (MJPEG) |
-| GET / POST | `/api/notifications` | Benachrichtigungskanäle lesen / anlegen |
-| PUT / DELETE | `/api/notifications/:id` | Kanal ändern / entfernen |
-| POST | `/api/notifications/:id/test` | Testnachricht senden |
+| POST | `/api/printers/:id/command` | `{cmd: "pause" \| "resume" \| "cancel" \| "light" \| "speed", …}` |
 | POST | `/api/printers/:id/plate-clear` | Druckplatte als frei bestätigen |
-| GET / POST | `/api/files` | Bibliothek lesen / Datei hochladen (Rohdaten, Name im Header `X-Filename`) |
-| GET | `/api/files/:id/thumb`, `/api/files/:id/dl/:name` | Vorschaubild / Download |
-| GET / POST | `/api/queue` | Warteschlange lesen / einplanen `{fileId, printerId?, count, options}` |
+| POST | `/api/printers/:id/power` | Steckdose über Home Assistant `{on}` |
+| GET | `/api/printers/:id/camera.jpg`, `…/camera.mjpg` | Kamerabild / Livebild |
+| GET / DELETE | `/api/history` | Verlauf lesen / leeren |
+| POST | `/api/history/:id/{fail,unfail,requeue,dismiss}` | Fehldruck werten, zurücknehmen, neu einreihen, „passt so“ |
+| GET / POST | `/api/files` | Bibliothek / hochladen (Rohdaten, Name im Header `X-Filename`) |
+| GET / POST | `/api/queue` | Warteschlange / einplanen `{fileId, printerId?, count, mode?, options}` |
 | PUT / DELETE | `/api/queue/:id` | Eintrag ändern / entfernen |
-| POST | `/api/queue/:id/start`, `/api/queue/:id/requeue`, `/api/queue/reorder` | Starten / erneut einreihen / sortieren |
-| GET / POST | `/api/orders` | Aufträge lesen / anlegen |
+| POST | `/api/queue/:id/{start,requeue,resolve,humcheck,dry-start,dry-cancel}` | Starten, neu einreihen, hängenden Eintrag abschließen `{result}`, Feuchte prüfen, erst trocknen |
+| POST | `/api/queue/reorder`, `/api/queue/clear-finished` | Sortieren / Erledigte entfernen |
+| GET / POST | `/api/orders` | Aufträge (mit `shareUrl`) / anlegen |
 | PUT / DELETE | `/api/orders/:id` | Auftrag ändern / löschen |
-| POST | `/api/orders/:id/plan` | Offene Stückzahlen einplanen |
+| POST | `/api/orders/:id/{plan,mode,post,share,archive}` | Einplanen, Druckart `{mode: "auto" \| "manual" \| "single"}`, Nachbearbeitung, Statuslink, archivieren |
 | GET | `/api/maintenance` | Wartungsaufgaben, Betriebsstunden, Protokoll |
-| POST | `/api/maintenance/tasks`, `/api/maintenance/tasks/:id/done`, `/api/maintenance/templates` | Aufgabe anlegen / erledigt / Vorschläge |
-| GET | `/api/filament` | Spulen, Plätze je Drucker, Verbrauch |
-| POST | `/api/filament/assign` | Spule in Platz legen `{printerId, key, spoolId \| null}` |
-| POST | `/api/filament/from-slot` | Spule aus Platz-Angaben anlegen (z. B. RFID) |
-| GET | `/api/filament/check?printerId&queueId` | Reicht das Filament für einen Eintrag? |
-| POST / PUT / DELETE | `/api/spools`, `/api/spools/:id` | Spulen anlegen / ändern / löschen |
-| POST | `/api/spools/:id/weigh`, `/api/spools/:id/book` | Wiegen / von Hand abbuchen |
-| GET / PUT / DELETE | `/api/stations`, `/api/stations/:id` | Stationen anzeigen / einstellen / entfernen |
-| POST | `/api/stations/pair`, `/api/stations/:id/{tare,calibrate,identify,write}` | Koppeln, Tara, Kalibrieren, Finden, Tag beschreiben (`{spoolId, format}`) |
-| POST / PUT / DELETE | `/api/filament/dryers`, `/api/filament/dryers/:id` | Trockner einrichten: `{method: "gcode"|"ha", target, start, stop | startEntity, stopEntity, tempEntity, durationEntity, durationUnit, maxTemp}` |
-| POST | `/api/filament/dry` | Trocknen starten `{key, temp, hours}` bzw. beenden `{key, stop: true}` |
-| POST / PUT / DELETE | `/api/filament/hum-sources`, `/api/filament/hum-sources/:id` | Feuchte-Messstelle: `{kind: "ha"|"station", entity | stationId, target: {type: "printer", printerId, unit} | {type: "storage", name}}` |
-| WS | `/api/station/ws` | Verbindung der Station (Protokoll: printdock-station/docs/protocol.md) |
-| POST | `/api/printers/:id/command` | auch `{cmd: "light", on}` und `{cmd: "speed", level: 1–4}` |
-| POST | `/api/printers/:id/power` | Steckdose über Home Assistant `{on: true \| false}` |
-| GET / PUT | `/api/ha` | Home-Assistant-Einstellungen |
-| POST | `/api/ha/test` | Verbindung prüfen |
-| GET | `/api/ha/entities` | Schaltbare Entitäten |
-| GET | `/api/demo`, POST `/api/demo/load`, `/api/demo/remove` | Demo-Daten |
-| GET | `/api/summary` | Kennzahlen für die Übersicht |
-| GET / PUT | `/api/app` | Sprache, Akzentfarbe, Module, Login-Schutz, Einrichtung |
+| GET | `/api/filament` | Spulen, Plätze, Verbrauch, Reservierungen |
+| POST | `/api/filament/{assign,from-slot,dry}` | Spule zuordnen, aus Platz anlegen, trocknen |
+| GET | `/api/filament/{check,mapping,humcheck,reservations}` | Reicht das Filament? Farbzuordnung, Feuchte-Check, Reservierungen |
+| GET / POST | `/api/filament/shop`, `…/shop/order`, `…/shop/order/:id/arrived` | Einkaufsliste, bestellt, angekommen |
+| POST / PUT / DELETE | `/api/filament/dryers`, `/api/filament/hum-sources` | Trockner, Feuchte-Messstellen |
+| POST / PUT / DELETE | `/api/spools`, `/api/spools/:id` | Spulen; `…/weigh`, `…/book`, `…/dried` |
+| POST | `/api/rfid`, `/api/rfid/phone` | Tag von ESPHome-Leser / vom Handy |
+| GET / PUT / DELETE | `/api/stations`, `/api/stations/:id` | Stationen |
+| POST | `/api/stations/pair`, `/api/stations/:id/{tare,calibrate,identify,weigh,write}` | Koppeln, Tara, Kalibrieren, Finden, Wiegen, Tag beschreiben |
+| WS | `/api/station/ws` | Verbindung der Station |
+| GET / PUT | `/api/ha` | Home-Assistant-Einstellungen; `…/test`, `…/entities`, `…/blueprints`, `…/emergency` |
+| GET / PUT | `/api/remote` | Fernzugriff (Tailscale, Cloudflare) |
+| GET / PUT | `/api/relay`, POST `/api/relay/test` | Status-Server für Kunden-Links |
+| GET / POST / PUT / DELETE | `/api/users`, `/api/users/:id` | Benutzer |
+| GET | `/api/audit`, `/api/platform` | Protokoll, Plattform-Check |
+| GET | `/api/summary`, `/api/stats?days=30` | Kennzahlen (inkl. `startInfo` je Drucker), Statistik |
+| GET / PUT | `/api/app` | Sprache, Akzentfarbe, Module, Menü, Login-Schutz |
 | POST | `/api/login`, `/api/logout` | Anmelden / abmelden |
-| GET | `/api/stats?days=30` | Statistik (`days=0` = gesamt) |
-| GET / PUT | `/api/settings` | Slicer-Einstellungen |
-| GET | `/api/drivers` | Verfügbare Treiber und ihre Felder |
-| GET | `/api/events` | Live-Stream (SSE): `status`, `printers`, `history`, `channels`, `production`, `files`, `settings` |
+| GET | `/api/events` | Live-Stream (SSE) |
+| GET | `/status/<code>` | Kunden-Statusseite (ohne Anmeldung) |
 
 ## Mitmachen
 
 Neue Drucker, Übersetzungen und Fehlerberichte sind willkommen. Vor einem Pull Request `npm run check` ausführen.
-Neue Sprache: `public/i18n-en.js` kopieren (z. B. `i18n-fr.js`), übersetzen, in `index.html` laden und mit `PD_I18N.register('fr', …)` anmelden.
+Deutsche Texte sind die Schlüssel, `public/i18n-en.js` übersetzt sie ins Englische. Neue Sprache: die Datei kopieren (z. B. `i18n-fr.js`), übersetzen, in `index.html` laden und mit `PD_I18N.register('fr', …)` anmelden. `npm run check` meldet fehlende Übersetzungen.
 
 ## Geplant
 
-- Etiketten mit QR-Code für Spulen, Auftragszettel drucken
 - ACE- und U1-RFID-Daten direkt auslesen, sobald die Firmware sie bereitstellt
 - Drucker vor dem Start aus der Warteschlange automatisch einschalten (Home Assistant)
-- Ruhezeiten und Wiederholung für Benachrichtigungen, E-Mail
-- Mehrere Benutzer mit Rollen
+- Ruhezeiten für Benachrichtigungen, E-Mail
 
 ## Lizenz
 

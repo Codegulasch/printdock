@@ -22,7 +22,7 @@ function vToday() {
   for (const p of S.printers) {
     const v = pView(p);
     const st = p.status || {};
-    const nextQ = (S.queue || []).find((q) => q.status === 'queued' && q.autoNext && q.printerId === p.id);
+    const nextQ = (S.queue || []).find((q) => q.status === 'queued' && pmodeOf(q.mode) === 'auto' && q.printerId === p.id);
     if (v.mode === 'clear') items.push(todo('warn', '🧹', t('{p}: Platte räumen', { p: esc(p.name) }), [st.file ? esc(st.file) : '', nextQ ? `▶ ${t('danach startet {f}', { f: esc(nextQ.file?.name || '') })}` : ''].filter(Boolean).join(' · '), `<button class="b b-sm b-done" data-act="plateClear" data-id="${p.id}">${ICON.check}${t('Platte ist frei')}</button>`));
     else if (st.state === 'error') items.push(todo('bad', '⚠', t('{p}: Störung', { p: esc(p.name) }), esc(t(st.message || '')), goBtn('board', t('Ansehen'))));
     else if (st.state === 'paused') items.push(todo('warn', '⏸', t('{p}: pausiert', { p: esc(p.name) }), esc(t(st.message || '')), goBtn('board', t('Ansehen'))));

@@ -279,7 +279,26 @@ button.pb{border:0;cursor:pointer}
 .row.head{background:var(--panel2);font-size:0.8125rem;color:var(--muted);font-weight:600;padding-top:0.5rem;padding-bottom:0.5rem}
 .row .acts{display:flex;gap:0.375rem;justify-content:flex-end;flex-wrap:wrap;align-items:center}
 .row.dim{opacity:.6}
-.q-row{grid-template-columns:minmax(13.75rem,2fr) minmax(8.125rem,1fr) minmax(9.375rem,1.1fr) 6.875rem 7.5rem minmax(14.375rem,1.3fr)}
+.q-row{grid-template-columns:minmax(12.5rem,2fr) minmax(7.5rem,1fr) minmax(9.375rem,1.1fr) 9.5rem 5.25rem minmax(8.75rem,1.1fr) minmax(14rem,1.2fr)}
+.q-row.q-live{background:color-mix(in srgb,var(--run-bg) 45%,transparent)}
+.q-group{display:flex;gap:0.625rem;align-items:baseline;padding:0.5rem 0.875rem 0.375rem;border-top:1px solid var(--line);background:var(--panel2);font-family:var(--cond);font-size:1.0625rem}
+.q-group b{font-weight:700;letter-spacing:.02em;text-transform:uppercase;font-size:0.875rem;color:var(--muted)}
+.pmode-sel{font-size:0.875rem;padding-top:0.3125rem;padding-bottom:0.3125rem;width:100%;max-width:12rem}
+.pmode-sel.auto{border-color:var(--run);color:var(--run)}
+.pmode-tag{display:inline-block;font-size:0.8125rem;color:var(--muted);border:1px solid var(--line);border-radius:0.25rem;padding:1px 0.4375rem;white-space:nowrap}
+.pmode-tag.auto{color:var(--run);border-color:var(--run)}
+.o-mode{margin:0.25rem 0 0.125rem}
+.o-mode .pmode-sel{max-width:13rem}
+.pmode{border:0;padding:0;margin:0}
+.pmode legend{font-size:0.875rem;color:var(--muted);margin-bottom:0.375rem;padding:0}
+.pmode-opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0.5rem}
+.pmode-opt{display:flex;gap:0.5rem;align-items:flex-start;border:1px solid var(--line);border-radius:0.375rem;padding:0.5rem 0.625rem;cursor:pointer;background:var(--panel)}
+.pmode-opt:has(input:checked){border-color:var(--accent);background:var(--accent-bg)}
+.pmode-opt input{margin-top:0.1875rem;flex:none}
+.pmode-opt span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pmode-opt b{font-size:0.9375rem;line-height:1.2}
+.pmode-opt small{color:var(--muted);font-size:0.8125rem;line-height:1.3}
+@media (max-width:640px){.pmode-opts{grid-template-columns:1fr}}
 .o-row{grid-template-columns:7.5rem minmax(12.5rem,2fr) 6.25rem 4.375rem minmax(9.375rem,1.2fr) 6.875rem 5.625rem minmax(13.75rem,1.3fr)}
 .h-row{grid-template-columns:8.125rem minmax(7.5rem,1fr) minmax(12.5rem,2fr) 6.875rem 5.625rem 8.75rem}
 .lbl{display:none;color:var(--muted);font-size:0.75rem}

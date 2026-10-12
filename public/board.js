@@ -160,7 +160,9 @@ function cardHTML(p) {
   let info = '';
   if (item?.status === 'sending') {
     label = t('Wird übertragen');
-    info = `<div class="st-file">${esc(item.file?.name)}</div><div class="st-meta">${t('Datei geht an den Drucker …')}</div>`;
+    const slow = item.sentAt && Date.now() - item.sentAt > 3 * 60_000;
+    info = `<div class="st-file">${esc(item.file?.name)}</div><div class="st-meta">${slow ? t('Der Drucker hat den Druck noch nicht gemeldet.') : t('Datei geht an den Drucker …')}</div>
+      ${slow ? `<div class="btns" style="margin-top:8px"><button class="b b-sm" data-qresolve="ask" data-id="${item.id}">${t('Hängt?')}</button></div>` : ''}`;
   } else if (active || (v.mode === 'error' && s.progress != null)) {
     label = v.mode === 'error' ? t('Störung') : t(STATE_LABEL[s.state]);
     const end = s.remainingSec != null ? Date.now() + s.remainingSec * 1000 : null;
@@ -187,7 +189,7 @@ function cardHTML(p) {
 
   const nextRow = !on('queue') ? '' : next && !item
     ? `<div class="nextq"><span class="ni">${BI.cal}</span><div class="nt"><small>${t('Als Nächstes')}${queued.length > 1 ? ` · ${t('+{n} weitere', { n: queued.length - 1 })}` : ''}</small><b>${esc(next.file?.name)}</b></div>
-        ${v.mode === 'free' ? `<button class="b b-go b-sm" data-act="qStart" data-id="${next.id}" data-printer="${p.id}">${ICON.play}${t('Start')}</button>` : `<span class="meta">${p.settings?.autoStart ? t('startet automatisch') : t('wartet')}</span>`}</div>`
+        ${v.mode === 'free' ? `<button class="b b-go b-sm" data-act="qStart" data-id="${next.id}" data-printer="${p.id}">${ICON.play}${t('Start')}</button>` : `<span class="meta">${pmodeOf(next.mode) === 'auto' ? t('startet nach „Platte frei“') : t('Start von Hand')}</span>`}</div>`
       + (typeof startInfoHTML === 'function' ? startInfoHTML(p) : '')
     : !item && v.mode === 'free' ? `<div class="nextq"><span class="ni">${BI.cal}</span><div class="nt"><small>${t('Warteschlange')}</small><b>${t('Nichts eingeplant')}</b></div><button class="b b-sm" data-act="qAdd" data-printer="${p.id}">${ICON.plus}${t('Einplanen')}</button></div>` : '';
 

@@ -3,37 +3,69 @@
 *English · [Deutsch](README.de.md)*
 
 **One dashboard for every 3D printer in the house – no matter the brand.**
-Inspired by [BamBuddy](https://github.com/maziggy/bambuddy), but not limited to Bambu Lab: Bambu Lab, Snapmaker U1, Anycubic, Voron and any Klipper/Moonraker or OctoPrint printer.
+Bambu Lab, Snapmaker U1, Anycubic (with ACE), Voron and any Klipper/Moonraker or OctoPrint printer. Inspired by [BamBuddy](https://github.com/maziggy/bambuddy), but not limited to Bambu Lab.
 
 ![Printer overview](docs/screenshots/board-dark.png)
 
-## Features
+Fully local – no cloud, no account, no database. Runs as a **Home Assistant add-on**, in **Docker** (NAS, server, Raspberry Pi), as a **service on the Pi** or with **Node.js on Windows, macOS and Linux** – with the same features everywhere.
 
-- **Live status** of all printers: progress, time left, ETA, layer, temperatures with history, fans, light, speed
-- **Status lights** on every card: idle = glowing green, printing = blue running light, waiting = flashing yellow, fault = flashing red
-- **Camera** for every printer (incl. Bambu RTSP and JPEG streams) with full-screen view and snapshot
-- **Print queue** with mandatory *"build plate is clear"* confirmation and optional auto start per printer
-- **Orders** (file × quantity, due date, priority, progress) – start the next print of an order with one click
-- **File library**: G-code and 3MF with detected print time, filament, printer model and preview
-- **Slicer integration**: send from OrcaSlicer, PrusaSlicer & co. (OctoPrint-compatible endpoint); from Bambu Studio via the inbox folder (*Export plate sliced file* into `\\homeassistant\share\printdock`, subfolder `warteschlange` = queue); open files in your slicer
-- **Filament management** built in (no Spoolman needed): spools, remaining amounts, AMS/ACE/toolhead slots, RFID auto-assign, automatic deduction after every print, cost, low-stock warnings
-- **Maintenance planner** by operating hours, prints or days
-- **Statistics**: prints, success rate, print hours, material and cost, printers compared
-- **Notifications** on finish, error, pause, offline, maintenance, low filament – with camera image – via ntfy, Telegram, Discord, Gotify or webhook
-- **Home Assistant**: switch printers via smart plugs (with auto-off after cool-down), every printer as an MQTT device, runs as an add-on with sidebar entry
-- **German and English** – interface, notifications and Home Assistant entities
-- **Setup wizard** and **every feature can be switched off**
-- **Selectable accent colour**, light and dark mode, works on phones
-- **Runs anywhere**: Docker on NAS and Raspberry Pi (amd64, arm64, armv7), native installer for the Pi, Home Assistant add-on
-- **Remote access** via Tailscale or Cloudflare Tunnel – switched on right in PrintDock, with login protection (always or only from outside)
+## What PrintDock does
+
+### Printers at a glance
+
+- **Live status** of all printers: progress, time left, ETA, layer, temperatures with history, fans, light, speed; pause, resume, cancel
+- **Status lights** on every card: idle = green, printing = blue running light, waiting = flashing yellow, fault = flashing red
+- **Camera** for every printer (incl. Bambu RTSP and JPEG streams) with full-screen view and snapshot; optional **photo after the first layer**
+- **Start page "Today"**: what needs doing (clear plates, failed prints, stuck entries, labels, humidity, shopping, maintenance, due dates), what is printing and what comes next
+- **Notifications** with camera image via ntfy, Telegram, Discord, Gotify or webhook
+- **Statistics**: prints, success rate, print hours, material, costs, failed prints and scrap, printers compared
+
+### Production
+
+- **File library** for G-code and 3MF with detected print time, filament, printer profile and preview
+- **Slicer integration**: send from OrcaSlicer, PrusaSlicer & co., from Bambu Studio via the inbox folder; open files in your slicer
+- **Print mode per order and entry**: *series print (automatic)*, *series print (manual)* or *single print*
+- **Print queue** with *"plate is clear"* confirmation and **automatic printer choice** by profile and loaded filament
+- **Orders** with items (file × quantity), due date, priority, **several parts per plate**, estimate/quote and actual costs
+- **Series printing**: print finished → the next part of the order is queued on that printer → starts by itself after "plate clear"
+- **Start windows** per printer and waiting for cheap power or PV surplus
+- **"Does not start because …"**: after "plate clear" PrintDock says right away whether it starts – or why not, with a button to fix it
 - **Failed prints** requeued with one click, reasons, scrap in costs and statistics
-- **Filament reservation** for the queue with a shopping list and a **humidity check** before starting ("dry first, then start automatically")
-- **Read and write RFID/NFC tags with the phone** (Chrome on Android)
-- **Keep printing orders** after "plate clear", **start windows** and cheap power, **several parts per plate**, **post-processing** steps
-- **PrintDock Station page** with live weight, tag data and **stocktake**; **emergency stop** via Home Assistant; **several users** (admin/operator) with a log
-- **Customer links via your own status server** (`relay/`) – status pages reachable from anywhere without opening the home network
-- **Arrange the menu**, choose the start page; **platform check** – same features as add-on, in Docker, on a Pi and on Windows/macOS
-- Fully local, no cloud, no account. Few dependencies, no database – data is plain JSON
+- **Stuck entries** ("printing" although the printer finished long ago) are detected and cleaned up
+- **Post-processing** steps (remove supports → check → packed → shipped)
+- **Colour mapping at start**: Bambu AMS mapping, tools renumbered in the G-code on Klipper/OctoPrint
+- **Maintenance planner** by operating hours, prints or days
+
+### Filament
+
+- **Spool inventory** with AMS, ACE and toolhead slots, automatic deduction after every print, costs and low-stock warnings
+- **Reservation** for all open prints, **shopping list** with shop link, "ordered" and "arrived"
+- **Humidity**: monitoring of AMS/ACE, Home Assistant sensors and stations; **humidity check before starting** ("dry first, then start automatically"); **drying at the push of a button**
+- **PrintDock Station** (ESP32 with NFC, scale, humidity sensor) with its own page, live weight and **stocktake**
+- **Read and write RFID/NFC tags with the phone** (Chrome on Android); spool labels with QR code
+- **Spoolman** optional – import inventory and report usage back
+
+### Customers
+
+- **Status link per order**: progress, due date, expected finish, post-processing and photos of finished parts – no costs, no login
+- **Your own status server** (`relay/`): customer links work from anywhere without opening the home network – as **PHP for regular web hosting** or Node.js/Docker
+- **Labels** for finished parts with a QR code to the status link
+
+### Home Assistant
+
+- Switch printers via **smart plugs**, **auto-off** after cool-down, **electricity per print**
+- Every printer as an **MQTT device**, two **dashboard cards**, **automation blueprints**
+- **Emergency stop**: smoke detector or temperature sensor switches the printers off
+- Runs as an **add-on** with sidebar entry, automatic connection and inclusion in HA backups
+
+### Access and operation
+
+- **Remote access** via Tailscale or Cloudflare Tunnel – switched on right in PrintDock
+- **Login protection** always or only from outside; **several users** (admin, operator) with a **log**
+- **Updates** with one click (add-on, Docker, Pi, PC), **daily backup**, moving via backup zip
+- **Platform check** shows what works on the current installation
+- **Setup wizard**, **every feature can be switched off**, **arrange the menu** and choose the start page
+- **German and English**, accent colour, light and dark mode, works on phones
 - **Demo data** with one click: 5 simulated printers, files, spools, orders and 30 days of history
 
 | Statistics | Setup wizard |
@@ -58,15 +90,9 @@ npm install && npm start
 
 **Home Assistant:** *Settings → Add-ons → Add-on store → ⋮ → Repositories* → `https://github.com/Codegulasch/printdock` → install **PrintDock**.
 
-Then open `http://<ip>:3080`. The setup wizard asks for language, look, features and access and can load demo data. Everything can be changed later under **Settings → General**.
+**Windows:** run `scripts\start-windows.cmd` instead of `npm start` – PrintDock then restarts by itself after an update or a restore.
 
-**Assign colours at print start:** when starting from the queue, PrintDock suggests which slot or tool prints which filament of the slice by material and colour – every row can be changed. Bambu gets it as AMS mapping; on Klipper and OctoPrint printers PrintDock renumbers the tools in the G-code (e.g. T0 → T2).
-
-**Costs, electricity and photos:** every print in the history shows its costs – filament by spool price, electricity (from a metering plug in Home Assistant, or estimated), optionally machine hours and markup. Orders show an estimate from the sliced files and the actual costs; *Print estimate / quote* creates a printable page. At the end of a print PrintDock saves a camera image of the finished part. Finished orders can be archived.
-
-**Automatic printer choice:** queue entries without a fixed printer go to the free printer with auto-start whose profile the file was sliced for and that has the matching filament loaded. Files sliced for another profile are never started.
-
-**Today, backups, customers and Home Assistant:** the start page "Today" shows what needs doing, what is printing and what comes next. PrintDock backs itself up daily. Orders can get a customer status link and labels for finished parts. *Settings → Home Assistant* offers automation blueprints, e.g. "Print finished" with a "Plate is clear" button in the phone notification.
+Then open `http://<ip>:3080`. The setup wizard asks for language, look, features and access and can load demo data. Everything can be changed later under **Settings → General**. **Settings → System → Platform check** shows what works on this installation (restart, update, ffmpeg, remote access, Home Assistant, inbox, backup, time zone).
 
 ## Supported printers
 
@@ -78,10 +104,9 @@ Then open `http://<ip>:3080`. The setup wizard asks for language, look, features
 | **OctoPrint** | Any Marlin printer with OctoPrint | API key |
 | **Demo** | – | Simulated printer to try things out |
 
-Notes:
 - **Snapmaker U1** – Moonraker is enabled out of the box; add it as *Klipper / Moonraker*.
-- **Anycubic Kobra S1 / Kobra 3** – with the stock firmware, enable *LAN mode* on the printer and add it as *Anycubic (LAN mode)*: status, pause/resume/cancel, light, camera, ACE slots (material and colour) and ACE drying. To start prints, install Rinkhals and also enter its Moonraker port (usually 7125): status, ACE and drying stay on LAN mode, prints go through Moonraker. Without Rinkhals, start prints on the printer or from the slicer. With the community firmware Rinkhals you can use *Klipper / Moonraker* instead. The LAN protocol follows [anycubic-lan](https://github.com/Nino6689/anycubic-lan).
-- **Bambu Lab** – enable LAN mode; the access code is in the network menu. Starting prints and the second nozzle of H2D/X2D are **experimental** – feedback from real devices is welcome.
+- **Anycubic Kobra S1 / Kobra 3** – with the stock firmware, enable *LAN mode* on the printer and add it as *Anycubic (LAN mode)*: status, pause/resume/cancel, light, camera, ACE slots (material and colour) and ACE drying. To start prints, install Rinkhals and also enter its Moonraker port (usually 7125): status, ACE and drying stay on LAN mode, prints go through Moonraker. Without Rinkhals, start prints on the printer or from the slicer. The LAN protocol follows [anycubic-lan](https://github.com/Nino6689/anycubic-lan).
+- **Bambu Lab** – enable LAN mode; the access code is in the network menu. Newer firmware only accepts control commands from third-party software in developer mode. Starting prints and the second nozzle of H2D/X2D are **experimental** – feedback from real devices is welcome.
 
 ## Status lights
 
@@ -95,6 +120,12 @@ Notes:
 
 The colours are fixed and independent of the accent colour; every light also shows the state as text.
 
+## Interface
+
+Sidebar with all areas and counters for open items; at the bottom language (DE/EN), light/dark and logout. **Order, hidden items and start page** of the menu are set under *Settings → General → Menu* – for all devices or only this one (e.g. the phone). Features switched off under *Settings → General → Features* disappear from the menu and the cards; their data is kept.
+
+Every printer card shows header (model image, name, nozzle, plug button), badges (connection, Wi-Fi, Bambu HMS, humidity, maintenance, planned prints), status (preview, file, order, progress, time left, finish time, layer – or "clear plate" / "ready", then the next queued print or "does not start: …" with the reason), temperatures with history, fans, controls (light, camera, speed, pause/resume/stop) and filament (AMS/ACE units with humidity, temperature and dryer, every slot with colour, material and remaining amount).
+
 ## How a print flows through PrintDock
 
 ```
@@ -103,49 +134,81 @@ Upload (Files) ─────────────┴─> File library
                                    │
 Order (file × quantity) ───────────┤ "Schedule"
                                    ▼
-                     Queue ──Start (confirm plate clear) / Auto start──> printing
+                     Queue ──Start (confirm plate clear) / automatic──> printing
                        ▲                                                   │
           "Plate is clear" confirmed  <──────── print finished ────────────┘
                                          (history, order progress, filament deducted,
                                           maintenance hours counted)
 ```
 
-## Remote access and security
+- **Plate clear:** after every print the card shows "clear plate" (flashing yellow). Only after **Plate is clear** does the next print start. Manual starts from the queue or an order also require ticking **"build plate is clear"** (can be switched off).
+- **Print mode** (on the order and on every entry; default under *Settings → Printers & filament → Print start*):
+  - **Series print (automatic)** – all prints are queued, after "plate clear" the next one starts by itself.
+  - **Series print (manual)** – all prints are queued, the next one waits with **Start** on the printer card and never starts by itself.
+  - **Single print** – only one print is queued at a time and started by hand; *Print* on an order prints the next single part.
+- **Does not start?** After "plate clear" PrintDock tries to start immediately and shows on the card, on *Today* and in a message "Starting: X" or "Does not start because …" – print mode manual or single, entry still stuck on "printing", last start failed, filament too humid, outside the start window, profile or filament does not match – each with the button that fixes it. Failed starts are retried after 2 minutes (up to 3 times).
+- **Assignment:** an entry belongs to a fixed printer or to "matching printer". The latter goes to the free printer whose profile the file was sliced for and that has the matching filament loaded (closest colour wins). Files sliced for another profile are never started.
+- **Order:** requeued failed prints first, then order priority (urgent before normal), due date and manual order (▲▼).
+- **Colours at start:** PrintDock suggests which slot or tool prints which filament of the slice by material and colour – every row can be changed. Bambu gets it as AMS mapping; on Klipper and OctoPrint the tools are renumbered in the G-code (e.g. T0 → T2).
+- **File format:** Klipper and OctoPrint need `.gcode`, Bambu a sliced `.gcode.3mf`. PrintDock checks this before starting. Starting on Bambu (FTPS + MQTT, LAN/developer mode) is experimental.
+- **Transfer:** as soon as the printer reports the print, the start counts as done – even if the answer to the upload never arrives (e.g. Snapmaker U1). If PrintDock restarts during a transfer, it matches the entry against the history instead of printing the file twice.
 
-On your home network PrintDock runs without login. For access on the go, switch it on under **Settings → Remote access** (guide: [docs/remote-access.md](docs/remote-access.md)):
+### Series printing and start windows
 
-- **Tailscale** – private VPN, nothing public; sign in via link or auth key, optionally with an HTTPS address
-- **Cloudflare Tunnel** – quick test without an account or your own address with a tunnel token; only with login protection
-- **Home Assistant** – the add-on is available wherever Home Assistant is
+- **Series print (automatic):** when a print is finished, PrintDock queues the next open part – of the same order first, otherwise of another automatic order by priority and due date – on this printer and starts it as soon as the plate is confirmed clear. Only files with matching profile, filament and humidity.
+- **Start window** (in the printer settings): automatic starts only e.g. between 07:00 and 22:00 (outside only short prints). Long prints can wait for cheap power – any Home Assistant entity: price below a value, export above a value or a PV-surplus switch. Manual starts always work.
 
-PrintDock downloads `tailscale` or `cloudflared` itself when switched on and keeps it running – the same as add-on, in Docker and on a Pi. **Login protection** (Settings → System) applies always or only from outside; the Home Assistant sidebar never asks for the PrintDock password.
+### Parts per plate, post-processing, failed prints
 
-Passwords are stored with scrypt, sessions use HttpOnly cookies, 5 wrong attempts lock for a minute. Never forward port 3080 directly on your router.
+- **Parts per print** per order item: 20 parts with 4 per print plans 5 prints; progress, costs, time left and reservation count accordingly.
+- **Post-processing** (option): steps such as remove supports → check → packed → shipped with counters per order, a summary on *Today* and progress in the customer status link.
+- **Failed prints:** cancelled or failed prints appear on *Today* with **Requeue** (same file and colour mapping, top of the queue) or *Fine as is*. A finished but unusable part can be marked as **failed** in the history – it no longer counts as done and its material is booked as scrap. Reasons show up in the statistics per printer.
+- **Stuck entries:** running prints survive a restart of PrintDock (e.g. during an update). If an entry still shows "printing" while the printer has been ready for 3 minutes, PrintDock closes it as finished at 95 % or more, otherwise it asks on *Today* and in the queue: *Was finished* / *Cancelled*. Order, history and filament are updated. Every running entry also has *Stuck?*.
 
-## Filament: Spoolman, humidity, labels, RFID
+### Costs, electricity and photos
 
-- **PrintDock Station (new in 0.9):** an ESP32 with NFC reader (PN532), scale (HX711) and small display, with its own firmware: [printdock-station](https://github.com/Codegulasch/printdock-station). Put a spool on it → PrintDock recognises it (tag UID, spool link, OpenSpool or Anycubic data), books the remaining amount by weight (learns the empty spool weight from a new, full spool) and remembers it for 3 minutes: the next slot that reports a newly loaded spool gets it, and on Bambu printers material and colour are sent to the AMS slot. Blank tags can be written from the spool sheet in four formats (PrintDock + OpenSpool, OpenSpool, link only, Anycubic ACE) – at the station or with the phone. Pairing with a six-digit code under *Settings → PrintDock Station*; no hardware yet? `node scripts/station-sim.js` simulates one.
+Every print in the history shows its costs – filament by spool price, electricity (from a metering plug in Home Assistant, or estimated), optionally machine hours and markup. Orders show an estimate from the sliced files, the actual costs and scrap; *Print estimate / quote* creates a printable page. At the end of a print PrintDock saves a camera image of the finished part, optionally also after the first layer. Finished orders can be archived.
 
-- **Spoolman (optional):** *Settings → Printers & filament → Filament* takes the spool inventory from Spoolman and reports usage, weighed remaining amounts and the current printer/slot back. Spools created in PrintDock can also be added to Spoolman. If Spoolman is briefly unavailable, PrintDock catches up.
-- **Filament humidity:** AMS and ACE units that measure humidity are monitored automatically. Units without a measurement, printers and dry boxes/storage places get a sensor under *Settings → Printers & filament → Humidity & drying*: any Home Assistant humidity sensor (e.g. a Zigbee or Bluetooth thermometer in the box) or a PrintDock Station with a humidity sensor (SHT31/SHT40/AHT20/HTU21D – also as a sensor-only device). Warning and alarm thresholds are shown on the printer cards (badge and unit), in the header, on the Home Assistant card and under *Filament → Humidity & drying*; "Filament too humid" notification names the affected spools (for a dry box: all spools with that storage place), plus 48 h history and a drying date per spool.
-- **Drying at the push of a button** (*Filament → Humidity & drying*): Bambu AMS 2 Pro (45–65 °C) and AMS HT (45–85 °C) directly via MQTT (LAN mode with developer mode), Anycubic ACE Pro directly in LAN mode; Klipper/Moonraker printers via a G-code macro (template for the ACE Pro with the Klipper ACE driver); everything else via Home Assistant – a dry box on a smart plug (on, off when done) or a dryer with its own integration (start/stop button plus number entities for temperature and duration, e.g. the Anycubic integration for the ACE). Suggested temperature and time from the spools in the unit (the most sensitive one sets the temperature, capped at the device limit); "Drying finished" notification and drying date on the spools.
-- **Spool labels:** with QR code in 62 × 29 mm (Brother QL), 50 × 30, 40 × 30, 57 × 25 mm or as an A4 sheet. Scanning opens the spool with quick actions.
-- **RFID/NFC:** write the spool link to an NFC sticker from the phone (Chrome on Android) – for readers use the PrintDock Station. Existing ESPHome readers keep working through the API `POST /api/rfid` with `{"tag": "…", "printer": "…", "slot": "…"}`.
+## Customer links
 
-## Updates
+Every order can get a **status link** with QR code: progress, due date, expected finish, post-processing and photos of finished parts – **no costs**, no login, not guessable. Plus **labels** for finished parts (order, part x of y, customer, date, QR code), printed together from *Today* or the order.
 
-*Settings → System → Updates* checks GitHub for a new version (also automatically every 6 hours) and installs it with one click: as an add-on Home Assistant rebuilds PrintDock, on PC and Raspberry Pi PrintDock replaces its files and restarts. For a private repository enter a read-only GitHub token under “Update source”. Docker: `docker compose pull && docker compose up -d`.
+When PrintDock runs at home, such a link points to an address like `192.168.x.x` that customers cannot reach. That is what the **status server** in [`relay/`](relay/README.md) is for: it runs on your own server or web hosting, and PrintDock **pushes** status data and photos to it on every change. Connections only go out from PrintDock; the home network stays closed.
 
-## Backup and moving
+- **PHP version** (`relay/php`) for regular web hosting: upload via FTP, put a key into `config.php`, done – also without URL rewriting and on hosts that only allow GET/POST
+- **Node.js/Docker version** (`relay/server.js`) for your own server
+- several PrintDock installations with their own keys, company name and link in the footer, pages expire after the order is done (default 30 days), turning a link off deletes it on the server too
 
-*Settings → System → Backup* downloads a single `.zip` with everything: settings, printers, queue, orders, spools, maintenance, history and print files. Restore it on the same page or directly in the setup wizard of a fresh installation (e.g. a new Home Assistant). PrintDock restarts by itself as add-on, Docker container or systemd service; otherwise restart it manually. The previous state is kept in `before-restore-…` inside the data folder. As an add-on, PrintDock is also part of every Home Assistant backup.
+Set it up under *Settings → Remote access → Customer links*; guide in [relay/README.md](relay/README.md) (German).
+
+## Filament
+
+**Spools** (*Filament → Spools*): material, brand, colour, net and empty weight, price, storage place. Remaining amount by **weighing** (straight from the PrintDock Station or by hand), **− g** or automatically. **Slots** (*Filament → Slots*): tap a slot, choose a spool. Bambu AMS RFID spools are assigned automatically; a slot turns red when the printer reports a different material.
+
+**Deduction after every print:** started from PrintDock – grams per filament from the slicer file (also multi-colour), partial on cancel or error. Started on the printer – Klipper reports the length, converted to grams ("estimated"); Bambu reports no amount. Below the warning threshold (default 100 g) you get "spool running low". *Filament → Usage* lists every booking with costs.
+
+**Reservation and shopping:** every open print reserves its grams on the spool it will print from. Spools show *reserved / free*; entries warn when there is not enough filament and suggest another spool. The **shopping list** (spools page and *Today*, printable) shows what is missing for all open prints and orders, by material and colour with a remembered shop and link. *Ordered …* counts against the shortage, *Arrived* creates the spools.
+
+**Humidity:** AMS and ACE units that measure humidity are monitored automatically. Other units, printers and dry boxes/storage places get a sensor under *Settings → Printers & filament → Humidity & drying*: any Home Assistant humidity sensor or a PrintDock Station with a humidity sensor (SHT31/SHT40/AHT20/HTU21D). Warnings appear on the cards, in the header, on the Home Assistant card and under *Filament → Humidity & drying*, with 48 h history and a drying date per spool. The built-in dryer of an offline printer stays visible.
+
+**Humidity check before printing:** limits per material (e.g. PLA 60 %, PETG 50 %, PA 30 % and dry every 7 days). If the filament is too wet, the start dialog offers *dry first, then start automatically*, another printer or *print anyway*. Auto start waits while the filament is too wet (switchable).
+
+**Drying at the push of a button:** Bambu AMS 2 Pro (45–65 °C) and AMS HT (45–85 °C) via MQTT (LAN + developer mode), Anycubic ACE Pro in LAN mode, Klipper/Moonraker via a G-code macro, everything else via Home Assistant (dry box on a plug or a dryer with its own integration). Temperature and time are suggested from the spools in the unit.
+
+**PrintDock Station:** an ESP32 with NFC reader (PN532), scale (HX711), optional humidity sensor and small display, with its own firmware: [printdock-station](https://github.com/Codegulasch/printdock-station). Put a spool on it → PrintDock recognises it (tag UID, spool link, OpenSpool or Anycubic data), books the remaining amount by weight and remembers it for 3 minutes: the next slot that reports a newly loaded spool gets it, and on Bambu material and colour go to the AMS. The page *Filament → Station* shows gross/net weight live, the tag data and the recognised spool – take over the weight, write the tag, tare. **Stocktake:** put spool after spool on the scale. Pair with a six-digit code under *Settings → PrintDock Station*; `node scripts/station-sim.js` simulates one.
+
+**RFID/NFC with the phone** (Chrome on Android, over HTTPS): *Read tag* opens known spools, turns OpenSpool tags into a new spool and lets you assign unknown tags. Blank tags can be written in four formats (PrintDock + OpenSpool, OpenSpool, link only, Anycubic ACE) – with the phone or at the station. iPhones do not allow NFC in web pages (QR labels work); original Bambu tags are encrypted, only their ID is readable. ESPHome readers use `POST /api/rfid` with `{"tag": "…", "printer": "…", "slot": "…"}`.
+
+**Spool labels** with QR code in 62 × 29 mm (Brother QL), 50 × 30, 40 × 30, 57 × 25 mm or as an A4 sheet. **Spoolman (optional)** under *Settings → Printers & filament → Filament*: imports the inventory and reports usage, weights and the current slot back.
 
 ## Home Assistant
 
-- **Power switching:** enter a switchable entity (`switch.…`, `light.…`, `input_boolean.…`) per printer; an on/off button appears on the card. Optional auto-off once the print is done and the nozzle has cooled down.
+- **Power switching:** a switchable entity (`switch.…`, `light.…`, `input_boolean.…`) per printer; an on/off button appears on the card. Optional auto-off once the print is done and the nozzle has cooled down. With a metering plug PrintDock records the **electricity per print**.
+- **Emergency stop:** a smoke detector or temperature sensor raises an alarm → PrintDock switches off the printers' plugs and sends "Emergency stop". Test alarm without switching off.
 - **MQTT discovery:** every printer becomes a device with status, progress, time left, finish time, file, layer, temperatures, connectivity, "clear plate", buttons (pause, resume, cancel, plate is clear), light switch, speed select and camera image – plus a PrintDock device with queue, active printers, overdue orders, low spools and due maintenance.
-- **Dashboard cards:** `custom:printdock-card` (one printer with camera, temperatures, filament and controls) and `custom:printdock-overview-card` (all printers, queue, orders, low spools, maintenance). Both have a visual editor. Installed automatically with the add-on; otherwise click *Add to Home Assistant* under *Settings → Home Assistant*, add this repository to HACS as a *Dashboard* repository, or add the resource `http://<printdock>:3080/printdock-card.js` (JavaScript module) yourself.
-- **Add-on:** sidebar entry via ingress, automatic connection to Home Assistant and the Mosquitto broker, included in HA backups.
+- **Blueprints:** "Print finished" with a *Plate is clear* button in the phone notification, light on when finished, exhaust fan while printing, alert on fault/pause.
+- **Dashboard cards:** `custom:printdock-card` (one printer with camera, temperatures, filament and controls) and `custom:printdock-overview-card` (all printers, queue, orders, low spools, maintenance), both with a visual editor. Installed automatically with the add-on; otherwise *Add to Home Assistant* under *Settings → Home Assistant*, HACS (*Dashboard* repository) or the resource `http://<printdock>:3080/printdock-card.js` (JavaScript module).
+- **Add-on:** sidebar entry via ingress, automatic connection to Home Assistant and the Mosquitto broker, included in HA backups. Port 3080 stays reachable for slicer uploads, camera images and phones on the home network.
 
 ![PrintDock cards in Home Assistant](docs/screenshots/ha-cards.png)
 
@@ -160,6 +223,56 @@ sections: [printers, queue, orders, spools, maintenance]
 max_items: 6
 ```
 
+## Remote access, users and security
+
+On your home network PrintDock runs without login. For access on the go, switch it on under **Settings → Remote access** (guide: [docs/remote-access.md](docs/remote-access.md)):
+
+- **Tailscale** – private VPN, nothing public; sign in via link or auth key, optionally with an HTTPS address `https://printdock.<tailnet>.ts.net`
+- **Cloudflare Tunnel** – quick test without an account or your own address with a tunnel token; only with login protection
+- **Home Assistant** – the add-on is available wherever Home Assistant is
+
+PrintDock downloads `tailscale` or `cloudflared` itself and keeps it running – the same as add-on, in Docker and on a Pi. On Windows and macOS it downloads the matching `cloudflared`; for Tailscale it uses the installed Tailscale app (also an existing Tailscale on a Pi or server).
+
+**Login protection** (*Settings → System*) applies always or only from outside; the Home Assistant sidebar never asks for the PrintDock password. **Several users:** *admin* may do everything, *operator* may start prints, confirm plate clear, requeue, weigh and assign spools – but not change settings. The **log** under *System* shows who changed what.
+
+Passwords are stored with scrypt, sessions use HttpOnly cookies, 5 wrong attempts lock for a minute. Never forward port 3080 directly on your router.
+
+## Updates, backup, platforms
+
+**Updates:** *Settings → System → Updates* checks GitHub for a new version (also automatically every 6 hours, optionally with a notification) and installs it with one click: as an add-on Home Assistant rebuilds PrintDock, on PC and Raspberry Pi PrintDock replaces its files and restarts, **in Docker** the new version is kept in the data folder (a newer image via `docker compose pull` wins again). For a private repository enter a read-only GitHub token under "Update source".
+
+**Backup:** PrintDock backs itself up daily – as add-on into `/share/printdock/sicherungen` (via Samba `\\homeassistant\share\printdock\sicherungen`), otherwise into the data folder; keeps the last 7 (adjustable), with or without print files. *Settings → System → Backup* downloads a single `.zip` with everything. Restore it there or in the setup wizard of a fresh installation. As add-on, Docker container, systemd service or with `start-windows.cmd` PrintDock restarts by itself. The previous state is kept in `before-restore-…` inside the data folder.
+
+**Platform check:** *Settings → System → Platform check* shows installation type, data folder, ffmpeg, restart, update, remote access, Home Assistant, inbox, backup and time zone – and what is missing for everything to work as on the other platforms.
+
+## Slicer
+
+PrintDock presents itself to slicers as an OctoPrint server. In OrcaSlicer, PrusaSlicer, SuperSlicer and derivatives (Snapmaker Orca, Anycubic Slicer Next): printer profile → *Add/edit physical printer* → host type **OctoPrint** → address and API key from *Settings → Slicer*:
+
+- `http://<printdock>:3080/slicer` – library only
+- `http://<printdock>:3080/slicer/queue` – into the queue (matching printer)
+- `http://<printdock>:3080/slicer/<printer-id>` – into the queue of a specific printer
+
+**Bambu Studio:** use the **inbox folder** – *Export plate sliced file* (Ctrl+G) into `\\homeassistant\share\printdock` (add-on, Samba add-on required); the subfolder `warteschlange` puts the file straight into the queue. Paths are shown under *Settings → Slicer*. **Open in slicer** works via `orcaslicer://`, `bambustudio://`, `prusaslicer://`.
+
+## Camera
+
+PrintDock fetches images on the server and passes them to the browser, so credentials stay on the server and cameras browsers cannot show directly still work. The camera only runs while someone watches (plus 30 seconds).
+
+| Printer | Protocol | Note |
+|---|---|---|
+| Bambu X1, H2D, H2S, X2D | RTSPS (port 322) | Enable "LAN live view" on the printer. Needs `ffmpeg`. |
+| Bambu P1, A1 | JPEG stream (port 6000) | No extra software. |
+| Anycubic (LAN mode) | via the printer | Enable the camera on the printer. |
+| Klipper / Moonraker | snapshot URL | Read from Moonraker, or enter it in the printer dialog. |
+| OctoPrint | snapshot URL | Default `/webcam/?action=snapshot`. |
+
+`ffmpeg` is included in the Docker image and the add-on; otherwise `winget install ffmpeg`, `brew install ffmpeg` or your package manager. Endpoints: `/api/printers/:id/camera.jpg` and `/api/printers/:id/camera.mjpg`.
+
+## Notifications
+
+Any number of channels (ntfy, Telegram, Discord, Gotify, webhook – all but Gotify with image), each with its own events: print finished, started, paused, cancelled, error, offline for 2 minutes, photo after the first layer, maintenance due, spool running low, filament too humid, drying finished, emergency stop, PrintDock update available. After a restart only real state changes are reported; the same event is sent at most once per minute per printer.
+
 ## Writing a printer driver
 
 Every vendor is a driver in `drivers/`. A driver extends `BaseDriver` (`drivers/base.js`), describes its settings in `static meta` (the UI builds the form from it), reports state with `this.update({...})` in the shared status format, and optionally implements `command(cmd)` (pause, resume, cancel, light, speed), `startPrint(job)` and `cameraSource()`. Register it in `drivers/index.js`. `drivers/demo.js` is the shortest example.
@@ -171,23 +284,45 @@ German texts are the keys; `public/i18n-en.js` maps them to English. To add a la
 ## Project layout
 
 ```
-server.js            HTTP server, REST API, live updates (SSE), history
-camera.js            camera proxy: HTTP snapshots, RTSP via ffmpeg, Bambu JPEG stream
-notify.js            event detection and notification channels
-lib/app.js           language, accent colour, feature switches, login
-lib/production.js    orders, queue, print start, maintenance
-lib/filament.js      spools, slots, deduction, usage
-lib/stats.js         statistics
-lib/homeassistant.js Home Assistant: smart plugs, MQTT discovery
-lib/files.js         file library, G-code/3MF parsing
-lib/slicer.js        OctoPrint-compatible upload, slicer links
-drivers/             moonraker.js, bambu.js, octoprint.js, demo.js
-public/              web interface without build step (i18n.js, i18n-en.js, app.js, board.js, …)
-scripts/install.sh   native installer for Raspberry Pi / Debian
-scripts/check.js     smoke test (npm run check)
-ha-addon/            Home Assistant add-on
-docs/                installation, remote access, screenshots
+server.js              HTTP server, REST API, live updates (SSE), history, running jobs
+launcher.js            Docker entry point (uses a newer version downloaded by the updater)
+camera.js              camera proxy: HTTP snapshots, RTSP via ffmpeg, Bambu JPEG stream
+notify.js              event detection and notification channels
+drivers/               moonraker.js, anycubic.js, bambu.js, octoprint.js, demo.js, base.js
+lib/
+  app.js               language, accent colour, features, menu, login, users
+  production.js        orders, queue, print start, print mode, maintenance
+  startrules.js        start windows, cheap power
+  failures.js          failed prints, requeue
+  filament.js          spools, slots, deduction, usage, RFID
+  reserve.js, shop.js  reservation, shopping list, orders
+  drying.js, humcheck.js  humidity, drying, humidity check before start
+  stations.js, tags.js PrintDock Station, tag formats
+  spoolman.js          Spoolman sync
+  homeassistant.js     plugs, MQTT discovery, cards, blueprints
+  emergency.js         emergency stop
+  energy.js, costs.js  electricity and costs
+  statuspage.js        customer status page (data)
+  statusrender.js      customer status page (HTML, shared with the status server)
+  relay.js             sync with the status server
+  remote.js            remote access: Tailscale, Cloudflare Tunnel
+  audit.js             log
+  platform.js, env.js, hostinfo.js  platform check, environment
+  updater.js           updates
+  backup.js, autobackup.js  backups
+  files.js, zip.js, inbox.js, slicer.js  file library, 3MF, inbox folder, slicer
+  stats.js, i18n.js, store.js, …
+public/                web interface without build step (app.js, board.js, today-ui.js, *-ui.js, i18n.js, i18n-en.js)
+dist/printdock-card.js Home Assistant cards
+blueprints/            Home Assistant automation blueprints
+relay/                 status server for customer links (php/, server.js, Docker)
+scripts/               install.sh, start-windows.cmd, station-sim.js, check.js, build-ha-addon.js
+ha-addon/              Home Assistant add-on (config.yaml, Dockerfile, CHANGELOG.md)
+docs/                  installation, remote access, screenshots
+data/                  JSON files, print files, photos (created on start)
 ```
+
+The full API table is in the [German README](README.de.md#api).
 
 ## Contributing
 
