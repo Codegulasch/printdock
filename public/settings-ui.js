@@ -41,7 +41,7 @@ function vWorkshop() {
   if (on('filament')) parts.push(['ws-fil', t('Filament')], ['ws-hum', t('Feuchte & Trocknen')]);
   parts.push(['ws-costs', t('Kosten & nach dem Druck')]);
   const jump = `<div class="set-jump">${parts.map(([id, l]) => `<button class="chip" data-anchor="${id}">${esc(l)}</button>`).join('')}</div>`;
-  const printers = setSection('ws-printers', t('Drucker#pl'), noHead(VIEW_FN.printers()), `<button class="b b-sm b-go" data-act="editPrinter">${ICON.plus}${t('Drucker hinzufügen')}</button>`);
+  const printers = setSection('ws-printers', t('Drucker#pl'), noHead(VIEW_FN.printers()), `<button class="b b-sm" data-areas-edit>${t('Bereiche …')}</button><button class="b b-sm b-go" data-act="editPrinter">${ICON.plus}${t('Drucker hinzufügen')}</button>`);
   const start = setSection('ws-start', t('Druckstart'), `<div class="sbox">
       ${lrow(t('Druckplatte abfragen'), t('Vor jedem Start aus Warteschlange oder Auftrag bestätigen, dass die Platte geräumt ist.'), `<label class="tgl"><input type="checkbox" data-g-plate ${a.plateCheck ? 'checked' : ''}><span class="sw"></span></label>`)}
       ${on('queue') ? lrow(t('Standard-Druckart'), t('Für neue Einträge in der Warteschlange und neue Aufträge – an jedem Auftrag und Eintrag änderbar. Serie · auto: startet nach „Platte frei“ von selbst. Serie · manuell: jeder Start per Knopf. Einzeldruck: immer nur ein Druck.'), `<select class="in" data-g-pmode>${PMODES.map((m) => `<option value="${m}" ${pmodeOf(a.printMode) === m ? 'selected' : ''}>${t(PMODE_LABEL[m])}</option>`).join('')}</select>`) : ''}
@@ -83,4 +83,69 @@ document.addEventListener('change', (e) => {
   if (!el) return;
   const k = el.dataset.gArch;
   saveApp({ archive: { [k]: el.type === 'checkbox' ? el.checked : el.value } });
+});
+
+// ---------------- Bereiche (Printfarm, Räume) verwalten
+function areasDialog() {
+  let list = (S.app?.areas || []).map((a) => ({ ...a }));
+  const count = (id) => S.printers.filter((p) => p.settings?.area === id).length;
+  const d = openDialog(`<form class="dlg" method="dialog"><h2>${t('Bereiche')}</h2>
+    <p class="hint" style="margin:0">${t('Drucker lassen sich Bereichen zuordnen – z. B. Printfarm 1, Werkstatt, Keller. Die Druckerseite gruppiert danach, oben lässt sich ein Bereich auswählen, und Aufträge bzw. Einträge können auf „passender Drucker im Bereich“ zeigen. Zuordnen: beim Drucker unter „Bereich“.')}</p>
+    <div data-alist></div>
+    <div class="two"><input class="in" data-anew placeholder="${esc(t('Neuer Bereich, z. B. Printfarm 1'))}" maxlength="40"><button class="b b-sm" type="button" data-aadd>${ICON.plus}${t('Hinzufügen')}</button></div>
+    <div class="form-error" hidden></div>
+    <div class="dlg-actions"><button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-go" value="ok">${t('Speichern')}</button></div></form>`);
+  const draw = () => {
+    $('[data-alist]', d).innerHTML = list.length ? list.map((a, i) => `<div class="area-row"><input class="in" data-aname="${i}" value="${esc(a.name)}" maxlength="40">
+        <span class="meta">${a.id && count(a.id) ? (count(a.id) === 1 ? t('1 Drucker') : t('{n} Drucker', { n: count(a.id) })) : ''}</span>
+        <button class="x" type="button" data-aup="${i}" ${i ? '' : 'disabled'} title="${esc(t('Nach oben'))}">${ICON.up}</button>
+        <button class="x" type="button" data-adown="${i}" ${i < list.length - 1 ? '' : 'disabled'} title="${esc(t('Nach unten'))}">${ICON.down}</button>
+        <button class="x del" type="button" data-adel="${i}" title="${esc(t('Entfernen'))}">${ICON.trash}</button></div>`).join('')
+      : `<p class="meta">${t('Noch keine Bereiche.')}</p>`;
+  };
+  draw();
+  d.addEventListener('input', (e) => {
+    const n = e.target.closest('[data-aname]');
+    if (n) list[Number(n.dataset.aname)].name = n.value;
+  });
+  d.addEventListener('click', (e) => {
+    const add = e.target.closest('[data-aadd]');
+    if (add) {
+      const inp = $('[data-anew]', d);
+      if (inp.value.trim()) list.push({ name: inp.value.trim() });
+      inp.value = '';
+      return draw();
+    }
+    const up = e.target.closest('[data-aup]');
+    const down = e.target.closest('[data-adown]');
+    const del = e.target.closest('[data-adel]');
+    if (up) {
+      const i = Number(up.dataset.aup);
+      [list[i - 1], list[i]] = [list[i], list[i - 1]];
+    } else if (down) {
+      const i = Number(down.dataset.adown);
+      [list[i + 1], list[i]] = [list[i], list[i + 1]];
+    } else if (del) list.splice(Number(del.dataset.adel), 1);
+    else return;
+    draw();
+  });
+  $('[data-anew]', d).addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      $('[data-aadd]', d).click();
+    }
+  });
+  $('form', d).addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pending = $('[data-anew]', d).value.trim();
+    if (pending) list.push({ name: pending });
+    const r = await saveApp({ areas: list.filter((a) => a.name.trim()) }, t('Bereiche gespeichert'));
+    if (r) {
+      d.close();
+      reload('printers', 'queue', 'orders');
+    }
+  });
+}
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-areas-edit]')) areasDialog();
 });

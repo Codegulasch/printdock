@@ -19,6 +19,7 @@ Fully local – no cloud, no account, no database. Runs as a **Home Assistant ad
 - **Start page "Today"**: what needs doing (clear plates, failed prints, stuck entries, labels, humidity, shopping, maintenance, due dates), what is printing and what comes next
 - **Notifications** with camera image via ntfy, Telegram, Discord, Gotify or webhook
 - **Archive** of all prints with start and end, grouped by day, with search, filters and CSV export – **including prints sent straight from the slicer or started on the touchscreen**
+- **Areas** for print farms and different rooms: assign printers, overview grouped and filterable by area, send queue entries and orders to an area
 - **Statistics**: prints, success rate, print hours, material, costs, failed prints and scrap, printers compared
 
 ### Production
@@ -69,9 +70,13 @@ Fully local – no cloud, no account, no database. Runs as a **Home Assistant ad
 - **German and English**, accent colour, light and dark mode, works on phones
 - **Demo data** with one click: 5 simulated printers, files, spools, orders and 30 days of history
 
-| Statistics | Setup wizard |
+| Today | Archive |
 |---|---|
+| ![Today](docs/screenshots/today.png) | ![Archive](docs/screenshots/archive.png) |
+| **Statistics** | **Setup wizard** |
 | ![Statistics](docs/screenshots/stats.png) | ![Setup](docs/screenshots/setup.png) |
+
+**New here?** → [Getting started](docs/getting-started.md#getting-started): from first start to first print in ten minutes.
 
 ## Installation
 
@@ -225,7 +230,7 @@ Set it up under *Settings → Remote access → Customer links*; guide in [relay
 - **Emergency stop:** a smoke detector or temperature sensor raises an alarm → PrintDock switches off the printers' plugs and sends "Emergency stop". Test alarm without switching off.
 - **MQTT discovery:** every printer becomes a device with status, progress, time left, finish time, file, layer, temperatures, connectivity, "clear plate", buttons (pause, resume, cancel, plate is clear), light switch, speed select and camera image – plus a PrintDock device with queue, active printers, overdue orders, low spools and due maintenance.
 - **Blueprints:** "Print finished" with a *Plate is clear* button in the phone notification, light on when finished, exhaust fan while printing, alert on fault/pause.
-- **Dashboard cards:** `custom:printdock-card` (one printer with camera, temperatures, filament and controls) and `custom:printdock-overview-card` (all printers, queue, orders, low spools, maintenance), both with a visual editor. Installed automatically with the add-on; otherwise *Add to Home Assistant* under *Settings → Home Assistant*, HACS (*Dashboard* repository) or the resource `http://<printdock>:3080/printdock-card.js` (JavaScript module).
+- **Dashboard cards:** `custom:printdock-card` (one printer with camera, temperatures, filament and controls) and `custom:printdock-overview-card` (all printers, queue, orders, low spools, maintenance; `area: <name>` limits it to one area), both with a visual editor. Installed automatically with the add-on; otherwise *Add to Home Assistant* under *Settings → Home Assistant*, HACS (*Dashboard* repository) or the resource `http://<printdock>:3080/printdock-card.js` (JavaScript module).
 - **Add-on:** sidebar entry via ingress, automatic connection to Home Assistant and the Mosquitto broker, included in HA backups. Port 3080 stays reachable for slicer uploads, camera images and phones on the home network.
 
 ![PrintDock cards in Home Assistant](docs/screenshots/ha-cards.png)
@@ -261,17 +266,19 @@ Passwords are stored with scrypt, sessions use HttpOnly cookies, 5 wrong attempt
 
 **Backup:** PrintDock backs itself up daily – as add-on into `/share/printdock/sicherungen` (via Samba `\\homeassistant\share\printdock\sicherungen`), otherwise into the data folder; keeps the last 7 (adjustable), with or without print files. *Settings → System → Backup* downloads a single `.zip` with everything. Restore it there or in the setup wizard of a fresh installation. As add-on, Docker container, systemd service or with `start-windows.cmd` PrintDock restarts by itself. The previous state is kept in `before-restore-…` inside the data folder.
 
-**Storage location (NAS):** print files, photos and backups can be moved to a NAS, a server or a second disk under *Settings → System → Storage location* – so Home Assistant does not fill up and HA backups stay small. PrintDock creates the subfolders `dateien`, `fotos` and `sicherungen` there (each optional), copies the existing files over and only then deletes them in the data folder. Settings, archive and spools stay in the data folder. The location must be reachable as a folder:
+**Storage location (NAS):** print files, photos and backups can be moved to a NAS, a server or a second disk under *Settings → System → Storage location* – so Home Assistant does not fill up and HA backups stay small. Settings, archive and spools always stay in the data folder. Three modes:
 
-| Installation | How the NAS gets in |
-|---|---|
-| Home Assistant add-on | *Settings → System → Storage → Add network storage* (usage "Share") → shows up as `/share/<name>`, e.g. `/share/nas/printdock` (usage "Media" → `/media/<name>`) |
-| Docker | mount the NAS folder on the host and pass it as a volume, e.g. `- /mnt/nas/printdock:/nas` → `/nas` |
-| Raspberry Pi / Linux | mount via `/etc/fstab` (cifs or nfs) → e.g. `/mnt/nas/printdock` |
-| Windows | UNC path directly, e.g. `\\nas\print\printdock` |
-| macOS | connect the share in Finder → `/Volumes/<share>/printdock` |
+| Mode | For | How |
+|---|---|---|
+| **Data folder** | default | nothing to set |
+| **SMB share** (recommended) | NAS, TrueNAS, Synology, Windows share – **no mounting, no Home Assistant needed** | enter server (IP), share, optional subfolder, user and password, *Check*, *Apply* |
+| **Mounted folder** | a folder the system already knows | add-on: HA network storage → `/share/<name>` or `/media/<name>` · Docker: volume, e.g. `/mnt/nas/printdock:/nas` · Pi/Linux: `/etc/fstab` · Windows: UNC path `\\nas\print\printdock` · macOS: `/Volumes/<share>/printdock` |
 
-If the NAS is unreachable for a while, PrintDock stores into the data folder meanwhile and moves the files over once it is back; *Today* and the platform check show this. A marker file in the location prevents PrintDock from writing into an empty mount point on the local disk when the NAS is not mounted. Backups include the files on the NAS.
+PrintDock creates the subfolders `dateien`, `fotos` and `sicherungen` (each optional), copies the existing files over and only then deletes them locally. **With SMB** new files go to a small staging area in the data folder first and are then pushed to the share; when a file is needed (print start, download, photo) PrintDock fetches it back. Thumbnails stay local so the interface stays fast. Print files and photos are then **not** part of the PrintDock or HA backup – they already live on the NAS. Switching back to the data folder pulls everything back; the copies on the NAS stay. SMB needs `smbclient` – included in the add-on and Docker images, installed on the Pi by the installer (`apt install smbclient`), macOS `brew install samba`; Windows uses the network path directly.
+
+*TrueNAS:* create a user with "Samba Authentication" and give it write access to the dataset; enter only the share name, not the path on the NAS. If Home Assistant runs as a VM on the same TrueNAS, the VM needs a network bridge to reach the NAS.
+
+If the NAS is unreachable for a while, PrintDock stores locally meanwhile and moves the files over once it is back; *Today* and the platform check show this. For mounted folders a marker file prevents writing into an empty mount point on the local disk.
 
 **Platform check:** *Settings → System → Platform check* shows installation type, data folder, ffmpeg, restart, update, remote access, Home Assistant, inbox, backup and time zone – and what is missing for everything to work as on the other platforms.
 
@@ -335,7 +342,8 @@ lib/
   statuspage.js        customer status page (data)
   statusrender.js      customer status page (HTML, shared with the status server)
   relay.js             sync with the status server
-  storage.js           storage location (NAS) for print files, photos, backups
+  storage.js           storage location (data folder, SMB, mounted folder) for print files, photos, backups
+  smb.js               SMB share directly via smbclient
   archive.js           archive: detect outside prints, fetch the file from the printer, assign orders, search, CSV
   remote.js            remote access: Tailscale, Cloudflare Tunnel
   audit.js             log
@@ -350,7 +358,8 @@ blueprints/            Home Assistant automation blueprints
 relay/                 status server for customer links (php/, server.js, Docker)
 scripts/               install.sh, start-windows.cmd, station-sim.js, check.js, build-ha-addon.js
 ha-addon/              Home Assistant add-on (config.yaml, Dockerfile, CHANGELOG.md)
-docs/                  installation, remote access, screenshots
+docs/                  installation, getting started, remote access, screenshots
+.github/               issue templates
 data/                  JSON files, print files, photos (created on start)
 ```
 
@@ -358,7 +367,7 @@ The full API table is in the [German README](README.de.md#api).
 
 ## Contributing
 
-New printers, translations and bug reports are welcome. Please run `npm run check` before opening a pull request.
+New printers, translations and bug reports are welcome – please report bugs via the [issue template](https://github.com/Codegulasch/printdock/issues/new/choose) with version and platform check. Please run `npm run check` before opening a pull request.
 
 ## License
 

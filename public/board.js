@@ -95,7 +95,7 @@ const DROP12 = () => BI.drop.replace('<svg', '<svg width="12" height="12" style=
 const lampHTML = (v) => `<span class="lamp ${v.cls}"><i class="led ${v.cls}"></i>${esc(v.lamp)}</span>`;
 
 function headSummary() {
-  const ps = S.printers;
+  const ps = S.printers.filter(inAreaP);
   const st = (p) => p.status?.state || 'offline';
   const printing = ps.filter((p) => ['printing', 'preparing'].includes(st(p)));
   const n = (cls) => ps.filter((p) => pView(p).cls === cls).length;
@@ -232,8 +232,7 @@ function cardHTML(p) {
     <div class="sect">${t('STATUS')}</div>
     <div class="pbody"><div class="status"><div class="pic">${pic}</div><div style="min-width:0"><div class="st-line"><i class="led ${sc}"></i>${esc(label)}</div>${info}</div></div>${fault}${nextRow}</div>
     ${temps}
-    ${ctrls}
-    ${filamentSectionHTML(p)}
+    <div class="pc-foot">${ctrls}${filamentSectionHTML(p)}</div>
   </article>`;
 }
 
@@ -317,6 +316,7 @@ function vBoard() {
   }
   const q = S.boardSearch.trim().toLowerCase();
   const list = S.printers.filter((p) => {
+    if (!inAreaP(p)) return false;
     if (q && !`${p.name} ${p.settings?.model || ''}`.toLowerCase().includes(q)) return false;
     const m = pView(p).mode;
     if (S.boardFilter === 'aktiv') return m === 'active' && p.status?.state !== 'paused';
@@ -329,9 +329,54 @@ function vBoard() {
   return `<div class="page-head"><h1>${NAV_ICON.printer}${t('Drucker#pl')}</h1>
       <div class="tools"><input class="search" type="search" placeholder="${esc(t('Drucker suchen …'))}" value="${esc(S.boardSearch)}" data-bact-input="search" aria-label="${esc(t('Drucker suchen'))}"><div class="chips">${chips}</div>
       <button class="b b-sm b-go" data-act="editPrinter">${ICON.plus}${t('Drucker')}</button></div>
+      ${areaSwitchHTML()}
       <div id="headsum" style="width:100%">${headSummary()}</div></div>
-    <div class="grid" id="board">${list.map(cardHTML).join('') || `<div class="list"><div class="empty">${t('Kein Drucker passt zum Filter.')}</div></div>`}</div>`;
+    ${list.length ? boardGroupsHTML(list) : `<div class="list"><div class="empty">${t('Kein Drucker passt zum Filter.')}</div></div>`}`;
 }
+
+/** Drucker nach Bereichen gruppiert (ohne Bereiche: wie bisher ein Raster) – Gruppen lassen sich zuklappen */
+function boardGroupsHTML(list) {
+  if (!areas().length) return `<div class="grid" id="board">${list.map(cardHTML).join('')}</div>`;
+  let closed = [];
+  try {
+    closed = JSON.parse(localStorage.getItem('pd-area-closed') || '[]');
+  } catch {
+    /* privat */
+  }
+  const known = new Set(areas().map((a) => a.id));
+  const groups = [...areas().map((a) => ({ id: a.id, name: a.name })), { id: '-', name: t('Ohne Bereich') }]
+    .map((g) => ({ ...g, ps: list.filter((p) => (g.id === '-' ? !known.has(p.settings?.area) : p.settings?.area === g.id)) }))
+    .filter((g) => g.ps.length);
+  return groups.map((g) => {
+    const n = (cls) => g.ps.filter((p) => pView(p).cls === cls).length;
+    const cnt = [['run', t('druckt')], ['free', t('frei')], ['wait', t('wartet')], ['fault', t('Störung')]].filter(([c]) => n(c) || c === 'run' || c === 'free')
+      .map(([c, l]) => `<span class="hs-i"><i class="led ${n(c) ? c : 'off'}"></i><b class="num">${n(c)}</b> ${esc(l)}</span>`).join('');
+    const isClosed = closed.includes(g.id);
+    return `<section class="area-grp ${isClosed ? 'closed' : ''}">
+      <button class="area-head" data-area-toggle="${esc(g.id)}" aria-expanded="${!isClosed}"><span class="area-caret">▾</span><b>${esc(g.name)}</b><span class="meta">${g.ps.length === 1 ? t('1 Drucker') : t('{n} Drucker', { n: g.ps.length })}</span><span class="area-cnt">${cnt}</span></button>
+      ${isClosed ? '' : `<div class="grid">${g.ps.map(cardHTML).join('')}</div>`}
+    </section>`;
+  }).join('');
+}
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-area-toggle]');
+  if (!b) return;
+  let closed = [];
+  try {
+    closed = JSON.parse(localStorage.getItem('pd-area-closed') || '[]');
+  } catch {
+    /* privat */
+  }
+  const id = b.dataset.areaToggle;
+  closed = closed.includes(id) ? closed.filter((x) => x !== id) : [...closed, id];
+  try {
+    localStorage.setItem('pd-area-closed', JSON.stringify(closed));
+  } catch {
+    /* privat */
+  }
+  render();
+});
 
 function updateTile(id) {
   const el = $(`.pc[data-id="${CSS.escape(id)}"]`);

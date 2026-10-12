@@ -23,9 +23,9 @@ die() { printf '\n\033[1;31mFehler:\033[0m %s\n' "$*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || die "Bitte mit sudo ausführen."
 command -v apt-get >/dev/null || die "Dieses Skript ist für Debian, Ubuntu und Raspberry Pi OS. Andere Systeme: Docker verwenden."
 
-say "Pakete installieren (git, ffmpeg, curl)"
+say "Pakete installieren (git, ffmpeg, curl, smbclient)"
 apt-get update -qq
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git ffmpeg curl ca-certificates >/dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git ffmpeg curl ca-certificates smbclient >/dev/null
 
 node_ok() { command -v node >/dev/null && [ "$(node -p 'process.versions.node.split(".")[0]')" -ge 18 ]; }
 if ! node_ok; then

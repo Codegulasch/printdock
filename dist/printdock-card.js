@@ -11,7 +11,7 @@
  * https://github.com/Codegulasch/printdock
  */
 (() => {
-  const VERSION = '0.17.1';
+  const VERSION = '0.18.0';
 
   // ------------------------------------------------------------------ texts
   const TXT = {
@@ -24,7 +24,7 @@
       due: 'fällig', soon: 'bald', late: 'überfällig', of: 'von', free: 'frei', run: 'druckt', wait: 'wartet', fault: 'Störung', off: 'offline',
       notFound: 'PrintDock-Entität nicht gefunden. Sind in PrintDock die MQTT-Geräte eingeschaltet?', messages: 'Meldungen', camera: 'Kamera', camShow: 'Kamera zeigen', camHide: 'Kamera ausblenden', cameraOpen: 'Kamera anfangs zeigen', height: 'Höhe (px, 0 = automatisch)',
       entity: 'Drucker (Status-Sensor)', showCamera: 'Kamera', showTemps: 'Temperaturen', showFans: 'Lüfter', showFilament: 'Filament', showControls: 'Steuerung', compact: 'Kompakt',
-      humDry: 'Filament trocknen', humCheck: 'Trockenmittel prüfen', overviewEntity: 'PrintDock-Übersicht', title: 'Titel', sections: 'Bereiche', maxItems: 'Einträge je Bereich', more: 'weitere',
+      humDry: 'Filament trocknen', humCheck: 'Trockenmittel prüfen', overviewEntity: 'PrintDock-Übersicht', title: 'Titel', sections: 'Abschnitte', area: 'Nur Bereich (Printfarm, Raum)', allAreas: 'alle', maxItems: 'Einträge je Bereich', more: 'weitere',
     },
     en: {
       left: 'left', eta: 'ETA', layer: 'Layer', temps: 'TEMPERATURES', fans: 'FANS', filament: 'FILAMENT', controls: 'CONTROLS',
@@ -35,7 +35,7 @@
       due: 'due', soon: 'soon', late: 'overdue', of: 'of', free: 'idle', run: 'printing', wait: 'waiting', fault: 'fault', off: 'offline',
       notFound: 'PrintDock entity not found. Are MQTT devices enabled in PrintDock?', messages: 'messages', camera: 'Camera', camShow: 'Show camera', camHide: 'Hide camera', cameraOpen: 'Show camera initially', height: 'Height (px, 0 = automatic)',
       entity: 'Printer (status sensor)', showCamera: 'Camera', showTemps: 'Temperatures', showFans: 'Fans', showFilament: 'Filament', showControls: 'Controls', compact: 'Compact',
-      humDry: 'Dry the filament', humCheck: 'Check the desiccant', overviewEntity: 'PrintDock overview', title: 'Title', sections: 'Sections', maxItems: 'Items per section', more: 'more',
+      humDry: 'Dry the filament', humCheck: 'Check the desiccant', overviewEntity: 'PrintDock overview', title: 'Title', sections: 'Sections', area: 'Only area (print farm, room)', allAreas: 'all', maxItems: 'Items per section', more: 'more',
     },
   };
   const tx = (hass) => TXT[String(hass?.locale?.language || hass?.language || 'en').startsWith('de') ? 'de' : 'en'];
@@ -417,9 +417,13 @@
         this.shadowRoot.innerHTML = `<style>${BASE_CSS}</style><ha-card><div class="warn">${esc(t.notFound)}</div></ha-card>`;
         return;
       }
-      const a = st.attributes;
+      // Nur ein Bereich (Printfarm, Raum)? Drucker, Zähler, Warteschlange und Wartung danach filtern
+      const area = this.config.area || '';
+      const a0 = st.attributes;
+      const inA = (x) => !area || x?.area === area;
+      const a = area ? { ...a0, printers: (a0.printers || []).filter(inA), queue: a0.queue && a0.queue.filter(inA), maintenance: a0.maintenance && a0.maintenance.filter(inA) } : a0;
       const sec = new Set(this.config.sections);
-      const counts = a.counts || {};
+      const counts = area ? Object.fromEntries(['free', 'run', 'wait', 'fault', 'off'].map((c) => [c, a.printers.filter((p) => p.category === c).length])) : a.counts || {};
       const sum = ['free', 'run', 'wait', 'fault', 'off'].filter((k) => counts[k] || k === 'free' || k === 'run')
         .map((k) => `<span class="cnt"><i class="led ${counts[k] ? k : 'off'}"></i><b>${counts[k] || 0}</b> ${esc(t[k])}</span>`).join('');
       const printers = sec.has('printers') ? `<div class="list">${(a.printers || []).map((p) => `<div class="prow" data-printer="${esc(p.id)}">
@@ -436,7 +440,7 @@
       const maint = block('maintenance', t.maintenance, a.maintenance, t.noMaint, (m) => `<div class="mr"><b>${esc(m.printer)}</b><span>${esc(m.title)}</span><span class="${m.due ? 'bad' : 'warnc'}">${esc(m.due ? t.due : t.soon)}</span></div>`);
       const fixed = heightStyle(this.config.height);
       this.shadowRoot.innerHTML = `<style>${BASE_CSS}${OV_CSS}</style><ha-card class="${fixed || this.inGrid ? '' : 'auto'}" style="${fixed}">
-        <div class="body"><div class="top"><span class="ic">${svg(ICON.printer, 22)}</span><b class="title">${esc(this.config.title || 'PrintDock')}</b>
+        <div class="body"><div class="top"><span class="ic">${svg(ICON.printer, 22)}</span><b class="title">${esc(this.config.title || (area ? `PrintDock · ${area}` : 'PrintDock'))}</b>
           <a class="ibtn" href="${esc(a.url)}" target="_blank" rel="noopener" title="${esc(t.open)}">${svg(ICON.open)}</a></div>
           <div class="sum">${sum}</div>${printers}${queue}${orders}${spools}${maint}</div></ha-card>`;
     }
@@ -519,19 +523,26 @@
   }
 
   class PrintDockOverviewEditor extends BaseEditor {
+    /** Bereiche aus der PrintDock-Übersicht (für die Auswahl) */
+    areaNames() {
+      const st = Object.values(this._hass?.states || {}).find((s) => s.entity_id.startsWith('sensor.') && Array.isArray(s.attributes?.printers) && s.attributes?.counts);
+      return Array.isArray(st?.attributes?.areas) ? st.attributes.areas : [];
+    }
+
     defaults() {
       return { sections: ['printers', 'queue', 'orders', 'spools', 'maintenance'], max_items: 6 };
     }
 
     labels() {
       const t = tx(this._hass);
-      return { entity: t.overviewEntity, title: t.title, sections: t.sections, max_items: t.maxItems, height: t.height };
+      return { entity: t.overviewEntity, title: t.title, area: t.area, sections: t.sections, max_items: t.maxItems, height: t.height };
     }
 
     schema() {
       const t = tx(this._hass);
       return [
         { name: 'title', selector: { text: {} } },
+        { name: 'area', selector: { select: { custom_value: true, mode: 'dropdown', options: [{ value: '', label: t.allAreas }, ...this.areaNames().map((n) => ({ value: n, label: n }))] } } },
         { name: 'sections', selector: { select: { multiple: true, options: [['printers', t.printers], ['queue', t.queue], ['orders', t.orders], ['spools', t.spools], ['maintenance', t.maintenance]].map(([value, label]) => ({ value, label })) } } },
         { name: 'max_items', selector: { number: { min: 1, max: 20, mode: 'box' } } },
         { name: 'height', selector: { number: { min: 0, max: 1500, step: 10, mode: 'box', unit_of_measurement: 'px' } } },

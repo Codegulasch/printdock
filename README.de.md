@@ -19,6 +19,7 @@ Läuft komplett lokal – keine Cloud, kein Konto, keine Datenbank. Als **Home-A
 - **Startseite „Heute“**: was zu tun ist (Platte räumen, Fehldrucke, hängende Einträge, Etiketten, Feuchte, Einkauf, Wartung, Termine), was gerade läuft und was als Nächstes kommt
 - **Benachrichtigungen** mit Kamerabild per ntfy, Telegram, Discord, Gotify oder Webhook
 - **Archiv** aller Drucke mit Start und Ende, nach Tagen gruppiert, mit Suche, Filtern und CSV-Export – **auch Drucke direkt aus dem Slicer oder vom Touchscreen**
+- **Bereiche** für Printfarmen und verschiedene Räume: Drucker zuordnen, Übersicht nach Bereich gruppiert und filterbar, Warteschlange und Aufträge gezielt an einen Bereich
 - **Statistik**: Drucke, Erfolgsquote, Druckstunden, Material, Kosten, Fehldrucke und Ausschuss, Drucker im Vergleich
 
 ### Produktion
@@ -69,9 +70,13 @@ Läuft komplett lokal – keine Cloud, kein Konto, keine Datenbank. Als **Home-A
 - **Deutsch und Englisch**, Akzentfarbe, hell und dunkel, fürs Handy geeignet
 - **Demo-Daten** mit einem Klick: 5 simulierte Drucker, Dateien, Spulen, Aufträge und 30 Tage Verlauf
 
-| Statistik | Einrichtung |
+| Heute | Archiv |
 |---|---|
+| ![Heute](docs/screenshots/today.png) | ![Archiv](docs/screenshots/archive.png) |
+| **Statistik** | **Einrichtung** |
 | ![Statistik](docs/screenshots/stats.png) | ![Einrichtung](docs/screenshots/setup.png) |
+
+**Neu hier?** → [Erste Schritte](docs/getting-started.md): in zehn Minuten vom ersten Start zum ersten Druck.
 
 ## Installation
 
@@ -266,7 +271,7 @@ Meldet der Drucker ein anderes Material als die zugeordnete Spule, markiert Prin
 **Dashboard-Karten** (Voraussetzung: *MQTT-Geräte* eingeschaltet):
 
 - `custom:printdock-card` – ein Drucker mit Statusampel, Auftrag, Fortschritt, Kamera, Temperaturen, Lüftern, Filamentbelegung und Steuerung (Licht, Geschwindigkeit, Pause/Weiter/Stopp, „Platte ist frei“, Ein/Aus).
-- `custom:printdock-overview-card` – alle Drucker plus Warteschlange, Aufträge, knappe Spulen und fällige Wartungen.
+- `custom:printdock-overview-card` – alle Drucker plus Warteschlange, Aufträge, knappe Spulen und fällige Wartungen; mit `area: <Bereich>` nur ein Bereich (z. B. eine Karte je Raum).
 
 Beide haben einen grafischen Editor. Installation: beim Add-on automatisch; sonst *Einstellungen → Home Assistant → In Home Assistant eintragen*, über HACS (dieses Repository als *Dashboard*) oder von Hand als Ressource `http://<printdock>:3080/printdock-card.js` (JavaScript-Modul).
 
@@ -305,17 +310,19 @@ Passwörter werden mit scrypt gespeichert, Sitzungen per HttpOnly-Cookie, nach 5
 
 **Sicherung:** PrintDock sichert sich täglich selbst – als Add-on nach `/share/printdock/sicherungen` (per Samba `\\homeassistant\share\printdock\sicherungen`), sonst in den Datenordner; die letzten 7 bleiben (einstellbar), mit oder ohne Druckdateien. *Einstellungen → System → Datensicherung* lädt eine `.zip` mit allem herunter. Einspielen lässt sie sich dort oder im Einrichtungsassistenten einer neuen Installation. Als Add-on, Docker-Container, systemd-Dienst oder mit `start-windows.cmd` startet PrintDock danach von selbst neu. Der vorherige Stand bleibt im Datenordner unter `before-restore-…` erhalten.
 
-**Speicherort (NAS):** Druckdateien, Fotos und Sicherungen lassen sich unter *Einstellungen → System → Speicherort* auf ein NAS, einen Server oder eine zweite Platte legen – damit läuft z. B. Home Assistant nicht voll, und die HA-Sicherungen bleiben klein. PrintDock legt dort die Unterordner `dateien`, `fotos` und `sicherungen` an (jeweils zuschaltbar), kopiert die vorhandenen Dateien hinüber und löscht sie erst danach im Datenordner. Einstellungen, Archiv und Spulen bleiben im Datenordner. Der Ort muss als Ordner erreichbar sein:
+**Speicherort (NAS):** Druckdateien, Fotos und Sicherungen lassen sich unter *Einstellungen → System → Speicherort* auf ein NAS, einen Server oder eine zweite Platte legen – damit läuft z. B. Home Assistant nicht voll, und die HA-Sicherungen bleiben klein. Einstellungen, Archiv und Spulen bleiben immer im Datenordner. Drei Arten:
 
-| Installation | So kommt das NAS hinein |
-|---|---|
-| Home-Assistant-Add-on | *Einstellungen → System → Speicher → Netzwerkspeicher hinzufügen* (Verwendung „Freigabe“) → erscheint als `/share/<Name>`, z. B. `/share/nas/printdock` (Verwendung „Medien“ → `/media/<Name>`) |
-| Docker | NAS-Ordner auf dem Host einhängen und als Volume durchreichen, z. B. `- /mnt/nas/printdock:/nas` → `/nas` |
-| Raspberry Pi / Linux | per `/etc/fstab` einhängen (cifs oder nfs) → z. B. `/mnt/nas/printdock` |
-| Windows | UNC-Pfad direkt, z. B. `\\nas\drucken\printdock` |
-| macOS | Freigabe im Finder verbinden → `/Volumes/<Freigabe>/printdock` |
+| Art | Wofür | So geht's |
+|---|---|---|
+| **Datenordner** | Standard | nichts einstellen |
+| **SMB-Freigabe** (empfohlen) | NAS, TrueNAS, Synology, Windows-Freigabe – **ohne Einhängen, ohne Home Assistant** | Server (IP), Freigabe, optional Unterordner, Benutzer und Passwort eintragen, *Prüfen*, *Übernehmen* |
+| **Eingehängter Ordner** | Ordner, den das System schon kennt | Add-on: HA-Netzwerkspeicher → `/share/<Name>` oder `/media/<Name>` · Docker: Volume, z. B. `/mnt/nas/printdock:/nas` · Pi/Linux: `/etc/fstab` · Windows: UNC-Pfad `\\nas\drucken\printdock` · macOS: `/Volumes/<Freigabe>/printdock` |
 
-Ist das NAS einmal nicht erreichbar, speichert PrintDock so lange im Datenordner und zieht die Dateien nach, sobald es wieder da ist; *Heute* und der Plattform-Check zeigen das an. Eine Kennungsdatei im Speicherort verhindert, dass PrintDock bei nicht eingehängtem NAS in den leeren Einhängepunkt auf der lokalen Platte schreibt. Sicherungen enthalten auch die Dateien vom NAS.
+PrintDock legt die Unterordner `dateien`, `fotos` und `sicherungen` an (jeweils zuschaltbar), kopiert die vorhandenen Dateien hinüber und löscht sie erst danach lokal. **Mit SMB** schreibt PrintDock neue Dateien zuerst in einen kleinen Zwischenspeicher im Datenordner und schiebt sie dann auf die Freigabe; gebraucht wird eine Datei (Druckstart, Download, Foto), holt PrintDock sie kurz zurück. Vorschaubilder bleiben lokal, damit die Oberfläche schnell bleibt. Druckdateien und Fotos landen dann **nicht** in der PrintDock- und HA-Sicherung – sie liegen ja schon auf dem NAS. Wechselt man zurück auf den Datenordner, holt PrintDock alles zurück; die Kopien auf dem NAS bleiben stehen. SMB braucht `smbclient` – im Add-on- und Docker-Image enthalten, auf dem Pi per Installer (`apt install smbclient`), macOS `brew install samba`; Windows nutzt den Netzwerkpfad direkt.
+
+*TrueNAS:* einen Benutzer mit „Samba Authentication“ anlegen und ihm Schreibrecht auf das Dataset geben; als Freigabe nur den Freigabenamen eintragen, nicht den Pfad auf dem NAS. Läuft Home Assistant als VM auf demselben TrueNAS, braucht die VM eine Netzwerkbrücke, sonst erreicht sie das NAS nicht.
+
+Ist das NAS einmal nicht erreichbar, speichert PrintDock so lange lokal und zieht die Dateien nach, sobald es wieder da ist; *Heute* und der Plattform-Check zeigen das an. Beim eingehängten Ordner verhindert eine Kennungsdatei, dass PrintDock in einen leeren Einhängepunkt auf der lokalen Platte schreibt.
 
 **Plattform-Check:** *Einstellungen → System → Plattform-Check* zeigt Installationsart, Datenordner, ffmpeg, Neustart, Update, Fernzugriff, Home Assistant, Eingangsordner, Sicherung und Zeitzone – und was fehlt, damit alles wie auf den anderen Plattformen läuft.
 
@@ -418,7 +425,8 @@ lib/
   statuspage.js        Kunden-Statusseite (Daten)
   statusrender.js      Kunden-Statusseite (HTML, auch vom Status-Server genutzt)
   relay.js             Abgleich mit dem Status-Server
-  storage.js           Speicherort (NAS) für Druckdateien, Fotos, Sicherungen
+  storage.js           Speicherort (Datenordner, SMB, eingehängter Ordner) für Druckdateien, Fotos, Sicherungen
+  smb.js               SMB-Freigabe direkt über smbclient
   archive.js           Archiv: Fremddrucke erkennen, Datei vom Drucker holen, Auftrag zuordnen, Suche, CSV
   remote.js            Fernzugriff: Tailscale, Cloudflare Tunnel
   audit.js             Protokoll
@@ -433,7 +441,8 @@ blueprints/            Home-Assistant-Automationsvorlagen
 relay/                 Status-Server für Kunden-Links (php/, server.js, Docker)
 scripts/               install.sh, start-windows.cmd, station-sim.js, check.js, build-ha-addon.js
 ha-addon/              Home-Assistant-Add-on (config.yaml, Dockerfile, CHANGELOG.md)
-docs/                  Installation, Fernzugriff, Screenshots
+docs/                  Installation, Erste Schritte, Fernzugriff, Screenshots
+.github/               Vorlagen für Fehlerberichte und Wünsche
 data/                  JSON-Dateien, Druckdateien, Fotos (wird angelegt)
 ```
 
@@ -452,15 +461,15 @@ Alle Endpunkte unter `/api/`. Mit Login-Schutz per Sitzung oder API-Key (*Einste
 | GET / DELETE | `/api/history` | Verlauf lesen / leeren |
 | GET | `/api/archive?q&from&to&printer&result&source&order&offset&limit` | Archiv mit Filtern, Summen und Seiten; `/api/archive/export.csv` als CSV |
 | GET / POST | `/api/archive/:id/candidates`, `/api/archive/:id/{assign,reprint}` | Passende Aufträge, zuordnen `{orderId, positionId} \| {none: true} \| {orderId: null}`, nochmal einplanen |
-| GET / PUT | `/api/storage`, POST `/api/storage/test`, `/api/storage/sync` | Speicherort lesen / übernehmen `{path, files, photos, backups}`, Pfad prüfen, lokal Zwischengespeichertes nachziehen |
+| GET / PUT | `/api/storage`, POST `/api/storage/test`, `/api/storage/sync` | Speicherort lesen / übernehmen `{mode: "local" \| "smb" \| "folder", smb: {server, share, dir, user, password, domain}, path, files, photos, backups}`, Verbindung prüfen, Zwischengespeichertes nachziehen |
 | POST | `/api/orders/:id/use-file` | Neue Dateiversion übernehmen `{from, to}` |
 | POST | `/api/history/:id/{fail,unfail,requeue,dismiss}` | Fehldruck werten, zurücknehmen, neu einreihen, „passt so“ |
 | GET / POST | `/api/files` | Bibliothek / hochladen (Rohdaten, Name im Header `X-Filename`) |
-| GET / POST | `/api/queue` | Warteschlange / einplanen `{fileId, printerId?, count, mode?, options}` |
+| GET / POST | `/api/queue` | Warteschlange / einplanen `{fileId, printerId?, areaId?, count, mode?, options}` – `areaId` beschränkt die Druckerwahl auf einen Bereich |
 | PUT / DELETE | `/api/queue/:id` | Eintrag ändern / entfernen |
 | POST | `/api/queue/:id/{start,requeue,resolve,humcheck,dry-start,dry-cancel}` | Starten, neu einreihen, hängenden Eintrag abschließen `{result}`, Feuchte prüfen, erst trocknen |
 | POST | `/api/queue/reorder`, `/api/queue/clear-finished` | Sortieren / Erledigte entfernen |
-| GET / POST | `/api/orders` | Aufträge (mit `shareUrl`) / anlegen |
+| GET / POST | `/api/orders` | Aufträge (mit `shareUrl`) / anlegen, optional `areaId` |
 | PUT / DELETE | `/api/orders/:id` | Auftrag ändern / löschen |
 | POST | `/api/orders/:id/{plan,mode,post,share,archive}` | Einplanen, Druckart `{mode: "auto" \| "manual" \| "single"}`, Nachbearbeitung, Statuslink, archivieren |
 | GET | `/api/maintenance` | Wartungsaufgaben, Betriebsstunden, Protokoll |
@@ -480,14 +489,14 @@ Alle Endpunkte unter `/api/`. Mit Login-Schutz per Sitzung oder API-Key (*Einste
 | GET / POST / PUT / DELETE | `/api/users`, `/api/users/:id` | Benutzer |
 | GET | `/api/audit`, `/api/platform` | Protokoll, Plattform-Check |
 | GET | `/api/summary`, `/api/stats?days=30` | Kennzahlen (inkl. `startInfo` je Drucker), Statistik |
-| GET / PUT | `/api/app` | Sprache, Akzentfarbe, Module, Menü, Login-Schutz |
+| GET / PUT | `/api/app` | Sprache, Akzentfarbe, Module, Menü, Login-Schutz, Bereiche `{areas: [{id, name}]}` |
 | POST | `/api/login`, `/api/logout` | Anmelden / abmelden |
 | GET | `/api/events` | Live-Stream (SSE) |
 | GET | `/status/<code>` | Kunden-Statusseite (ohne Anmeldung) |
 
 ## Mitmachen
 
-Neue Drucker, Übersetzungen und Fehlerberichte sind willkommen. Vor einem Pull Request `npm run check` ausführen.
+Neue Drucker, Übersetzungen und Fehlerberichte sind willkommen – Fehlerberichte bitte über die [Issue-Vorlage](https://github.com/Codegulasch/printdock/issues/new/choose) mit Version und Plattform-Check. Vor einem Pull Request `npm run check` ausführen.
 Deutsche Texte sind die Schlüssel, `public/i18n-en.js` übersetzt sie ins Englische. Neue Sprache: die Datei kopieren (z. B. `i18n-fr.js`), übersetzen, in `index.html` laden und mit `PD_I18N.register('fr', …)` anmelden. `npm run check` meldet fehlende Übersetzungen.
 
 ## Geplant

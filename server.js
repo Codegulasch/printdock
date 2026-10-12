@@ -239,6 +239,26 @@ function persistJob(cfg, rt, now = false) {
   saveJobs(now);
 }
 
+/**
+ * Bisherige Druckzeit, die der Drucker beim Erkennen eines Drucks meldet – nur, wenn sie zum Fortschritt passt.
+ * Manche Drucker melden falsche Einheiten oder noch die Zeit des letzten Drucks (Anycubic zeigte so 15 h für einen
+ * Druck unter einer Minute). Unplausibel: mehr als 10 Minuten bei unter 2 %, oder deutlich mehr, als Fortschritt
+ * und Restzeit zusammen ergeben. Dann zählt PrintDock ab jetzt selbst.
+ */
+function plausibleElapsed(status) {
+  const e = Number(status.elapsedSec) || 0;
+  if (e <= 0) return 0;
+  const p = Number(status.progress);
+  if (e > 7 * 86400) return 0;
+  if (Number.isFinite(p) && p < 2 && e > 600) return 0;
+  const rem = Number(status.remainingSec);
+  if (Number.isFinite(p) && p > 0 && p < 100 && Number.isFinite(rem) && rem > 0) {
+    const total = rem / (1 - p / 100); // geschätzte Gesamtdauer
+    if (e > total * 1.5 + 600) return 0;
+  }
+  return e;
+}
+
 /** Verfolgt den laufenden Druckjob und schreibt beim Ende einen Verlaufseintrag. */
 function trackJob(cfg, rt, status) {
   // Nach einem Neustart übernommener Job: erst eine Minute lang den echten Zustand abwarten
@@ -246,7 +266,7 @@ function trackJob(cfg, rt, status) {
   if (rt.job?.restored && !ACTIVE.has(status.state) && Date.now() - rt.createdAt < 60_000) return null;
   if (ACTIVE.has(status.state)) {
     if (!rt.job || (status.file && rt.job.file !== status.file)) {
-      rt.job = { id: crypto.randomUUID(), file: status.file, startedAt: Date.now() - (status.elapsedSec || 0) * 1000 };
+      rt.job = { id: crypto.randomUUID(), file: status.file, startedAt: Date.now() - plausibleElapsed(status) * 1000 };
       archive?.onJobStart(cfg, rt, status);
       energy.start(cfg, rt.job).catch(() => {});
       persistJob(cfg, rt, true);
@@ -391,6 +411,8 @@ storage.onChange = () => {
   broadcast('files', null);
 };
 const photoPath = (name) => storage.find('photos', name);
+/** Foto lokal verfügbar (liegt es per SMB auf dem NAS, wird es geholt) – Pfad oder null */
+const photoFile = (name) => storage.ensureLocal('photos', name).catch(() => null);
 function photoWrite(name, buf) {
   const { dir } = storage.writeDir('photos');
   fs.writeFileSync(path.join(dir, name), buf);
@@ -404,7 +426,7 @@ archive = new Archive({
 });
 // Status-Server für Kunden-Links (relay/): freigegebene Aufträge dorthin veröffentlichen
 const { Relay } = require('./lib/relay');
-relay = new Relay({ production, history: () => history, photoDir: PHOTO_DIR, photoPath, lang: () => app.lang });
+relay = new Relay({ production, history: () => history, photoDir: PHOTO_DIR, photoPath, photoFile, lang: () => app.lang });
 production.ctx.onShareRemoved = (token) => relay.remove(token);
 
 /** Nach dem Druck: Stromverbrauch und Foto des fertigen Teils an den Verlaufseintrag hängen */
@@ -548,6 +570,7 @@ function validatePrinter(body, existing) {
   const st = body.settings || {};
   const settings = {
     model: String(st.model || '').trim().slice(0, 80),
+    area: String(st.area || '').replace(/[^\w-]/g, '').slice(0, 40), // Bereich (Printfarm, Raum)
     autoStart: st.autoStart === true || st.autoStart === 'true',
     hoursOffset: Math.max(0, Number(st.hoursOffset) || 0),
     slots: String(st.slots || '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, 16).join(', '),
@@ -797,8 +820,9 @@ async function handleApi(req, res, url) {
 
   // ---- Fotos (erste Schicht)
   if (resource === 'photos' && id && req.method === 'GET') {
-    const file = photoPath(String(id).replace(/[^\w.-]/g, ''));
-    if (!/\.jpg$/.test(file) || !fs.existsSync(file)) throw httpError(404, 'Kein Foto');
+    const name = String(id).replace(/[^\w.-]/g, '');
+    const file = /\.jpg$/.test(name) ? await photoFile(name) : null;
+    if (!file) throw httpError(404, 'Kein Foto');
     res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=86400' });
     return fs.createReadStream(file).pipe(res);
   }
@@ -818,8 +842,8 @@ async function handleApi(req, res, url) {
   }
   if (resource === 'history') {
     if (id && action === 'photo' && req.method === 'GET') {
-      const file = photoPath(`${String(id).replace(/[^\w-]/g, '')}.jpg`);
-      if (!fs.existsSync(file)) throw httpError(404, 'Kein Foto');
+      const file = await photoFile(`${String(id).replace(/[^\w-]/g, '')}.jpg`);
+      if (!file) throw httpError(404, 'Kein Foto');
       res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=86400' });
       return fs.createReadStream(file).pipe(res);
     }
@@ -844,6 +868,7 @@ async function handleApi(req, res, url) {
           /* Ordner fehlt */
         }
       }
+      storage.clearRemote('photos').catch(() => {}); // auch auf dem NAS (SMB)
       saveHistory();
       return sendJson(res, 200, { ok: true });
     }
@@ -962,9 +987,8 @@ async function handleApi(req, res, url) {
     if (!id && req.method === 'PUT') return sendJson(res, 200, await storage.change(await readBody(req)));
     if (id === 'test' && req.method === 'POST') {
       const b = await readBody(req);
-      const p = String(b.path || '').trim();
-      if (!p) throw httpError(400, 'Bitte einen Pfad angeben');
-      return sendJson(res, 200, storage.test(p));
+      if (b.mode !== 'smb' && !String(b.path || '').trim()) throw httpError(400, 'Bitte einen Pfad angeben');
+      return sendJson(res, 200, await storage.test(b.mode ? b : { mode: 'folder', path: b.path }));
     }
     if (id === 'sync' && req.method === 'POST') return sendJson(res, 200, { moved: await storage.catchUp() });
   }
@@ -974,7 +998,8 @@ async function handleApi(req, res, url) {
     if (!id && req.method === 'PUT') return sendJson(res, 200, ab.save(await readBody(req)));
     if (id === 'run' && req.method === 'POST') return sendJson(res, 200, await ab.run(backupInfo()));
     if (id === 'file' && req.method === 'GET') {
-      const f = ab.filePath(url.searchParams.get('name'));
+      const n = path.basename(String(url.searchParams.get('name') || ''));
+      const f = ab.filePath(n) || (/^printdock-.*\.zip$/.test(n) ? await storage.ensureLocal('backups', n).catch(() => null) : null);
       if (!f) throw httpError(404, 'Sicherung nicht gefunden');
       res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${path.basename(f)}"` });
       return fs.createReadStream(f).pipe(res);
@@ -1217,7 +1242,7 @@ async function handleApi(req, res, url) {
         'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(f.name)}`,
         'Access-Control-Allow-Origin': '*',
       });
-      return fs.createReadStream(files.filePath(f)).pipe(res);
+      return fs.createReadStream(await files.localPath(f)).pipe(res);
     }
   }
 
@@ -1474,7 +1499,8 @@ const server = http.createServer(async (req, res) => {
       const sp = require('./lib/statuspage');
       const sctx = { production, history: () => history, lang: app.lang, photoDir: PHOTO_DIR, photoPath, brand: relay?.view().brand?.name ? relay.view().brand : null };
       if (sm[2]) {
-        const f = sp.photo(sctx, sm[1], sm[2]);
+        const n = sp.photoName(sctx, sm[1], sm[2]);
+        const f = n ? await photoFile(n) : null;
         if (!f) throw httpError(404, 'Nicht gefunden');
         res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=3600' });
         return fs.createReadStream(f).pipe(res);

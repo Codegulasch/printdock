@@ -3,7 +3,8 @@
 # Lokal bauen: vorher "npm run ha-addon" ausführen (füllt ha-addon/app).
 ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:latest
 FROM ${BUILD_FROM}
-RUN apk add --no-cache nodejs npm ffmpeg tzdata
+# samba-client: Speicherort auf einer SMB-Freigabe (NAS) ohne Einhängen
+RUN apk add --no-cache nodejs npm ffmpeg tzdata samba-client
 WORKDIR /app
 COPY app/ /app/
 RUN npm ci --omit=dev && npm cache clean --force

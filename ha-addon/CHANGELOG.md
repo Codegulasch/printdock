@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.18.0
+- **SMB share directly:** new storage mode *SMB share* under *Settings → System → Storage location* – enter server, share, optional subfolder, user and password; no mounting, no Home Assistant network storage needed (NAS, TrueNAS, Synology, Windows share). New files are staged locally and pushed to the share, fetched back when needed (print start, download, photo); thumbnails stay local. Print files and photos are no longer part of the PrintDock/HA backup in SMB mode. Switching back pulls everything back, the copies on the NAS stay. Clear error messages (wrong password, share not found, no write access, VM without network bridge …). `smbclient` is included in the add-on and Docker images and installed by the Pi installer
+- **Areas:** group printers by room or print farm (*Settings → Printers & filament → Areas …*). The overview is grouped by area (collapsible) and can be filtered via the area chips; counts and *Today* follow the filter. Queue entries and orders can target an area – automatic printer choice then only uses printers there, and the queue says "no matching printer in area X". The HA overview card gets an `area` option
+- **Equal card heights:** printer cards in one row are the same height, controls and filament sit at the bottom; more space between rows
+- **Fix: absurd print time (e.g. 15 h for a one-minute print)** on Anycubic – an implausible elapsed time from the printer at print start is now ignored
+- Fix: the *Station* page disappeared as soon as a station without modules connected
+- Fix: green accent colour swatch
+- New *Getting started* guide (`docs/getting-started.md`), GitHub issue templates, new screenshots
+
 ## 0.17.1
 - **Storage location on a NAS or server:** print files, photos and backups can be moved under *Settings → System → Storage location* – so Home Assistant does not fill up and HA backups stay small. One path, own subfolders (`dateien`, `fotos`, `sicherungen`, each optional); PrintDock copies the existing files over with progress and only then deletes them locally. Works on every installation: add-on via HA network storage (`/share/<name>`, now also `/media/<name>`), Docker via a volume, Pi/Linux via fstab, Windows via UNC path (`\\nas\share\printdock`), macOS via `/Volumes`. *Check* tests write access and free space and warns when the folder is on the same disk as the data folder (NAS not mounted?)
 - **NAS unreachable:** PrintDock keeps working, stores into the data folder meanwhile and moves the files over once the NAS is back (every 10 minutes or *Move now*). *Today* and the platform check show it. A marker file prevents writing into an empty mount point on the local disk

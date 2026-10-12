@@ -110,6 +110,57 @@ const tfmt = (iso) => (iso ? new Date(iso).toLocaleString(LOC, { day: '2-digit',
 const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 const fmtSize = (b) => (b > 1e6 ? `${fnum(b / 1e6, 1)} MB` : `${Math.max(1, Math.round(b / 1e3))} kB`);
 const printerById = (id) => S.printers.find((p) => p.id === id);
+
+// ---------------- Bereiche (Printfarm, Räume): Auswahl gilt für Drucker-Seite, „Heute“ und die Kennzahlen oben
+const areas = () => S.app?.areas || [];
+const areaName = (id) => areas().find((a) => a.id === id)?.name || '';
+S.area = (() => {
+  try {
+    return localStorage.getItem('pd-area') || '';
+  } catch {
+    return '';
+  }
+})();
+/** gewählter Bereich (gelöschte zählen nicht) */
+const curArea = () => (S.area && (S.area === '-' || areas().some((a) => a.id === S.area)) ? S.area : '');
+/** Drucker im gewählten Bereich? ('-' = ohne Bereich) */
+const inAreaP = (p) => {
+  const a = curArea();
+  if (!a) return true;
+  const pa = areas().some((x) => x.id === p?.settings?.area) ? p.settings.area : '';
+  return a === '-' ? !pa : pa === a;
+};
+/** Auswahl „Drucker“: passender Drucker, Bereiche, einzelne Drucker. Wert „area:<id>“ = passender Drucker im Bereich */
+function targetOptionsHTML(printerId, areaId, anyLabel = 'Passender Drucker') {
+  const sel = printerId || (areaId ? `area:${areaId}` : '');
+  const opt = (v, l) => `<option value="${esc(v)}" ${v === sel ? 'selected' : ''}>${esc(l)}</option>`;
+  return opt('', t(anyLabel))
+    + (areas().length ? `<optgroup label="${esc(t('Bereich – passender Drucker darin'))}">${areas().map((a) => opt(`area:${a.id}`, `${t('Bereich')}: ${a.name}`)).join('')}</optgroup><optgroup label="${esc(t('Drucker'))}">` : '')
+    + S.printers.map((x) => opt(x.id, `${x.name}${areas().length && areaName(x.settings?.area) ? ` · ${areaName(x.settings.area)}` : ''}`)).join('')
+    + (areas().length ? '</optgroup>' : '');
+}
+/** Wert der Auswahl → { printerId, areaId } */
+const targetValue = (v) => (String(v || '').startsWith('area:') ? { printerId: null, areaId: v.slice(5) } : { printerId: v || null, areaId: null });
+
+/** Umschalter oben (nur, wenn Bereiche angelegt sind) */
+function areaSwitchHTML() {
+  if (!areas().length) return '';
+  const a = curArea();
+  const chip = (id, label) => `<button class="chip" data-area="${esc(id)}" aria-pressed="${a === id}">${esc(label)}</button>`;
+  const none = S.printers.some((p) => !areas().some((x) => x.id === p.settings?.area));
+  return `<div class="area-switch"><span class="meta">${t('Bereich')}</span>${chip('', t('Alle'))}${areas().map((x) => chip(x.id, x.name)).join('')}${none ? chip('-', t('Ohne Bereich')) : ''}</div>`;
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-area]');
+  if (!b) return;
+  S.area = b.dataset.area;
+  try {
+    localStorage.setItem('pd-area', S.area);
+  } catch {
+    /* privat */
+  }
+  render();
+});
 const fileById = (id) => S.files.find((f) => f.id === id);
 
 const ICON = {
@@ -386,18 +437,21 @@ function setView(v) {
 
 function stripHTML() {
   const s = S.summary || {};
-  const ps = S.printers;
+  const ps = S.printers.filter(inAreaP);
   const by = (cls) => ps.filter((p) => pView(p).cls === cls).length;
   const cell = (n, label, cls = '', led = '') => `<div class="${cls}">${led ? `<i class="led ${n ? led : 'off'}"></i>` : ''}<b class="num">${n}</b><span>${esc(label)}</span></div>`;
-  return `<div class="strip">
+  return `${areaSwitchHTML()}<div class="strip">
     ${cell(by('run'), t('drucken'), '', 'run')}
     ${cell(by('free'), t('frei'), '', 'free')}
     ${cell(by('wait'), t('warten'), by('wait') ? 'warn' : '', 'wait')}
     ${cell(by('fault'), t('Störungen'), by('fault') ? 'bad' : '', 'fault')}
-    ${on('queue') ? cell(s.queued ?? 0, t('in Warteschlange')) : ''}
+    ${on('queue') ? cell(curArea() ? S.queue.filter((q) => q.status === 'queued' && (q.printerId ? inAreaP(printerById(q.printerId)) : !q.areaId || q.areaId === curArea())).length : s.queued ?? 0, t('in Warteschlange')) : ''}
     ${on('orders') ? cell(s.ordersLate ?? 0, t('Aufträge überfällig'), s.ordersLate ? 'bad' : '') : ''}
     ${on('filament') ? cell(s.spoolsLow ?? 0, t('Spulen knapp'), s.spoolsLow ? 'warn' : '') : ''}
-    ${on('maintenance') ? cell(s.maintDue ?? 0, t('Wartungen fällig'), s.maintDue ? 'warn' : '') : ''}
+    ${on('maintenance') ? (() => {
+      const n = curArea() ? (S.maint?.tasks || []).filter((x) => x.state === 'due' && inAreaP(printerById(x.printerId))).length : s.maintDue ?? 0;
+      return cell(n, t('Wartungen fällig'), n ? 'warn' : '');
+    })() : ''}
   </div>`;
 }
 
@@ -596,7 +650,7 @@ function vQueue() {
     const p = printerById(q.printerId);
     const idx = openList.indexOf(q);
     const printerCell = q.status === 'queued'
-      ? `<select class="in" data-act="qPrinter" data-id="${q.id}" aria-label="${t('Drucker')}"><option value="">${t('Passender Drucker')}</option>${S.printers.map((x) => `<option value="${x.id}" ${x.id === q.printerId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`
+      ? `<select class="in" data-act="qPrinter" data-id="${q.id}" aria-label="${t('Drucker')}">${targetOptionsHTML(q.printerId, q.areaId)}</select>`
       : `<b>${esc(p?.name || '–')}</b>`;
     const modeCell = q.status === 'queued' ? pmodeSelectHTML(`data-qmode="${q.id}"`, q.mode) : pmodeTag(q.mode);
     const acts = [];
@@ -658,7 +712,7 @@ function queueAddDialog({ fileId = null, printerId = null } = {}) {
     <h2>${t('Datei einplanen')}</h2>
     <label>${t('Datei')}<select name="fileId">${printable.map((f) => `<option value="${f.id}" ${f.id === fileId ? 'selected' : ''}>${esc(f.name)}${f.meta?.printerModel ? ` (${esc(f.meta.printerModel)})` : ''}</option>`).join('')}</select></label>
     <div class="two">
-      <label>${t('Drucker')}<select name="printerId"><option value="">${t('Passender Drucker (nach Modell)')}</option>${S.printers.map((p) => `<option value="${p.id}" ${p.id === printerId ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
+      <label>${t('Drucker')}<select name="printerId">${targetOptionsHTML(printerId, null, 'Passender Drucker (nach Modell)')}</select></label>
       <label data-count>${t('Anzahl Drucke')}<input name="count" type="number" min="1" max="200" value="1"></label>
     </div>
     ${pmodePickHTML('mode', null)}
@@ -691,7 +745,7 @@ function queueAddDialog({ fileId = null, printerId = null } = {}) {
       await api('queue', {
         method: 'POST',
         body: {
-          fileId: form.fileId.value, printerId: form.printerId.value || null, count: form.mode.value === 'single' ? 1 : form.count.value, top: form.top.checked, mode: form.mode.value,
+          fileId: form.fileId.value, ...targetValue(form.printerId.value), count: form.mode.value === 'single' ? 1 : form.count.value, top: form.top.checked, mode: form.mode.value,
           options: f?.kind === '3mf' ? { plate: form.plate.value, useAms: form.useAms.checked, amsMapping: form.amsMapping.value } : {},
         },
       });
@@ -830,7 +884,7 @@ function vOrders() {
     const posN = o.positions.length;
     return `<div class="row o-row ${o.closed ? 'dim' : ''}">
       <div><span class="lbl">${t('Nr')}</span><b class="vl" style="white-space:nowrap">${esc(o.nr)}</b></div>
-      <div class="c-main"><b>${esc(o.title)}</b>${o.closed ? '' : `<div class="o-mode">${pmodeSelectHTML(`data-omode="${o.id}"`, o.mode)}</div>`}<div class="meta">${esc(o.customer || '')}${o.customer ? ' · ' : ''}${posN === 1 ? t('1 Position') : t('{n} Positionen', { n: posN })}${o.costs?.estimate?.total ? ` · ${costPill(o.costs.estimate)}` : ''}${o.costs?.actual?.entries?.some((x) => x.photo) ? ' · 📷' : ''}</div></div>
+      <div class="c-main"><b>${esc(o.title)}</b>${o.closed ? '' : `<div class="o-mode">${pmodeSelectHTML(`data-omode="${o.id}"`, o.mode)}</div>`}<div class="meta">${o.areaId && areaName(o.areaId) ? `${esc(areaName(o.areaId))} · ` : ''}${esc(o.customer || '')}${o.customer ? ' · ' : ''}${posN === 1 ? t('1 Position') : t('{n} Positionen', { n: posN })}${o.costs?.estimate?.total ? ` · ${costPill(o.costs.estimate)}` : ''}${o.costs?.actual?.entries?.some((x) => x.photo) ? ' · 📷' : ''}</div></div>
       <div><span class="lbl">${t('Termin')}</span><span class="vl ${dueCls}">${dfmt(o.due)}</span>${o.late ? `<div class="meta" style="color:var(--fault)">${t('überfällig')}</div>` : ''}</div>
       <div><span class="lbl">${t('Prio')}</span><span class="pill ${prioC}">${t(prioL)}</span></div>
       <div><span class="lbl">${t('Fortschritt')}</span><div class="sub" style="margin:0 0 3px"><span class="num">${t('{a} von {b}', { a: `<b>${o.done}</b>`, b: o.qty })}</span><span>${pct} %</span></div><div class="bar"><i style="width:${pct}%"></i></div></div>
@@ -879,6 +933,8 @@ function orderDialog(o = null) {
       <label>${t('Priorität')}<select name="prio">${[1, 2, 3].map((n) => `<option value="${n}" ${(o?.prio || 2) === n ? 'selected' : ''}>${t(PRIO[n][0])}</option>`).join('')}</select></label></div>
     </div>
     ${pmodePickHTML('mode', o?.mode)}
+    ${areas().length ? `<label>${t('Bereich')}<select name="areaId"><option value="">${t('Alle Drucker')}</option>${areas().map((a) => `<option value="${esc(a.id)}" ${o?.areaId === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
+    <p class="hint" style="margin-top:-4px">${t('Drucke dieses Auftrags ohne festen Drucker gehen nur an passende Drucker in diesem Bereich.')}</p>` : ''}
     <fieldset><legend>${t('Positionen: Datei und Stückzahl')}</legend>
       <div data-positions>${(o?.positions?.length ? o.positions : [{}]).map(posRow).join('')}</div>
       <button class="b b-sm" type="button" data-addpos style="align-self:flex-start">${ICON.plus}${t('Position')}</button>
@@ -912,7 +968,7 @@ function orderDialog(o = null) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const body = {
-      title: form.title.value, customer: form.customer.value, due: form.due.value, prio: Number(form.prio.value), notes: form.notes.value, mode: form.mode.value,
+      title: form.title.value, customer: form.customer.value, due: form.due.value, prio: Number(form.prio.value), notes: form.notes.value, mode: form.mode.value, ...(form.areaId ? { areaId: form.areaId.value || null } : {}),
       closed: form.closed?.checked || false,
       positions: $$('.pos', d).map((el) => ({ id: el.dataset.pos || null, fileId: $('[name=pf]', el).value, qty: Number($('[name=pq]', el).value), perPlate: Number($('[name=ppl]', el).value) || 1 })),
     };
@@ -1160,6 +1216,7 @@ function printerDialog(p = null) {
       <label>${t('Druckermodell')}<input name="model" list="models" value="${esc(p?.settings?.model || '')}" placeholder="${esc(t('z. B. Snapmaker U1'))}"></label>
       <datalist id="models">${models.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>
       <p class="hint" style="margin-top:-4px">${t('Damit nicht zugewiesene Drucke nur auf passenden Druckern landen. Steht so im Slicer (z. B. „Bambu Lab X2D“).')}</p>
+      ${areas().length ? `<label>${t('Bereich')}<select name="area"><option value="">${t('Ohne Bereich')}</option>${areas().map((a) => `<option value="${esc(a.id)}" ${p?.settings?.area === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>` : ''}
       <label ${on('maintenance') ? '' : 'hidden'}>${t('Betriebsstunden vor PrintDock')}<input name="hoursOffset" type="number" min="0" step="0.1" value="${esc(p?.settings?.hoursOffset || 0)}"></label>
       <label ${on('filament') ? '' : 'hidden'}>${t('Filament-Plätze')}<input name="slots" value="${esc(p?.settings?.slots || '')}" placeholder="${esc(t('z. B. ACE 1, ACE 2, ACE 3, ACE 4'))}"></label>
       <p class="hint" style="margin-top:-4px" ${on('filament') ? '' : 'hidden'}>${t('Nur nötig, wenn der Drucker seine Plätze nicht selbst meldet (Bambu-AMS meldet sie). Leer = ein Platz je Düse.')}</p>
@@ -1209,7 +1266,7 @@ function printerDialog(p = null) {
     e.preventDefault();
     const body = {
       name: form.name.value, driver: form.driver.value, config: readFields(form),
-      settings: { ...(p?.settings || {}), model: form.model.value, hoursOffset: form.hoursOffset.value, slots: form.slots.value, powerEntity: form.powerEntity.value.trim(), autoOff: form.autoOff.checked,
+      settings: { ...(p?.settings || {}), model: form.model.value, area: form.area ? form.area.value : p?.settings?.area || '', hoursOffset: form.hoursOffset.value, slots: form.slots.value, powerEntity: form.powerEntity.value.trim(), autoOff: form.autoOff.checked,
         winOn: form.winOn.checked, winFrom: form.winFrom.value, winTo: form.winTo.value, winOutsideMaxH: form.winOutsideMaxH.value,
         cheapEntity: form.cheapEntity.value.trim(), cheapMode: form.cheapMode.value, cheapValue: form.cheapValue.value, cheapMinH: form.cheapMinH.value },
     };
@@ -1594,7 +1651,7 @@ document.addEventListener('change', async (e) => {
   }
   const el = e.target.closest('[data-act="qPrinter"]');
   if (!el) return;
-  await run(() => api(`queue/${el.dataset.id}`, { method: 'PUT', body: { printerId: el.value || null } }));
+  await run(() => api(`queue/${el.dataset.id}`, { method: 'PUT', body: targetValue(el.value) }));
   reload('queue', 'summary');
 });
 
@@ -1626,7 +1683,7 @@ function connect() {
       if (strip) {
         const tpl = document.createElement('template');
         tpl.innerHTML = stripHTML();
-        holdScroll(() => morphNode(strip, tpl.content.firstElementChild));
+        holdScroll(() => morphNode(strip, tpl.content.querySelector('.strip')));
       }
     }
     if (stateChanged) {

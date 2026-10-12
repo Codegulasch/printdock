@@ -19,7 +19,7 @@ function vToday() {
   const F = S.fil || {};
   const today = todayISO();
   // Drucker: Platte räumen, Störung, pausiert
-  for (const p of S.printers) {
+  for (const p of S.printers.filter(inAreaP)) {
     const v = pView(p);
     const st = p.status || {};
     const nextQ = (S.queue || []).find((q) => q.status === 'queued' && pmodeOf(q.mode) === 'auto' && q.printerId === p.id);
@@ -28,18 +28,18 @@ function vToday() {
     else if (st.state === 'paused') items.push(todo('warn', '⏸', t('{p}: pausiert', { p: esc(p.name) }), esc(t(st.message || '')), goBtn('board', t('Ansehen'))));
   }
   // Nach „Platte frei“ nicht gestartet – mit Grund
-  for (const p of S.printers) {
+  for (const p of S.printers.filter(inAreaP)) {
     const si = S.summary?.startInfo?.[p.id];
     if (!si || si.ok || si.kind === 'empty' || si.kind === 'stuck') continue;
     items.push(todo('warn td-wide', '▶', t('{p}: startet nicht', { p: esc(p.name) }), esc(t(si.text)), startInfoActions(p, si)));
   }
   // Hängende Einträge: Drucker ist bereit, Eintrag „druckt“ noch
-  for (const q of (S.queue || []).filter((x) => x.stale)) {
+  for (const q of (S.queue || []).filter((x) => x.stale && inAreaP(printerById(x.printerId)))) {
     items.push(todo('bad td-wide', '⏱', t('{p}: Druckende verpasst', { p: esc(printerById(q.printerId)?.name || '') }), `${esc(q.file?.name || '')} · ${t('Wie ging der Druck aus?')}`, `<button class="b b-sm b-done" data-qresolve="finished" data-id="${q.id}">${ICON.check}${t('War fertig')}</button><button class="b b-sm" data-qresolve="cancelled" data-id="${q.id}">${t('Abgebrochen')}</button>`));
   }
   // Fehldrucke: neu einreihen?
   if (on('queue') && typeof failOpenList === 'function') {
-    for (const h of failOpenList()) items.push(todo('bad td-wide', '↻', t('{p}: Druck nicht fertig geworden', { p: esc(h.printerName) }), `${esc(h.file || '')} · ${h.result === 'cancelled' ? t('abgebrochen') : t('fehlgeschlagen')}${h.progress != null ? ` ${t('bei {n} %', { n: Math.floor(h.progress) })}` : ''}`, `${failActionsHTML(h, { compact: true })}<button class="b b-sm" data-hfail="reason" data-id="${esc(h.id)}">${t('Grund …')}</button>`));
+    for (const h of failOpenList().filter((x) => inAreaP(printerById(x.printerId)))) items.push(todo('bad td-wide', '↻', t('{p}: Druck nicht fertig geworden', { p: esc(h.printerName) }), `${esc(h.file || '')} · ${h.result === 'cancelled' ? t('abgebrochen') : t('fehlgeschlagen')}${h.progress != null ? ` ${t('bei {n} %', { n: Math.floor(h.progress) })}` : ''}`, `${failActionsHTML(h, { compact: true })}<button class="b b-sm" data-hfail="reason" data-id="${esc(h.id)}">${t('Grund …')}</button>`));
   }
   // Speicherort (NAS) nicht erreichbar
   for (const sp of S.summary?.storageProblems || []) {
@@ -102,7 +102,7 @@ function vToday() {
   if (S.app?.update) items.push(todo('info', '⬆', t('PrintDock {v} ist verfügbar', { v: esc(S.app.update) }), '', goBtn('system', t('Aktualisieren'))));
 
   // Läuft gerade
-  const running = S.printers.filter((p) => ['printing', 'preparing', 'paused'].includes(p.status?.state));
+  const running = S.printers.filter(inAreaP).filter((p) => ['printing', 'preparing', 'paused'].includes(p.status?.state));
   const runHTML = running.map((p) => {
     const st = p.status;
     const pct = Math.floor(st.progress || 0);
@@ -113,7 +113,9 @@ function vToday() {
   }).join('');
 
   // Als Nächstes
-  const next = on('queue') ? S.queue.filter((q) => q.status === 'queued').slice(0, 6) : [];
+  // als Nächstes: im gewählten Bereich (fester Drucker dort, oder Eintrag für diesen Bereich bzw. ohne Bereich)
+  const qInArea = (q) => !curArea() || (q.printerId ? inAreaP(printerById(q.printerId)) : !q.areaId || q.areaId === curArea());
+  const next = on('queue') ? S.queue.filter((q) => q.status === 'queued' && qInArea(q)).slice(0, 6) : [];
   const nextHTML = next.map((q) => {
     const p = q.printerId ? printerById(q.printerId) : null;
     return `<div class="td-next">${thumbHTML(q.file)}<div style="min-width:0"><b>${esc(q.file?.name || '–')}</b>

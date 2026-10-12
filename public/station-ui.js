@@ -8,8 +8,12 @@
   g.v.splice(i + 1, 0, ['stlive', 'Station', 'filament', undefined, () => stationsLive().length > 0]);
 }
 
-/** Stationen mit NFC-Leser oder Waage (keine reinen Feuchtesensoren) */
-const stationsLive = () => (S.fil?.stations?.list || []).filter((x) => x.caps?.nfc !== false || x.caps?.scale === true);
+/**
+ * Stationen für die Station-Seite: alle außer reinen Feuchtesensoren (wie in Einstellungen → PrintDock Station).
+ * Ein Board ohne Module (noch nichts angeschlossen) zählt als Station – sonst verschwindet die Seite, sobald es sich meldet.
+ */
+const stationsLive = () => (S.fil?.stations?.list || []).filter((x) => !(x.caps?.nfc === false && x.caps?.scale !== true && x.caps?.humidity === true));
+const stationBare = (x) => x.caps && Object.keys(x.caps).length > 0 && !x.caps.nfc && !x.caps.scale && !x.caps.humidity;
 const scaleStations = () => stationsLive().filter((x) => x.online && x.caps?.scale !== false);
 
 /** Live-Gewicht von der Station (SSE „station“) */
@@ -49,7 +53,8 @@ function vStationLive() {
       x.caps?.scale !== false ? `<button class="b b-sm" data-fact="stTare" data-id="${x.id}" title="${esc(t('Waage auf 0 setzen (nichts auflegen)'))}">${t('Tara')}</button>` : '',
     ].filter(Boolean).join('');
     return `<section class="sec stl ${x.online ? '' : 'off'}"><div class="cc-head"><h3>${esc(x.name)}</h3><span class="pill ${x.online ? 'run' : ''}">${x.online ? t('verbunden') : t('getrennt')}</span></div>
-      ${x.online ? `${x.caps?.scale !== false ? weighBig(x, sp?.tare || 0) : ''}${tagInfo}${spoolInfo}<div class="btns">${acts}</div>` : `<p class="meta">${x.lastSeen ? t('zuletzt {t}', { t: tfmt(x.lastSeen) }) : t('noch nie verbunden')}</p>`}</section>`;
+      ${x.online && stationBare(x) ? `<p class="meta">${t('Noch keine Module erkannt – NFC-Leser (PN532) und Waage (HX711) anschließen und die Station neu starten. Bis dahin ist sie verbunden, kann aber noch nichts lesen oder wiegen.')}</p>`
+        : x.online ? `${x.caps?.scale !== false ? weighBig(x, sp?.tare || 0) : ''}${tagInfo}${spoolInfo}<div class="btns">${acts}</div>` : `<p class="meta">${x.lastSeen ? t('zuletzt {t}', { t: tfmt(x.lastSeen) }) : t('noch nie verbunden')}</p>`}</section>`;
   }).join('');
   return `${stripHTML()}<div class="bar-row"><h2>${t('Station')}</h2>${scaleStations().length ? `<button class="b b-sm ${S.inv ? 'b-fault' : ''}" data-stl="${S.inv ? 'invEnd' : 'invStart'}">${S.inv ? t('Inventur beenden') : t('Inventur starten')}</button>` : ''}</div>
     ${pendingTagHTML(F)}${armedHTML(F)}

@@ -3,7 +3,8 @@
 FROM node:22-alpine
 
 # ffmpeg für RTSP-Kameras (Bambu X1, H2D, X2D), tzdata für die Uhrzeit in Meldungen
-RUN apk add --no-cache ffmpeg tzdata
+# samba-client: Speicherort auf einer SMB-Freigabe (NAS) ohne Einhängen
+RUN apk add --no-cache ffmpeg tzdata samba-client
 
 WORKDIR /app
 COPY package*.json ./
