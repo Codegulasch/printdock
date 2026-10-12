@@ -5,7 +5,8 @@ NAV_ICON.today = TODAY_ICON;
 NAV_ALL.unshift({ g: 'today', l: 'Heute', icon: 'today', sec: 'Produktion', v: [['today', 'Heute']] });
 delete NAV_ALL.find((g) => g.g === 'board').sec;
 // Startseite, wenn keine Seite in der Adresse steht
-if (!location.hash.slice(1) || location.hash === '#') S.view = 'today';
+// Ohne Seite in der Adresse: Startseite aus den Einstellungen (Standard „Heute“) – entschieden nach dem Laden der Einstellungen
+if (!location.hash.slice(1) || location.hash === '#') S.view = 'today', S.viewFromHome = true;
 
 loaders.labels = async () => (S.labels = on('orders') ? await api('labels') : []);
 
@@ -21,9 +22,14 @@ function vToday() {
   for (const p of S.printers) {
     const v = pView(p);
     const st = p.status || {};
-    if (v.mode === 'clear') items.push(todo('warn', '🧹', t('{p}: Platte räumen', { p: esc(p.name) }), st.file ? esc(st.file) : '', `<button class="b b-sm b-done" data-act="plateClear" data-id="${p.id}">${ICON.check}${t('Platte ist frei')}</button>`));
+    const nextQ = (S.queue || []).find((q) => q.status === 'queued' && q.autoNext && q.printerId === p.id);
+    if (v.mode === 'clear') items.push(todo('warn', '🧹', t('{p}: Platte räumen', { p: esc(p.name) }), [st.file ? esc(st.file) : '', nextQ ? `▶ ${t('danach startet {f}', { f: esc(nextQ.file?.name || '') })}` : ''].filter(Boolean).join(' · '), `<button class="b b-sm b-done" data-act="plateClear" data-id="${p.id}">${ICON.check}${t('Platte ist frei')}</button>`));
     else if (st.state === 'error') items.push(todo('bad', '⚠', t('{p}: Störung', { p: esc(p.name) }), esc(t(st.message || '')), goBtn('board', t('Ansehen'))));
     else if (st.state === 'paused') items.push(todo('warn', '⏸', t('{p}: pausiert', { p: esc(p.name) }), esc(t(st.message || '')), goBtn('board', t('Ansehen'))));
+  }
+  // Hängende Einträge: Drucker ist bereit, Eintrag „druckt“ noch
+  for (const q of (S.queue || []).filter((x) => x.stale)) {
+    items.push(todo('bad td-wide', '⏱', t('{p}: Druckende verpasst', { p: esc(printerById(q.printerId)?.name || '') }), `${esc(q.file?.name || '')} · ${t('Wie ging der Druck aus?')}`, `<button class="b b-sm b-done" data-qresolve="finished" data-id="${q.id}">${ICON.check}${t('War fertig')}</button><button class="b b-sm" data-qresolve="cancelled" data-id="${q.id}">${t('Abgebrochen')}</button>`));
   }
   // Fehldrucke: neu einreihen?
   if (on('queue') && typeof failOpenList === 'function') {
@@ -41,7 +47,16 @@ function vToday() {
     if (unmatched.length) items.push(todo('info', '❓', unmatched.length === 1 ? t('1 Spule ohne Zuordnung') : t('{n} Spulen ohne Zuordnung', { n: unmatched.length }), '', goBtn('slots', t('Zuordnen'))));
   }
   // Einkaufsliste: Filament fehlt für offene Drucke/Aufträge
-  if (S.res?.shopping?.length) items.push(todo('warn', '🛒', t('Filament fehlt für offene Aufträge'), S.res.shopping.slice(0, 4).map((x) => `${esc(x.material || '?')}${x.colorName ? ` ${esc(t(x.colorName))}` : ''} ${fnum(x.missing, 0)} g`).join(' · '), `<button class="b b-sm" data-shop="open">${t('Einkaufsliste')}</button>`));
+  const missingShop = (S.res?.shopping || []).filter((x) => x.missing);
+  if (missingShop.length) items.push(todo('warn', '🛒', t('Filament fehlt für offene Aufträge'), missingShop.slice(0, 4).map((x) => `${esc(x.material || '?')}${x.colorName ? ` ${esc(t(x.colorName))}` : ''} ${fnum(x.missing, 0)} g`).join(' · '), `<button class="b b-sm" data-shop="open">${t('Einkaufsliste')}</button>`));
+  // Nachbearbeitung: Teile warten auf einen Schritt
+  if (on('orders') && typeof postOpenList === 'function') {
+    const pl = postOpenList();
+    if (pl.length) {
+      const n = pl.reduce((a, x) => a + x.r.waiting, 0);
+      items.push(todo('info', '🧰', n === 1 ? t('1 Teil wartet auf Nachbearbeitung') : t('{n} Teile warten auf Nachbearbeitung', { n }), pl.slice(0, 5).map(({ o, r }) => `${esc(o.nr)}: ${r.waiting} × ${esc(t(r.name))}`).join(' · '), pl.length === 1 ? `<button class="b b-sm" data-act="oEdit" data-id="${pl[0].o.id}">${t('Öffnen')}</button>` : goBtn('orders', t('Aufträge'))));
+    }
+  }
   // Wartung
   if (on('maintenance')) {
     const due = (S.maint?.tasks || []).filter((x) => x.state === 'due');
@@ -68,7 +83,7 @@ function vToday() {
     const end = st.remainingSec ? new Date(Date.now() + st.remainingSec * 1000) : null;
     return `<div class="td-run"><div class="td-run-h"><b>${esc(p.name)}</b><span class="num">${pct} %</span></div>
       <div class="meta td-file">${esc(st.file || '')}</div><div class="bar"><i style="width:${pct}%"></i></div>
-      <div class="meta">${st.state === 'paused' ? t('pausiert') : end ? t('fertig um {t}', { t: end.toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit' }) }) + ` · ${t('noch {d}', { d: fmtDur(st.remainingSec) })}` : t(pView(p).lamp)}</div></div>`;
+      <div class="meta">${st.state === 'paused' ? t('pausiert') : end ? t('fertig um {t}', { t: end.toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit' }) }) + ` · ${t('noch {d}', { d: fmtDur(st.remainingSec) })}` : t(pView(p).lamp)}</div>${typeof firstLayerHTML === 'function' ? firstLayerHTML(p) : ''}</div>`;
   }).join('');
 
   // Als Nächstes

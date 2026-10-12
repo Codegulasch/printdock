@@ -13,6 +13,8 @@ const EVENTS = [
   { id: 'humidity', label: 'Filament zu feucht (AMS/ACE/Sensor)', defaultOn: true },
   { id: 'dryingDone', label: 'Trocknen fertig', defaultOn: true },
   { id: 'update', label: 'PrintDock-Update verfügbar', defaultOn: true },
+  { id: 'firstLayer', label: 'Foto nach der ersten Schicht', defaultOn: false },
+  { id: 'emergency', label: 'Notaus (Rauch, Hitze)', defaultOn: true },
 ];
 
 const STYLE = {
@@ -26,6 +28,8 @@ const STYLE = {
   filamentLow: { emoji: '🧵', tag: 'thread', priority: 3 },
   humidity: { emoji: '💧', tag: 'droplet', priority: 3 },
   dryingDone: { emoji: '♨️', tag: 'hotsprings', priority: 3 },
+  firstLayer: { emoji: '📷', tag: 'camera', priority: 2 },
+  emergency: { emoji: '🚨', tag: 'rotating_light', priority: 5 },
   update: { emoji: '⬆️', tag: 'arrow_up', priority: 2 },
   test: { emoji: '🔔', tag: 'bell', priority: 3 },
 };
@@ -254,6 +258,16 @@ function buildMessage(event, printer, status, entry) {
       if (entry?.spools?.length) lines.push(entry.spools.join(', '));
       break;
     }
+    case 'firstLayer':
+      title = tr('{p}: erste Schicht', { p: name });
+      if (file) lines.push(file);
+      lines.push(tr('Haftung und erste Schicht auf dem Bild prüfen.'));
+      break;
+    case 'emergency':
+      title = tr('{p}: NOTAUS', { p: name });
+      lines.push(tr('{s} meldet {v} – Steckdose wurde ausgeschaltet.', { s: entry?.sensor || '?', v: entry?.value ?? '?' }));
+      if (entry?.error) lines.push(tr('Ausschalten fehlgeschlagen: {e}', { e: entry.error }));
+      break;
     case 'update':
       title = tr('PrintDock {v} ist verfügbar', { v: entry?.version || '' });
       lines.push(tr('Installieren unter Einstellungen → System → Updates.'));

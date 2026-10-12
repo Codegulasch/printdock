@@ -276,6 +276,7 @@ function vGeneral() {
           ${lrow(t('Größe'), '', seg([['compact', 'A<sub>−</sub>'], ['standard', 'A'], ['large', 'A<sup>+</sup>']], a.density || 'standard', 'data-gact="density" data-v'))}
           ${lrow(t('Akzentfarbe'), esc(t(ACCENTS.find((x) => x[0] === a.accent)?.[1] || 'Kobalt')), `<div class="swatches">${ACCENTS.map(([k, l]) => `<button type="button" class="swb" style="--c:${ACCENT_HEX[k]}" data-g-accent="${k}" aria-pressed="${a.accent === k}" title="${esc(t(l))}" aria-label="${esc(t(l))}"></button>`).join('')}</div>`)}
         </div>
+        ${typeof navSettingsHTML === 'function' ? navSettingsHTML() : ''}
       </div>
       <div>
         <h3 class="shead">${t('Funktionen')} <span class="meta" style="text-transform:none;letter-spacing:0;font-weight:400">· ${t('{n} von {m} an', { n: MODULE_INFO.filter(([k]) => mods[k] !== false).length, m: MODULE_INFO.length })}</span></h3>
@@ -297,9 +298,9 @@ function vSystem() {
     <h3 class="shead">${t('Updates')}</h3>
     <div class="sbox">
       ${srow(t('Version'), modeTxt, `<b>PrintDock ${esc(a.version)}</b>${newer ? ` <span class="vl warn">${t('{v} verfügbar', { v: esc(String(L.latest).replace(/^v/, '')) })}</span>` : L ? ` <span class="vl ok">${t('aktuell')}</span>` : ''}`)}
-      ${srow(t('Nach Updates suchen'), U.checkError ? `<span class="warn-txt">${t('Letzte Prüfung fehlgeschlagen: {e}', { e: esc(U.checkError.msg) })}</span>` : L?.at ? t('Zuletzt geprüft: {d} · automatisch alle 6 Stunden', { d: new Date(L.at).toLocaleString() }) : t('PrintDock sieht außerdem alle 6 Stunden nach.'), `<button class="b b-sm" data-gact="updCheck">${t('Jetzt prüfen')}</button>${newer && U.mode !== 'docker' ? `<button class="b b-sm b-go" data-gact="updInstall">${t('Auf {v} aktualisieren', { v: esc(String(L.latest).replace(/^v/, '')) })}</button>` : ''}`)}
+      ${srow(t('Nach Updates suchen'), U.checkError ? `<span class="warn-txt">${t('Letzte Prüfung fehlgeschlagen: {e}', { e: esc(U.checkError.msg) })}</span>` : L?.at ? t('Zuletzt geprüft: {d} · automatisch alle 6 Stunden', { d: new Date(L.at).toLocaleString() }) : t('PrintDock sieht außerdem alle 6 Stunden nach.'), `<button class="b b-sm" data-gact="updCheck">${t('Jetzt prüfen')}</button>${newer ? `<button class="b b-sm b-go" data-gact="updInstall">${t('Auf {v} aktualisieren', { v: esc(String(L.latest).replace(/^v/, '')) })}</button>` : ''}`)}
       ${newer && L.notes ? `<div class="srow"><div class="sl"><b>${t('Neu in dieser Version')}</b></div><div class="sc"><pre class="notes">${esc(L.notes)}</pre></div></div>` : ''}
-      ${newer && U.mode === 'docker' ? srow(t('Docker'), t('Im Container das Image aktualisieren:'), '<span class="code">docker compose pull &amp;&amp; docker compose up -d</span>') : ''}
+      ${newer && U.mode === 'docker' ? srow(t('Docker'), t('Das Update landet im Datenordner und bleibt beim Neuanlegen des Containers erhalten. Alternativ das Image aktualisieren:'), '<span class="code">docker compose pull &amp;&amp; docker compose up -d</span>') : ''}
       <details class="adv srow-adv"><summary>${t('Update-Quelle')}</summary>
         ${srow(t('GitHub-Repository'), t('Besitzer/Name'), `<input class="in" id="uRepo" value="${esc(U.repo || '')}" style="max-width:22rem">`)}
         ${srow(t('Zugangstoken'), t('Nur für private Repositories: GitHub → Settings → Developer settings → Fine-grained token, Zugriff nur auf dieses Repository, Berechtigung „Contents: Read-only“.'), `<input class="in" id="uToken" type="password" value="${esc(U.token || '')}" autocomplete="off" style="max-width:22rem"><button class="b b-sm b-done" data-gact="updSave">${t('Speichern')}</button>`)}
@@ -322,6 +323,8 @@ function vSystem() {
       ${srow(t('API-Key'), t('Für Kamerabilder in Home Assistant und Download-Links, wenn der Login-Schutz an ist.'), `<div class="btns" style="margin:0"><button class="b b-sm" data-gact="showKey">${t('Anzeigen')}</button><button class="b b-sm" data-gact="newKey">${t('Neu erzeugen')}</button></div><p class="code" data-key hidden></p>`)}
       ${srow(t('Fernzugriff'), t('Von unterwegs über Tailscale oder Cloudflare Tunnel – direkt in PrintDock einschalten.'), `<button class="b b-sm" data-view="remote">${t('Einrichten …')}</button>`)}
     </div>
+    ${typeof usersHTML === 'function' ? usersHTML() : ''}
+    ${typeof platformHTML === 'function' ? platformHTML() : ''}
     <h3 class="shead">${t('Einrichtung')}</h3>
     <div class="sbox">
       ${srow(t('Einrichtungsassistent'), t('Erneut durchlaufen, z. B. um Funktionen neu auszuwählen.'), `<button class="b b-sm" data-gact="wizard">${t('Assistent starten')}</button>`)}

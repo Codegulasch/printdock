@@ -856,6 +856,7 @@ document.addEventListener('click', async (e) => {
     }
     case 'weigh': {
       const s = spoolById(id);
+      if (typeof stationWeighDialog === 'function' && stationWeighDialog(s)) return;
       return numberDialog({
         title: t('{nr} wiegen', { nr: s.nr }), label: t('Gewicht mit Spule'), unit: 'g', okLabel: t('Übernehmen'),
         text: s.tare ? esc(t('Spule samt Leerspule auf die Waage legen. Leerspule: {g} g.', { g: fnum(s.tare, 0) })) : `<b>${t('Für diese Spule ist kein Leergewicht hinterlegt.')}</b> ${t('Bitte zuerst unter „Bearbeiten“ eintragen (steht oft auf der Spule oder beim Hersteller).')}`,

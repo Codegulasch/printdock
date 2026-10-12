@@ -121,6 +121,7 @@ function vHa() {
       </div>
     </section>`}
     ${blueprintsHTML(h)}
+    ${typeof emergencyHTML === 'function' ? emergencyHTML() : ''}
     <section class="sec"><h3>${num()}${t('PrintDock-Karten im Dashboard')}</h3>
       <p class="intro">${t('„PrintDock Card“ zeigt einen Drucker, „PrintDock Overview“ alle Drucker mit Warteschlange, Aufträgen, Spulen und Wartung. Braucht die MQTT-Geräte.')}</p>
       <div class="cards">

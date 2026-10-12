@@ -159,8 +159,9 @@ try {
   } catch (err) {
     fail(`Servertest: ${err.message}\n${log}`);
   } finally {
-    srv.kill();
-    fs.rmSync(dataDir, { recursive: true, force: true });
+    // erst sauber beenden lassen (schreibt beim Beenden noch Dateien), dann aufräumen
+    await new Promise((r) => { srv.once('exit', r); srv.kill(); setTimeout(r, 5000); });
+    fs.rmSync(dataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
   if (failed) {
     console.error(`\n${failed} Prüfung(en) fehlgeschlagen`);

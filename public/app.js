@@ -44,8 +44,34 @@ const NAV_ALL = [
   ] },
 ];
 const on = (m) => !m || S.app?.modules?.[m] !== false;
+/** Menü-Einstellung: auf diesem Gerät gespeichert oder für alle (Einstellungen → Allgemein → Menü) */
+function navCfg() {
+  try {
+    const local = JSON.parse(localStorage.getItem('pd-nav') || 'null');
+    if (local) return local;
+  } catch {}
+  return S.app?.nav || {};
+}
 function navGroups() {
-  return NAV_ALL.map((g) => ({ ...g, v: g.v.filter((v) => on(v[2])) })).filter((g) => g.v.length);
+  const cfg = navCfg();
+  const hidden = new Set(cfg.hidden || []);
+  let list = NAV_ALL.map((g) => ({ ...g, v: g.v.filter((v) => on(v[2]) && (!v[4] || v[4]())) })).filter((g) => g.v.length && (g.g === 'set' || !hidden.has(g.g)));
+  if (cfg.order?.length) {
+    // eigene Reihenfolge: Bereichsüberschriften entfallen, Einstellungen bleiben unten
+    const pos = (g) => { const i = cfg.order.indexOf(g.g); return i < 0 ? 900 + NAV_ALL.indexOf(NAV_ALL.find((x) => x.g === g.g)) : i; };
+    const set = list.filter((g) => g.g === 'set');
+    list = list.filter((g) => g.g !== 'set').sort((a, b) => pos(a) - pos(b)).map((g) => ({ ...g, sec: undefined })).concat(set);
+  }
+  // Bediener: keine Einstellungen
+  if (S.app?.me?.role === 'operator') list = list.filter((g) => g.g !== 'set');
+  return list;
+}
+/** Startseite: eingestellt, sonst der erste Menüpunkt */
+function homeView() {
+  const avail = viewsAvailable();
+  const h = navCfg().home;
+  if (h && avail.includes(h)) return h;
+  return navGroups()[0]?.v[0][0] || 'board';
 }
 const viewsAvailable = () => navGroups().flatMap((g) => g.v.map((v) => v[0]));
 
@@ -333,7 +359,7 @@ function renderHead() {
   $('#langBtn').textContent = LANG === 'de' ? 'EN' : 'DE';
   $('#langBtn').title = LANG === 'de' ? 'English' : 'Deutsch';
   $('#logoutBtn').hidden = !S.app?.auth?.enabled;
-  $('#logoutBtn').title = t('Abmelden');
+  $('#logoutBtn').title = S.app?.me?.name ? t('Abmelden ({u})', { u: S.app.me.name }) : t('Abmelden');
   $('#nav').setAttribute('aria-label', t('Hauptnavigation'));
   $('#menuBtn').setAttribute('aria-label', t('Menü öffnen'));
 }
@@ -540,9 +566,14 @@ function vQueue() {
       acts.push(`<button class="b b-sm b-go" data-act="qStart" data-id="${q.id}" ${q.file?.printable && anyReady ? '' : 'disabled'} title="${anyReady ? '' : esc(t('Kein Drucker ist frei'))}">${ICON.play}${t('Start')}</button>`);
     }
     if (q.status === 'failed' || q.status === 'cancelled') acts.push(`<button class="b b-sm" data-act="qRequeue" data-id="${q.id}">${t('Erneut einreihen')}</button>`);
+    if (['printing', 'sending'].includes(q.status)) acts.push(q.stale
+      ? `<button class="b b-sm b-done" data-qresolve="finished" data-id="${q.id}">${ICON.check}${t('War fertig')}</button><button class="b b-sm" data-qresolve="cancelled" data-id="${q.id}">${t('Abgebrochen')}</button>`
+      : `<button class="x" data-qresolve="ask" data-id="${q.id}" title="${esc(t('Eintrag hängt? Druck ist am Drucker längst beendet'))}">${t('Hängt?')}</button>`);
     if (!['sending', 'printing'].includes(q.status)) acts.push(`<button class="x del" data-act="qDel" data-id="${q.id}" title="${t('Entfernen')}" aria-label="${t('Entfernen')}">${ICON.trash}</button>`);
     const warn = (q.modelMatch === false ? ` <span class="pill bad" title="${esc(t('Datei wurde für ein anderes Druckerprofil geslict – so startet sie nicht'))}">${t('anderes Profil')}</span>` : '')
       + (q.waitReason ? `<div class="meta wait-reason" title="${esc(t('Warum der Eintrag noch nicht automatisch startet'))}">⏳ ${esc(t(q.waitReason))}</div>` : '')
+      + (q.autoNext && q.status === 'queued' ? `<div class="meta hc-wait">▶ ${t('startet automatisch, sobald die Platte frei ist')}</div>` : '')
+      + (q.stale ? `<div class="meta res-warn">⚠ ${t('Der Drucker ist längst bereit – das Druckende wurde verpasst. Bitte sagen, wie der Druck ausging.')}</div>` : '')
       + (typeof reserveWarnHTML === 'function' ? reserveWarnHTML(q) : '')
       + (q.afterDry && q.status === 'queued' ? `<div class="meta hc-wait">💧 ${t('wird zuerst getrocknet ({n}) – startet danach automatisch', { n: esc(q.afterDry.name || '') })} <button class="x" data-qdry-cancel="${q.id}">${t('Nicht automatisch starten')}</button></div>` : '');
     return `<div class="row q-row ${['done', 'retried'].includes(q.status) ? 'dim' : ''}">
@@ -720,7 +751,7 @@ async function startItem(itemId, printerId = null) {
 // ================================================================ Aufträge
 
 const PRIO = { 1: ['eilig', 'bad'], 2: ['normal', ''], 3: ['niedrig', 'done'] };
-const O_STATUS = { offen: '', geplant: 'pause', 'läuft': 'run', fertig: 'done', abgeschlossen: 'done' };
+const O_STATUS = { offen: '', geplant: 'pause', 'läuft': 'run', nachbearbeitung: 'pause', fertig: 'done', abgeschlossen: 'done' };
 
 function vOrders() {
   const list = S.orders.filter((o) => (S.oFilter === 'archiv' ? o.archived : o.archived ? false : S.oFilter === 'aktiv' ? !o.closed && o.status !== 'fertig' : S.oFilter === 'fertig' ? o.closed || o.status === 'fertig' : true));
@@ -774,9 +805,10 @@ function orderDialog(o = null) {
   const fileOpts = (sel) => S.files.map((f) => `<option value="${f.id}" ${f.id === sel ? 'selected' : ''}>${esc(f.name)}${f.printable ? '' : ` (${t('nicht gesliced')})`}</option>`).join('');
   const posRow = (p = {}) => `<div class="pos" data-pos="${esc(p.id || '')}">
       <select class="in" name="pf" aria-label="${t('Datei')}">${fileOpts(p.fileId)}</select>
-      <input class="in" name="pq" type="number" min="1" max="9999" value="${p.qty || 1}" aria-label="${t('Stückzahl')}">
+      <input class="in" name="pq" type="number" min="1" max="9999" value="${p.qty || 1}" aria-label="${t('Stückzahl')}" title="${esc(t('Stückzahl'))}">
+      <span class="pp"><input class="in" name="ppl" type="number" min="1" max="500" value="${p.perPlate || 1}" aria-label="${t('Stück je Druck')}" title="${esc(t('Stück je Druck (Teile auf einer Platte)'))}"><span class="meta">${t('je Druck')}</span></span>
       <button class="x del" type="button" data-rm title="${t('Position entfernen')}" aria-label="${t('Position entfernen')}">${ICON.trash}</button>
-      ${p.id ? `<div class="posinfo">${t('{d} fertig · {p} eingeplant', { d: p.done, p: p.planned })}${p.running ? ` (${t('läuft')})` : ''} · ${t('{n} offen', { n: p.open })}${p.failed ? ` · ${t('{n} fehlgeschlagen', { n: p.failed })}` : ''}</div>` : ''}
+      ${p.id ? `<div class="posinfo">${p.perPlate > 1 ? `${t('{n} Drucke à {k} Stück', { n: p.prints, k: p.perPlate })} · ` : ''}${t('{d} fertig · {p} eingeplant', { d: p.done, p: p.planned })}${p.running ? ` (${t('läuft')})` : ''} · ${t('{n} offen', { n: p.open })}${p.failed ? ` · ${t('{n} fehlgeschlagen', { n: p.failed })}` : ''}</div>` : ''}
     </div>`;
   const d = openDialog(`<form class="dlg" method="dialog">
     <h2>${o ? t('Auftrag {nr}', { nr: esc(o.nr) }) : t('Neuer Auftrag')}</h2>
@@ -789,8 +821,9 @@ function orderDialog(o = null) {
     <fieldset><legend>${t('Positionen: Datei und Stückzahl')}</legend>
       <div data-positions>${(o?.positions?.length ? o.positions : [{}]).map(posRow).join('')}</div>
       <button class="b b-sm" type="button" data-addpos style="align-self:flex-start">${ICON.plus}${t('Position')}</button>
-      <p class="hint" style="margin:0">${t('Pro Stück wird ein Druck eingeplant. Passen mehrere Teile auf eine Platte, die Platte als eine Datei slicen und die Anzahl Platten eintragen.')}</p>
+      <p class="hint" style="margin:0">${t('„je Druck“: wie viele Teile auf einer Platte liegen (Platte als eine Datei slicen). Bei 20 Stück und 4 je Druck plant PrintDock 5 Drucke.')}</p>
     </fieldset>
+    ${o && typeof orderPostHTML === 'function' ? orderPostHTML(o) : ''}
     ${o ? orderCostsHTML(o) : ''}
     ${o ? orderShareHTML(o) : ''}
     <label>${t('Notizen')}<textarea name="notes" rows="3">${esc(o?.notes || '')}</textarea></label>
@@ -820,7 +853,7 @@ function orderDialog(o = null) {
     const body = {
       title: form.title.value, customer: form.customer.value, due: form.due.value, prio: Number(form.prio.value), notes: form.notes.value,
       closed: form.closed?.checked || false,
-      positions: $$('.pos', d).map((el) => ({ id: el.dataset.pos || null, fileId: $('[name=pf]', el).value, qty: Number($('[name=pq]', el).value) })),
+      positions: $$('.pos', d).map((el) => ({ id: el.dataset.pos || null, fileId: $('[name=pf]', el).value, qty: Number($('[name=pq]', el).value), perPlate: Number($('[name=ppl]', el).value) || 1 })),
     };
     try {
       const saved = await api(o ? `orders/${o.id}` : 'orders', { method: o ? 'PUT' : 'POST', body });
@@ -1071,6 +1104,17 @@ function printerDialog(p = null) {
       <label ${on('filament') ? '' : 'hidden'}>${t('Filament-Plätze')}<input name="slots" value="${esc(p?.settings?.slots || '')}" placeholder="${esc(t('z. B. ACE 1, ACE 2, ACE 3, ACE 4'))}"></label>
       <p class="hint" style="margin-top:-4px" ${on('filament') ? '' : 'hidden'}>${t('Nur nötig, wenn der Drucker seine Plätze nicht selbst meldet (Bambu-AMS meldet sie). Leer = ein Platz je Düse.')}</p>
     </fieldset>
+    <fieldset ${on('queue') ? '' : 'hidden'}><legend>${t('Automatisch starten')}</legend>
+      <label ${on('orders') ? '' : 'hidden'}>${t('Aufträge weiterdrucken')}<select name="orderNext">${[['off', 'Aus'], ['same', 'Ja – gleicher Auftrag zuerst'], ['prio', 'Ja – nach Priorität und Termin']].map(([k, l]) => `<option value="${k}" ${(p?.settings?.orderNext || 'off') === k ? 'selected' : ''}>${t(l)}</option>`).join('')}</select></label>
+      <p class="hint" style="margin-top:-4px" ${on('orders') ? '' : 'hidden'}>${t('Ist ein Druck fertig, reiht PrintDock das nächste offene Auftragsteil an diesem Drucker ein und startet es, sobald die Platte als frei bestätigt ist – auch ohne Auto-Start. Nur Dateien mit passendem Profil und Filament.')}</p>
+      <label class="check"><input type="checkbox" name="winOn" ${p?.settings?.winOn ? 'checked' : ''}> ${t('Nur zu bestimmten Zeiten automatisch starten')}</label>
+      <div class="two"><label>${t('von')}<input name="winFrom" type="time" value="${esc(p?.settings?.winFrom || '07:00')}"></label><label>${t('bis')}<input name="winTo" type="time" value="${esc(p?.settings?.winTo || '22:00')}"></label></div>
+      <label>${t('Außerhalb nur Drucke bis (Stunden, 0 = keine)')}<input name="winOutsideMaxH" type="number" min="0" max="48" step="0.5" value="${esc(p?.settings?.winOutsideMaxH ?? 0)}"></label>
+      <label ${on('homeassistant') ? '' : 'hidden'}>${t('Lange Drucke bei günstigem Strom (Entität aus Home Assistant)')}<input name="cheapEntity" value="${esc(p?.settings?.cheapEntity || '')}" placeholder="binary_sensor.pv_ueberschuss / sensor.strompreis" autocomplete="off"></label>
+      <div class="two" ${on('homeassistant') ? '' : 'hidden'}><label>${t('günstig, wenn')}<select name="cheapMode">${[['on', 'an'], ['below', 'unter'], ['above', 'über']].map(([k, l]) => `<option value="${k}" ${(p?.settings?.cheapMode || 'on') === k ? 'selected' : ''}>${t(l)}</option>`).join('')}</select></label><label>${t('Wert')}<input name="cheapValue" type="number" step="any" value="${esc(p?.settings?.cheapValue ?? 0)}"></label></div>
+      <label ${on('homeassistant') ? '' : 'hidden'}>${t('gilt für Drucke ab (Stunden)')}<input name="cheapMinH" type="number" min="0" max="48" step="0.5" value="${esc(p?.settings?.cheapMinH ?? 0)}"></label>
+      <p class="hint" style="margin-top:-4px">${t('Gilt nur für automatische Starts – „Start“ von Hand geht immer. Beispiele: Strompreis-Sensor „unter 0,25“, Einspeisung „über 1500“, PV-Überschuss-Schalter „an“.')}</p>
+    </fieldset>
     <fieldset ${on('homeassistant') ? '' : 'hidden'}><legend>${t('Strom über Home Assistant')}</legend>
       <label>${t('Steckdose (Entität)')}<div data-power-pick>${entityPickerHTML('powerEntity', p?.settings?.powerEntity)}</div></label>
       <label class="check"><input type="checkbox" name="autoOff" ${p?.settings?.autoOff ? 'checked' : ''}> ${t('Nach dem Druck automatisch ausschalten, sobald die Düse abgekühlt ist')}</label>
@@ -1106,7 +1150,9 @@ function printerDialog(p = null) {
     e.preventDefault();
     const body = {
       name: form.name.value, driver: form.driver.value, config: readFields(form),
-      settings: { ...(p?.settings || {}), model: form.model.value, autoStart: form.autoStart.checked, hoursOffset: form.hoursOffset.value, slots: form.slots.value, powerEntity: form.powerEntity.value.trim(), autoOff: form.autoOff.checked },
+      settings: { ...(p?.settings || {}), model: form.model.value, autoStart: form.autoStart.checked, hoursOffset: form.hoursOffset.value, slots: form.slots.value, powerEntity: form.powerEntity.value.trim(), autoOff: form.autoOff.checked,
+        orderNext: form.orderNext.value, winOn: form.winOn.checked, winFrom: form.winFrom.value, winTo: form.winTo.value, winOutsideMaxH: form.winOutsideMaxH.value,
+        cheapEntity: form.cheapEntity.value.trim(), cheapMode: form.cheapMode.value, cheapValue: form.cheapValue.value, cheapMinH: form.cheapMinH.value },
     };
     try {
       await api(p ? `printers/${p.id}` : 'printers', { method: p ? 'PUT' : 'POST', body });
@@ -1257,7 +1303,7 @@ const VIEW_FN = { queue: vQueue, orders: vOrders, files: vFiles, maint: vMaint, 
 
 function render() {
   if (VIEW_ALIAS[S.view]) S.view = VIEW_ALIAS[S.view][0];
-  if (!viewsAvailable().includes(S.view)) S.view = 'board';
+  if (!viewsAvailable().includes(S.view)) S.view = homeView();
   renderHead();
   const app = $('#app');
   // Eingaben in Einstellungen nicht durch Live-Updates überschreiben
@@ -1519,9 +1565,11 @@ function connect() {
   es.addEventListener('settings', () => reload('settings'));
   es.addEventListener('filament', () => reload('filament', 'summary', 'reserve'));
   es.addEventListener('power', () => reload('printers'));
-  es.addEventListener('ha', () => reload('ha'));
+  es.addEventListener('ha', () => reload('ha', 'emergency'));
   es.addEventListener('app', () => reload('app'));
   es.addEventListener('remote', () => reload('remote'));
+  es.addEventListener('firstLayer', () => reload('printers'));
+  es.addEventListener('station', (e) => typeof onStationLive === 'function' && onStationLive(JSON.parse(e.data)));
   es.addEventListener('history', (e) => {
     const h = JSON.parse(e.data);
     if (!h) return reload('history', 'maint', 'summary', 'filament', 'files', 'printers', 'labels', 'orders', 'reserve');
@@ -1557,6 +1605,10 @@ async function boot() {
     return;
   }
   tick();
+  if (S.viewFromHome) {
+    S.viewFromHome = false;
+    S.view = homeView();
+  }
   if (!S.app.setupDone && typeof showSetup === 'function') return showSetup();
   if (!S.app.loggedIn && typeof showLogin === 'function') return showLogin();
   try {

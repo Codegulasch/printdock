@@ -75,6 +75,10 @@ npm start
 
 Für Bambu-Kameras mit RTSP zusätzlich ffmpeg: Windows `winget install ffmpeg`, macOS `brew install ffmpeg`.
 
+**Windows:** statt `npm start` besser `scripts\start-windows.cmd` doppelklicken – dann startet PrintDock nach einem Update aus der Oberfläche oder dem Einspielen einer Sicherung von selbst neu. Fernzugriff: Cloudflare Tunnel lädt PrintDock selbst, für Tailscale die Tailscale-App installieren und anmelden.
+
+Was auf welcher Installation geht, zeigt *Einstellungen → System → Plattform-Check*. In Docker funktioniert das Update aus PrintDock ab 0.16 ebenfalls (die neue Version liegt im Datenordner; ein neueres Image per `docker compose pull` hat wieder Vorrang).
+
 ## Einstellungen über Umgebungsvariablen
 
 | Variable | Standard | Bedeutung |

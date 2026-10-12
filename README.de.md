@@ -18,6 +18,9 @@ Inspiriert von [BamBuddy](https://github.com/maziggy/bambuddy), aber nicht auf B
 - **Fehldrucke** mit einem Klick neu einreihen, Grund erfassen, Ausschuss in Kosten und Statistik
 - **Filament-Reservierung** für die Warteschlange mit Einkaufsliste und **Feuchte-Check** vor dem Start („erst trocknen, dann automatisch starten“)
 - **RFID/NFC-Tags mit dem Handy** lesen und beschreiben (Chrome auf Android)
+- **Aufträge weiterdrucken** nach „Platte frei“, **Startzeitfenster** und günstiger Strom, **mehrere Teile pro Platte**, **Nachbearbeitung** mit Schritten
+- **PrintDock-Station-Seite** mit Live-Gewicht, Tag-Daten und **Inventur**; **Notaus** über Home Assistant; **mehrere Benutzer** (Admin/Bediener) mit Protokoll
+- **Menü frei anordnen**, Startseite wählen; **Plattform-Check** – gleiche Funktionen als Add-on, in Docker, auf dem Pi und unter Windows/macOS
 
 - Live-Status aller Drucker: Fortschritt, Restzeit, voraussichtliches Ende, Schicht, Temperaturen
 - Pausieren, Fortsetzen, Abbrechen

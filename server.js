@@ -222,13 +222,37 @@ CHANNELS.homeassistant.ha = ha;
 const ACTIVE = new Set(['preparing', 'printing', 'paused']);
 const ENDED = { finished: 'erfolgreich', cancelled: 'abgebrochen', error: 'fehlgeschlagen' };
 
+// Laufende Druckjobs überstehen einen Neustart von PrintDock (sonst wird das Druckende verpasst)
+const jobsDb = require('./lib/store').store('jobs.json', {});
+let jobsSaveTimer = null;
+function saveJobs(now = false) {
+  clearTimeout(jobsSaveTimer);
+  if (now) return jobsDb.save();
+  jobsSaveTimer = setTimeout(() => jobsDb.save(), 20_000);
+}
+function persistJob(cfg, rt, now = false) {
+  if (rt.job) jobsDb.data[cfg.id] = rt.job;
+  else delete jobsDb.data[cfg.id];
+  saveJobs(now);
+}
+
 /** Verfolgt den laufenden Druckjob und schreibt beim Ende einen Verlaufseintrag. */
 function trackJob(cfg, rt, status) {
+  // Nach einem Neustart übernommener Job: erst eine Minute lang den echten Zustand abwarten
+  // (manche Drucker melden beim Verbinden kurz „bereit“, bevor der volle Status da ist)
+  if (rt.job?.restored && !ACTIVE.has(status.state) && Date.now() - rt.createdAt < 60_000) return null;
   if (ACTIVE.has(status.state)) {
     if (!rt.job || (status.file && rt.job.file !== status.file)) {
       rt.job = { file: status.file, startedAt: Date.now() - (status.elapsedSec || 0) * 1000 };
       energy.start(cfg, rt.job).catch(() => {});
+      persistJob(cfg, rt, true);
     }
+    if (rt.job.restored) {
+      delete rt.job.restored;
+      delete rt.job.recovered; // läuft noch – das Ende sehen wir live
+    }
+    rt.job.lastAt = Date.now();
+    persistJob(cfg, rt);
     rt.job.lastProgress = status.progress;
     if (status.remainingSec != null) rt.job.lastRemaining = status.remainingSec;
     if (status.activeSlot) rt.job.activeSlot = status.activeSlot;
@@ -245,7 +269,8 @@ function trackJob(cfg, rt, status) {
     console.log(`[${cfg.name}] Druckende ohne Abschlussmeldung erkannt (Fortschritt ${Math.round(rt.job.lastProgress ?? 0)} %) → ${endState === 'finished' ? 'fertig' : 'abgebrochen'}`);
   }
   if (rt.job && endState) {
-    const endedAt = Date.now();
+    // übernommener Job: Ende = letztes Lebenszeichen, nicht jetzt
+    const endedAt = rt.job.recovered && rt.job.lastAt ? rt.job.lastAt : Date.now();
     entry = {
       id: crypto.randomUUID(),
       printerId: cfg.id,
@@ -259,6 +284,8 @@ function trackJob(cfg, rt, status) {
       message: status.message || null,
       activeSlot: rt.job.activeSlot || null,
       filamentMm: rt.job.filamentMm || null,
+      ...(rt.job.recovered ? { recovered: true } : {}),
+      ...(rt.job.l1Photo ? { l1Photo: rt.job.l1Photo } : {}),
     };
     failures.onEnded(entry);
     history.push(entry);
@@ -268,9 +295,61 @@ function trackJob(cfg, rt, status) {
     finishExtras(cfg, rt, rt.job, entry).catch((err) => console.warn(`[${cfg.name}] ${err.message}`));
   }
   // Bei 'offline' den Job behalten – der Drucker kann zurückkommen und weiterdrucken.
-  if (status.state !== 'offline') rt.job = null;
+  if (status.state !== 'offline' && rt.job) {
+    rt.job = null;
+    persistJob(cfg, rt, true);
+  }
   return entry;
 }
+
+// Notaus über Home Assistant (Rauch, Hitze → Steckdosen aus)
+const { Emergency } = require('./lib/emergency');
+const emergency = new Emergency({
+  ha: () => ha,
+  printers: () => printerConfigs,
+  broadcast,
+  notify: (cfg, entry) => notifier.dispatch('emergency', cfg, runtime.get(cfg.id)?.driver.status || null, entry).catch((err) => console.warn(err.message)),
+});
+
+// Startregeln je Drucker: Zeitfenster, günstiger Strom (nur automatische Starts)
+const { StartRules } = require('./lib/startrules');
+const startRules = new StartRules({ ha: () => ha, printers: () => printerConfigs });
+production.ctx.startRule = (p, f) => startRules.check(p, f);
+
+// Hängende Warteschlangen-Einträge („druckt“, Drucker aber längst bereit)
+production.ctx.hasJob = (printerId) => Boolean(runtime.get(printerId)?.job);
+/** Druckende nachtragen, das PrintDock verpasst hat: Verlaufseintrag, Auftrag, Filament wie bei einem echten Ende */
+production.ctx.resolveLost = (q, result, { auto = false } = {}) => {
+  const cfg = printerConfigs.find((p) => p.id === q.printerId);
+  const startedAt = Date.parse(q.startedAt) || Date.now();
+  const endedAt = q.lastSeenAt && q.lastSeenAt > startedAt ? q.lastSeenAt : Date.now();
+  const entry = {
+    id: crypto.randomUUID(),
+    printerId: q.printerId,
+    printerName: cfg?.name || '?',
+    file: files.get(q.fileId)?.name || '?',
+    result,
+    progress: result === 'finished' ? 100 : q.lastProgress ?? null,
+    startedAt: new Date(startedAt).toISOString(),
+    endedAt: new Date(endedAt).toISOString(),
+    durationSec: Math.round((endedAt - startedAt) / 1000),
+    message: auto ? 'Druckende nachträglich erkannt' : 'Von Hand abgeschlossen',
+    recovered: true,
+  };
+  if (result !== 'finished' && !auto) entry.failOpen = false;
+  history.push(entry);
+  production.closeItem(q, entry);
+  try {
+    if (cfg && app.moduleOn('filament')) filament.onJobEnd(cfg, entry);
+  } catch (err) {
+    console.warn(`Filament-Abbuchung fehlgeschlagen: ${err.message}`);
+  }
+  if (app.partLabels && result === 'finished' && entry.orderId) entry.labelPending = true;
+  saveHistory();
+  broadcast('history', null);
+  console.log(`[${entry.printerName}] Hängender Eintrag abgeschlossen: ${entry.file} → ${result}`);
+  return entry;
+};
 
 // Automatische Druckerwahl: liegt das Filament der Datei im Drucker?
 production.ctx.fit = (p, f) => (require('./lib/app').moduleOn('filament') ? filament.fitFor(p, f) : { ok: true, score: 0 });
@@ -281,8 +360,10 @@ const { Costs } = require('./lib/costs');
 const costs = new Costs({ filament, history: () => history, printers: () => printerConfigs });
 const { Remote } = require('./lib/remote');
 const remote = new Remote({ port: PORT, broadcast, authEnabled: () => require('./lib/app').authEnabled });
+const { Shop } = require('./lib/shop');
+const shop = new Shop({ db: require('./lib/filament').db, filament, broadcast });
 const { Reserve } = require('./lib/reserve');
-const reserve = new Reserve({ printers: () => printerConfigs, runtime, filament, production });
+const reserve = new Reserve({ printers: () => printerConfigs, runtime, filament, production, shop });
 const { Failures } = require('./lib/failures');
 const failures = new Failures({ history: () => history, saveHistory: () => saveHistory(), production, broadcast });
 const { EnergyTracker } = require('./lib/energy');
@@ -331,6 +412,28 @@ function partLabels(entries) {
   }).filter(Boolean);
 }
 
+/** Foto nach der ersten Schicht (Option): ab Schicht 2 bzw. 3 % Fortschritt einmal je Druck */
+function firstLayerPhoto(cfg, rt, status) {
+  if (!app.firstLayer || !rt.job || rt.job.l1 || status.state !== 'printing') return;
+  const second = status.layer != null ? status.layer >= 2 : (status.progress ?? 0) >= 3;
+  if (!second || status.camera === false) return;
+  rt.job.l1 = true;
+  (async () => {
+    const jpg = await notifier.getSnapshot(cfg.id);
+    if (!jpg?.length) return;
+    fs.mkdirSync(PHOTO_DIR, { recursive: true });
+    const name = `l1-${cfg.id.slice(0, 8)}-${Date.now()}.jpg`;
+    fs.writeFileSync(path.join(PHOTO_DIR, name), jpg);
+    if (rt.job) {
+      rt.job.l1Photo = name;
+      persistJob(cfg, rt, true);
+    }
+    broadcast('firstLayer', { printerId: cfg.id, photo: name });
+    notifier.dispatch('firstLayer', cfg, status, { file: status.file, photo: name }).catch((err) => console.warn(err.message));
+    console.log(`[${cfg.name}] Foto der ersten Schicht gespeichert`);
+  })().catch((err) => console.warn(`[${cfg.name}] Erste Schicht: ${err.message}`));
+}
+
 async function startPrinter(cfg) {
   const Driver = byId[cfg.driver];
   if (!Driver) {
@@ -338,11 +441,13 @@ async function startPrinter(cfg) {
     return;
   }
   const driver = new Driver(cfg.config || {});
-  const rt = { driver, job: null, lastState: undefined, offlineTimer: null };
+  const saved = jobsDb.data[cfg.id];
+  const rt = { driver, job: saved ? { ...saved, restored: true, recovered: true } : null, lastState: undefined, offlineTimer: null, createdAt: Date.now() };
   runtime.set(cfg.id, rt);
   driver.on('status', (status) => {
     if (runtime.get(cfg.id) !== rt) return; // veraltete Instanz
     const entry = trackJob(cfg, rt, status);
+    firstLayerPhoto(cfg, rt, status);
     detectEvents(rt, status, entry, (event, e) => {
       notifier.dispatch(event, cfg, rt.driver.status, e).catch((err) => console.warn(err.message));
     });
@@ -390,6 +495,7 @@ function publicPrinter(cfg) {
     driver: cfg.driver,
     settings: cfg.settings || {},
     demo: Boolean(cfg.demo),
+    firstLayer: runtime.get(cfg.id)?.job?.l1Photo || null,
     power: ha?.power[cfg.id] ?? null,
     canStart: byId[cfg.driver]?.prototype.startPrint !== require('./drivers/base').BaseDriver.prototype.startPrint,
     config: maskFields(fields, cfg.config),
@@ -414,6 +520,7 @@ function validatePrinter(body, existing) {
     autoOff: st.autoOff === true || st.autoOff === 'true',
     autoOffDelay: Math.max(1, Math.min(240, Number(st.autoOffDelay) || 10)),
     autoOffMaxTemp: Math.max(30, Math.min(120, Number(st.autoOffMaxTemp) || 50)),
+    ...require('./lib/startrules').cleanRules(st),
   };
   return { name, driver: body.driver, settings, config: validateFields(Driver.meta.fields, body.config, prev) };
 }
@@ -522,6 +629,17 @@ const MIME = {
 };
 
 const APP_VERSION = require('./package.json').version;
+const audit = require('./lib/audit');
+/** Was Bediener (Rolle „operator“) ändern dürfen: Druckbetrieb, Filament am Drucker, Nachbearbeitung */
+const OPERATOR_WRITES = [
+  /^queue$/, /^queue\/[^/]+\/(start|dry-start|dry-cancel|resolve|requeue)$/, /^queue\/reorder$/,
+  /^printers\/[^/]+\/(plate-clear|command|power)$/,
+  /^history\/[^/]+\/(fail|unfail|requeue|dismiss)$/,
+  /^orders\/[^/]+\/(plan|post)$/, /^labels\/printed$/,
+  /^spools\/[^/]+\/(weigh|book|dried)$/, /^filament\/(assign|from-slot|ignore|disarm|dry)$/,
+  /^rfid(\/.*)?$/, /^stations\/[^/]+\/(weigh|tare|identify|write)$/,
+  /^filament\/shop\/order(\/[^/]+\/arrived)?$/,
+];
 function serveStatic(req, res) {
   const urlPath = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   const file = path.join(PUBLIC_DIR, urlPath === '/' ? 'index.html' : urlPath);
@@ -549,7 +667,9 @@ async function handleApi(req, res, url) {
   // ---- App-Einstellungen und Login (ohne Anmeldung erreichbar)
   if (resource === 'app' && !id && req.method === 'GET') return sendJson(res, 200, { ...app.publicSettings(req), directUrl: ha.directUrl, update: updateAvailable() });
   if (resource === 'login' && req.method === 'POST') {
-    app.login(req, res, await readBody(req));
+    const lb = await readBody(req);
+    app.login(req, res, lb);
+    audit.log({ user: String(lb.user || '').slice(0, 40), method: 'POST', path: 'login' });
     return sendJson(res, 200, { ok: true });
   }
   if (resource === 'logout' && req.method === 'POST') {
@@ -559,6 +679,34 @@ async function handleApi(req, res, url) {
   // Ersteinrichtung ist ohne Login möglich, solange sie nicht abgeschlossen ist
   const setupOpen = !app.publicSettings(req).setupDone;
   if (!app.isAuthed(req) && !(setupOpen && resource === 'app')) throw httpError(401, 'Bitte anmelden');
+
+  // Rollen: Bediener dürfen schauen und den Druckbetrieb bedienen, aber nichts einstellen
+  const me = app.who(req);
+  const sub = parts.slice(1).join('/');
+  if (me.role === 'operator') {
+    const adminGet = /^(backup|autobackup|remote|users|audit|printers\/[^/]+\/diagnostics|update)/.test(sub);
+    if ((req.method === 'GET' && adminGet) || (req.method !== 'GET' && !OPERATOR_WRITES.some((re) => re.test(sub)))) throw httpError(403, 'Nur für Admins – als Bediener nicht erlaubt');
+  }
+  if (req.method !== 'GET') {
+    audit.log({ user: me.name || (me.kind === 'local' ? 'Heimnetz' : me.kind === 'open' ? null : me.kind), role: me.role, method: req.method, path: sub });
+  }
+
+  // ---- Plattform-Check
+  if (resource === 'platform' && req.method === 'GET') {
+    return sendJson(res, 200, await require('./lib/platform').check({
+      ffmpeg: ffmpegAvailable, ffmpegPath, ha, remote, port: PORT, directUrl: ha.directUrl,
+      inboxDir: require('./lib/inbox').INBOX_DIR, backupDir: require('./lib/autobackup').BACKUP_DIR,
+    }));
+  }
+
+  // ---- Benutzer und Protokoll (nur Admins, siehe oben)
+  if (resource === 'users') {
+    if (!id && req.method === 'GET') return sendJson(res, 200, app.usersView());
+    if (!id && req.method === 'POST') return sendJson(res, 201, app.saveUser(await readBody(req)));
+    if (id && req.method === 'PUT') return sendJson(res, 200, app.saveUser(await readBody(req), id));
+    if (id && req.method === 'DELETE') return sendJson(res, 200, app.removeUser(id));
+  }
+  if (resource === 'audit' && req.method === 'GET') return sendJson(res, 200, audit.list({ limit: Math.min(1000, Number(url.searchParams.get('limit')) || 300), user: url.searchParams.get('user') || null }));
 
   // ---- Fernzugriff (Tailscale, Cloudflare Tunnel)
   if (resource === 'remote') {
@@ -598,6 +746,14 @@ async function handleApi(req, res, url) {
 
   if (resource === 'drivers' && req.method === 'GET') {
     return sendJson(res, 200, drivers.map((D) => D.meta));
+  }
+
+  // ---- Fotos (erste Schicht)
+  if (resource === 'photos' && id && req.method === 'GET') {
+    const file = path.join(PHOTO_DIR, String(id).replace(/[^\w.-]/g, ''));
+    if (!/\.jpg$/.test(file) || !fs.existsSync(file)) throw httpError(404, 'Kein Foto');
+    res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=86400' });
+    return fs.createReadStream(file).pipe(res);
   }
 
   // ---- Verlauf
@@ -698,6 +854,9 @@ async function handleApi(req, res, url) {
     }
     if (id === 'humidity-sensors' && req.method === 'GET') return sendJson(res, 200, await ha.humiditySensors());
     if (id === 'energy-sensors' && req.method === 'GET') return sendJson(res, 200, await ha.energySensors());
+    if (id === 'emergency' && !action && req.method === 'GET') return sendJson(res, 200, emergency.view());
+    if (id === 'emergency' && !action && req.method === 'PUT') return sendJson(res, 200, emergency.save(await readBody(req)));
+    if (id === 'emergency' && action === 'test' && req.method === 'POST') return sendJson(res, 200, await emergency.test((await readBody(req)).id));
     if (id === 'blueprints' && !action && req.method === 'GET') return sendJson(res, 200, ha.blueprints());
     if (id === 'blueprints' && action === 'install' && req.method === 'POST') return sendJson(res, 200, await ha.installBlueprints());
     if (id === 'blueprints' && action && req.method === 'GET') {
@@ -868,7 +1027,17 @@ async function handleApi(req, res, url) {
       }
       return sendJson(res, 200, map);
     }
-    if (id === 'reservations' && req.method === 'GET') return sendJson(res, 200, reserve.compute());
+    if (id === 'reservations' && req.method === 'GET') return sendJson(res, 200, { ...reserve.compute(), shop: shop.view() });
+    // Einkauf: Bezugsquellen und Bestellungen
+    if (id === 'shop') {
+      const b = ['POST', 'PUT'].includes(req.method) ? await readBody(req) : {};
+      const oid = parts[4];
+      if (!action && req.method === 'GET') return sendJson(res, 200, shop.view());
+      if (action === 'source' && req.method === 'PUT') return sendJson(res, 200, shop.saveSource(b));
+      if (action === 'order' && !oid && req.method === 'POST') return sendJson(res, 201, shop.order(b));
+      if (action === 'order' && oid && parts[5] === 'arrived' && req.method === 'POST') return sendJson(res, 200, shop.arrived(oid));
+      if (action === 'order' && oid && req.method === 'DELETE') { shop.remove(oid); return sendJson(res, 200, { ok: true }); }
+    }
     if (id === 'check' && req.method === 'GET') {
       const cfg = printerConfigs.find((p) => p.id === url.searchParams.get('printerId'));
       const item = production.getItem(url.searchParams.get('queueId'));
@@ -910,6 +1079,7 @@ async function handleApi(req, res, url) {
     if (id && !action && req.method === 'PUT') return sendJson(res, 200, stations.update(id, b));
     if (id && !action && req.method === 'DELETE') { stations.remove(id); return sendJson(res, 200, { ok: true }); }
     if (action === 'tare' && req.method === 'POST') return sendJson(res, 200, stations.tare(id));
+    if (action === 'weigh' && req.method === 'POST') return sendJson(res, 200, stations.weighSpool(id, b.spoolId));
     if (action === 'calibrate' && req.method === 'POST') return sendJson(res, 200, stations.calibrate(id, b.grams));
     if (action === 'identify' && req.method === 'POST') return sendJson(res, 200, stations.identifyStation(id));
     if (action === 'write' && req.method === 'POST') return sendJson(res, 200, await stations.write(id, b.spoolId, b.format || 'universal'));
@@ -1029,6 +1199,17 @@ async function handleApi(req, res, url) {
     }
     if (action === 'dry-cancel' && req.method === 'POST') return sendJson(res, 200, production.setAfterDry(id, null));
     if (action === 'requeue' && req.method === 'POST') return sendJson(res, 200, production.requeue(id));
+    // Hängenden Eintrag von Hand abschließen: „war fertig“ bzw. „abgebrochen“
+    if (action === 'resolve' && req.method === 'POST') {
+      const q = production.getItem(id);
+      if (!q) throw httpError(404, 'Eintrag nicht gefunden');
+      if (!['printing', 'sending'].includes(q.status)) throw httpError(409, 'Eintrag läuft nicht');
+      const st = runtime.get(q.printerId)?.driver.status;
+      if (st && ACTIVE.has(st.state) && runtime.get(q.printerId)?.job) throw httpError(409, 'Der Drucker druckt gerade – erst am Drucker beenden');
+      const result = (await readBody(req)).result === 'finished' ? 'finished' : 'cancelled';
+      if (q.status === 'sending') q.status = 'printing';
+      return sendJson(res, 200, production.ctx.resolveLost(q, result));
+    }
   }
 
   // ---- Aufträge
@@ -1042,6 +1223,7 @@ async function handleApi(req, res, url) {
     }
     if (action === 'plan' && req.method === 'POST') return sendJson(res, 200, production.planOrder(id, await readBody(req)));
     if (action === 'share' && req.method === 'POST') return sendJson(res, 200, production.shareOrder(id, (await readBody(req)).enabled !== false));
+    if (action === 'post' && req.method === 'POST') return sendJson(res, 200, production.setPost(id, await readBody(req)));
     if (action === 'archive' && req.method === 'POST') return sendJson(res, 200, production.archiveOrder(id, (await readBody(req)).archived !== false));
   }
 
@@ -1252,6 +1434,8 @@ server.on('error', async (err) => {
 })();
 
 async function shutdown() {
+  saveJobs(true);
+  audit.flush();
   remote.kill('tailscale');
   remote.kill('cloudflare');
   for (const id of [...runtime.keys()]) await stopPrinter(id);

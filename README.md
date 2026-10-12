@@ -29,6 +29,9 @@ Inspired by [BamBuddy](https://github.com/maziggy/bambuddy), but not limited to 
 - **Failed prints** requeued with one click, reasons, scrap in costs and statistics
 - **Filament reservation** for the queue with a shopping list and a **humidity check** before starting ("dry first, then start automatically")
 - **Read and write RFID/NFC tags with the phone** (Chrome on Android)
+- **Keep printing orders** after "plate clear", **start windows** and cheap power, **several parts per plate**, **post-processing** steps
+- **PrintDock Station page** with live weight, tag data and **stocktake**; **emergency stop** via Home Assistant; **several users** (admin/operator) with a log
+- **Arrange the menu**, choose the start page; **platform check** – same features as add-on, in Docker, on a Pi and on Windows/macOS
 - Fully local, no cloud, no account. Few dependencies, no database – data is plain JSON
 - **Demo data** with one click: 5 simulated printers, files, spools, orders and 30 days of history
 

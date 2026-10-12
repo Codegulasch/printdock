@@ -35,7 +35,7 @@ function quoteWindow(o) {
   if (!c) return;
   const e = c.estimate;
   const cur = e.currency;
-  const rows = e.positions.map((p) => `<tr><td>${esc(p.file)}</td><td class="r">${p.qty}</td><td class="r">${fnum(p.grams, 0)} g</td><td class="r">${fmtDur(p.hours * 3600)}</td><td class="r">${cmoney(p.each.total, cur)}</td><td class="r">${cmoney(p.total, cur)}</td></tr>`).join('');
+  const rows = e.positions.map((p) => `<tr><td>${esc(p.file)}</td><td class="r">${p.qty}</td><td class="r">${fnum(p.grams, 0)} g</td><td class="r">${fmtDur(p.hours * 3600)}</td><td class="r">${cmoney(p.total / p.qty, cur)}</td><td class="r">${cmoney(p.total, cur)}</td></tr>`).join('');
   const html = `<!doctype html><html lang="${LANG}"><head><meta charset="utf-8"><title>${esc(o.nr)} – ${esc(o.title)}</title>
     <style>body{font-family:system-ui,Segoe UI,Arial,sans-serif;color:#111;margin:32px;font-size:14px}h1{font-size:22px;margin:0 0 4px}.m{color:#555}table{border-collapse:collapse;width:100%;margin:18px 0}th,td{border-bottom:1px solid #ddd;padding:7px 6px;text-align:left}th{font-size:12px;text-transform:uppercase;color:#555}.r{text-align:right}tfoot td{border:0;padding:4px 6px}.tot td{font-weight:700;font-size:16px;border-top:2px solid #111}@media print{button{display:none}body{margin:12mm}}</style></head><body>
     <h1>${t('Kalkulation')} ${esc(o.nr)}</h1>
@@ -83,14 +83,21 @@ function costsSettingsHTML() {
     ${lrow(t('Aufschlag'), t('Auf die Summe, z. B. für Arbeit oder Gewinn.'), inp('markup', '1', '%'))}
     ${lrow(t('Währung'), '', `<input class="in" style="width:5rem" maxlength="4" data-cost="currency" value="${cur}">`)}
     ${lrow(t('Foto am Druckende'), t('Speichert ein Kamerabild des fertigen Teils im Verlauf und am Auftrag.'), `<label class="tgl"><input type="checkbox" data-photos ${S.app?.photos !== false ? 'checked' : ''}><span class="sw"></span></label>`)}
+    ${lrow(t('Foto nach der ersten Schicht'), t('Kamerabild, sobald die erste Schicht liegt – auf „Heute“ und als Benachrichtigung („Foto nach der ersten Schicht“). So siehst du früh, ob die Haftung passt.'), `<label class="tgl"><input type="checkbox" data-l1opt ${S.app?.firstLayer ? 'checked' : ''}><span class="sw"></span></label>`)}
+    ${lrow(t('Nachbearbeitung'), t('Fertige Teile eines Auftrags durchlaufen Schritte – Stand je Schritt im Auftrag, auf „Heute“ und im Kunden-Statuslink.'), `<label class="tgl"><input type="checkbox" data-postopt ${S.app?.post?.enabled ? 'checked' : ''}><span class="sw"></span></label>`)}
+    ${S.app?.post?.enabled ? lrow(t('Schritte'), t('Mit Komma getrennt, in dieser Reihenfolge.'), `<input class="in" style="min-width:18rem" data-poststeps value="${esc((S.app.post.steps || []).map((x) => t(x)).join(', '))}">`) : ''}
     ${lrow(t('Etikett nach dem Druck'), t('Jedes fertige Teil eines Auftrags bekommt ein Etikett (Auftrag, Teil x von y, Kunde, QR-Code). Gedruckt wird gesammelt über „Heute“.'), `<label class="tgl"><input type="checkbox" data-plabelopt ${S.app?.partLabels ? 'checked' : ''}><span class="sw"></span></label>`)}
   </div>`;
 }
 
 document.addEventListener('change', async (e) => {
-  const el = e.target.closest('[data-cost],[data-photos],[data-plabelopt]');
+  const el = e.target.closest('[data-cost],[data-photos],[data-plabelopt],[data-l1opt],[data-postopt],[data-poststeps]');
   if (!el) return;
-  const body = el.matches('[data-photos]') ? { photos: el.checked } : el.matches('[data-plabelopt]') ? { partLabels: el.checked } : { costs: { [el.dataset.cost]: el.value } };
+  const body = el.matches('[data-photos]') ? { photos: el.checked } : el.matches('[data-plabelopt]') ? { partLabels: el.checked }
+    : el.matches('[data-l1opt]') ? { firstLayer: el.checked }
+      : el.matches('[data-postopt]') ? { post: { ...(S.app.post || {}), enabled: el.checked } }
+        : el.matches('[data-poststeps]') ? { post: { ...(S.app.post || {}), steps: el.value.split(',').map((x) => x.trim()).filter(Boolean) } }
+          : { costs: { [el.dataset.cost]: el.value } };
   const r = await run(() => api('app', { method: 'PUT', body }), t('Gespeichert'));
   if (r) S.app = { ...S.app, ...r };
   reload('app', 'orders', 'history');

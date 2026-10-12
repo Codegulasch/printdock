@@ -72,3 +72,28 @@ document.addEventListener('click', async (e) => {
   if (act === 'unmark') await run(() => api(`history/${h.id}/unfail`, { method: 'POST' }), t('Wieder als erfolgreich gewertet'));
   reload('history', 'queue', 'orders', 'labels', 'summary');
 });
+
+// ---------------------------------------------------------------- Hängende Einträge („druckt“, Drucker längst bereit)
+
+async function resolveItem(id, result) {
+  const r = await run(() => api(`queue/${id}/resolve`, { method: 'POST', body: { result } }), result === 'finished' ? t('Als fertig abgeschlossen') : t('Als abgebrochen abgeschlossen'));
+  if (r) reload('queue', 'history', 'orders', 'summary', 'filament', 'labels');
+}
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-qresolve]');
+  if (!b) return;
+  const id = b.dataset.id;
+  if (b.dataset.qresolve !== 'ask') return resolveItem(id, b.dataset.qresolve);
+  const q = S.queue.find((x) => x.id === id);
+  const d = openDialog(`<div class="dlg"><h2>${t('Eintrag hängt?')}</h2>
+    <p style="margin:0">${t('Ist „{f}“ am Drucker schon beendet, aber PrintDock zeigt ihn noch als laufend? Dann hier sagen, wie er ausging – Auftrag, Verlauf und Filament werden nachgetragen.', { f: esc(q?.file?.name || '') })}</p>
+    <p class="meta" style="margin:0">${t('Druckt der Drucker noch, wird das abgelehnt.')}</p>
+    <div class="dlg-actions"><button class="b" data-close>${t('Abbrechen')}</button><button class="b" data-r="cancelled">${t('Abgebrochen')}</button><button class="b b-done" data-r="finished">${ICON.check}${t('War fertig')}</button></div></div>`);
+  d.addEventListener('click', (ev) => {
+    const r = ev.target.closest('[data-r]');
+    if (!r) return;
+    d.close();
+    resolveItem(id, r.dataset.r);
+  });
+});
