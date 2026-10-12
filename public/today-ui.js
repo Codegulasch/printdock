@@ -41,6 +41,10 @@ function vToday() {
   if (on('queue') && typeof failOpenList === 'function') {
     for (const h of failOpenList()) items.push(todo('bad td-wide', '↻', t('{p}: Druck nicht fertig geworden', { p: esc(h.printerName) }), `${esc(h.file || '')} · ${h.result === 'cancelled' ? t('abgebrochen') : t('fehlgeschlagen')}${h.progress != null ? ` ${t('bei {n} %', { n: Math.floor(h.progress) })}` : ''}`, `${failActionsHTML(h, { compact: true })}<button class="b b-sm" data-hfail="reason" data-id="${esc(h.id)}">${t('Grund …')}</button>`));
   }
+  // Speicherort (NAS) nicht erreichbar
+  for (const sp of S.summary?.storageProblems || []) {
+    items.push(todo('warn td-wide', '🗄', t('Speicherort nicht erreichbar: {k}', { k: t(sp.label) }), `${esc(sp.dir)} · ${t('PrintDock speichert so lange im Datenordner und zieht die Dateien nach, sobald der Ort wieder da ist.')}`, `<button class="b b-sm" data-view="system">${t('Einstellungen')}</button>`));
+  }
   // Drucke vom Drucker/Slicer ohne Auftrag (letzte 14 Tage)
   if (on('orders')) {
     const open = (S.history || []).filter((h) => h.assignOpen && !h.orderId && Date.now() - Date.parse(h.endedAt) < 14 * 864e5);

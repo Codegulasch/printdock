@@ -383,7 +383,18 @@ const { Failures } = require('./lib/failures');
 const failures = new Failures({ history: () => history, saveHistory: () => saveHistory(), production, broadcast });
 const { EnergyTracker } = require('./lib/energy');
 const energy = new EnergyTracker({ ha });
-const PHOTO_DIR = path.join(require('./lib/store').DATA_DIR, 'photos');
+// Fotos: im Datenordner oder am eingestellten Speicherort (NAS) – lesen an beiden Stellen
+const storage = require('./lib/storage');
+const PHOTO_DIR = storage.DEFAULT.photos;
+storage.onChange = () => {
+  broadcast('storage', null);
+  broadcast('files', null);
+};
+const photoPath = (name) => storage.find('photos', name);
+function photoWrite(name, buf) {
+  const { dir } = storage.writeDir('photos');
+  fs.writeFileSync(path.join(dir, name), buf);
+}
 
 // Archiv: Drucke, die nicht aus PrintDock kamen, erkennen, Datei vom Drucker holen, Auftrag zuordnen
 const { Archive } = require('./lib/archive');
@@ -393,7 +404,7 @@ archive = new Archive({
 });
 // Status-Server für Kunden-Links (relay/): freigegebene Aufträge dorthin veröffentlichen
 const { Relay } = require('./lib/relay');
-relay = new Relay({ production, history: () => history, photoDir: PHOTO_DIR, lang: () => app.lang });
+relay = new Relay({ production, history: () => history, photoDir: PHOTO_DIR, photoPath, lang: () => app.lang });
 production.ctx.onShareRemoved = (token) => relay.remove(token);
 
 /** Nach dem Druck: Stromverbrauch und Foto des fertigen Teils an den Verlaufseintrag hängen */
@@ -407,8 +418,7 @@ async function finishExtras(cfg, rt, job, entry) {
   if (require('./lib/app').photos && entry.result === 'finished' && rt.driver.status?.camera !== false) {
     const jpg = await notifier.getSnapshot(cfg.id);
     if (jpg?.length) {
-      fs.mkdirSync(PHOTO_DIR, { recursive: true });
-      fs.writeFileSync(path.join(PHOTO_DIR, `${entry.id}.jpg`), jpg);
+      photoWrite(`${entry.id}.jpg`, jpg);
       entry.photo = true;
       changed = true;
     }
@@ -447,9 +457,8 @@ function firstLayerPhoto(cfg, rt, status) {
   (async () => {
     const jpg = await notifier.getSnapshot(cfg.id);
     if (!jpg?.length) return;
-    fs.mkdirSync(PHOTO_DIR, { recursive: true });
     const name = `l1-${cfg.id.slice(0, 8)}-${Date.now()}.jpg`;
-    fs.writeFileSync(path.join(PHOTO_DIR, name), jpg);
+    photoWrite(name, jpg);
     if (rt.job) {
       rt.job.l1Photo = name;
       persistJob(cfg, rt, true);
@@ -711,7 +720,7 @@ async function handleApi(req, res, url) {
   const me = app.who(req);
   const sub = parts.slice(1).join('/');
   if (me.role === 'operator') {
-    const adminGet = /^(backup|autobackup|remote|relay|users|audit|printers\/[^/]+\/diagnostics|update)/.test(sub);
+    const adminGet = /^(backup|autobackup|storage|remote|relay|users|audit|printers\/[^/]+\/diagnostics|update)/.test(sub);
     if ((req.method === 'GET' && adminGet) || (req.method !== 'GET' && !OPERATOR_WRITES.some((re) => re.test(sub)))) throw httpError(403, 'Nur für Admins – als Bediener nicht erlaubt');
   }
   if (req.method !== 'GET') {
@@ -733,7 +742,7 @@ async function handleApi(req, res, url) {
   if (resource === 'platform' && req.method === 'GET') {
     return sendJson(res, 200, await require('./lib/platform').check({
       ffmpeg: ffmpegAvailable, ffmpegPath, ha, remote, port: PORT, directUrl: ha.directUrl,
-      inboxDir: require('./lib/inbox').INBOX_DIR, backupDir: require('./lib/autobackup').BACKUP_DIR,
+      inboxDir: require('./lib/inbox').INBOX_DIR, backupDir: require('./lib/autobackup').BACKUP_DIR, storage,
     }));
   }
 
@@ -788,7 +797,7 @@ async function handleApi(req, res, url) {
 
   // ---- Fotos (erste Schicht)
   if (resource === 'photos' && id && req.method === 'GET') {
-    const file = path.join(PHOTO_DIR, String(id).replace(/[^\w.-]/g, ''));
+    const file = photoPath(String(id).replace(/[^\w.-]/g, ''));
     if (!/\.jpg$/.test(file) || !fs.existsSync(file)) throw httpError(404, 'Kein Foto');
     res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=86400' });
     return fs.createReadStream(file).pipe(res);
@@ -809,7 +818,7 @@ async function handleApi(req, res, url) {
   }
   if (resource === 'history') {
     if (id && action === 'photo' && req.method === 'GET') {
-      const file = path.join(PHOTO_DIR, `${String(id).replace(/[^\w-]/g, '')}.jpg`);
+      const file = photoPath(`${String(id).replace(/[^\w-]/g, '')}.jpg`);
       if (!fs.existsSync(file)) throw httpError(404, 'Kein Foto');
       res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=86400' });
       return fs.createReadStream(file).pipe(res);
@@ -827,7 +836,14 @@ async function handleApi(req, res, url) {
     }
     if (req.method === 'DELETE' && !id) {
       history = [];
-      fs.rmSync(PHOTO_DIR, { recursive: true, force: true });
+      // nur die eigenen Fotos löschen (am Speicherort liegen ggf. auch andere Dinge)
+      for (const d of new Set([PHOTO_DIR, storage.target('photos')])) {
+        try {
+          for (const n of fs.readdirSync(d)) if (/\.jpg$/i.test(n)) fs.rmSync(path.join(d, n), { force: true });
+        } catch {
+          /* Ordner fehlt */
+        }
+      }
       saveHistory();
       return sendJson(res, 200, { ok: true });
     }
@@ -887,7 +903,7 @@ async function handleApi(req, res, url) {
   }
 
   // ---- Übersicht
-  if (resource === 'summary' && req.method === 'GET') return sendJson(res, 200, { ...production.summary(), ...filament.summary() });
+  if (resource === 'summary' && req.method === 'GET') return sendJson(res, 200, { ...production.summary(), ...filament.summary(), storageProblems: storage.problems() });
 
   // ---- Home Assistant
   if (resource === 'ha') {
@@ -940,6 +956,18 @@ async function handleApi(req, res, url) {
   }
 
   // ---- Datensicherung
+  // ---- Speicherort (NAS) für Druckdateien, Fotos, Sicherungen
+  if (resource === 'storage') {
+    if (!id && req.method === 'GET') return sendJson(res, 200, storage.view());
+    if (!id && req.method === 'PUT') return sendJson(res, 200, await storage.change(await readBody(req)));
+    if (id === 'test' && req.method === 'POST') {
+      const b = await readBody(req);
+      const p = String(b.path || '').trim();
+      if (!p) throw httpError(400, 'Bitte einen Pfad angeben');
+      return sendJson(res, 200, storage.test(p));
+    }
+    if (id === 'sync' && req.method === 'POST') return sendJson(res, 200, { moved: await storage.catchUp() });
+  }
   if (resource === 'autobackup') {
     const ab = require('./lib/autobackup');
     if (!id && req.method === 'GET') return sendJson(res, 200, ab.view());
@@ -959,7 +987,7 @@ async function handleApi(req, res, url) {
       const day = new Date().toISOString().slice(0, 10);
       res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="printdock-backup-${day}.zip"`, 'Cache-Control': 'no-store' });
       try {
-        await backup.writeBackup(DATA_DIR, res, { version: require('./package.json').version, printers: printerConfigs.length });
+        await backup.writeBackup(DATA_DIR, res, { version: require('./package.json').version, printers: printerConfigs.length }, { extra: storage.backupExtras() });
         res.end();
       } catch (err) {
         console.warn(`Sicherung: ${err.message}`);
@@ -1444,7 +1472,7 @@ const server = http.createServer(async (req, res) => {
     const sm = /^\/status\/([a-f0-9]{24})(?:\/photo\/([\w-]+))?\/?$/.exec(url.pathname);
     if (sm && req.method === 'GET') {
       const sp = require('./lib/statuspage');
-      const sctx = { production, history: () => history, lang: app.lang, photoDir: PHOTO_DIR, brand: relay?.view().brand?.name ? relay.view().brand : null };
+      const sctx = { production, history: () => history, lang: app.lang, photoDir: PHOTO_DIR, photoPath, brand: relay?.view().brand?.name ? relay.view().brand : null };
       if (sm[2]) {
         const f = sp.photo(sctx, sm[1], sm[2]);
         if (!f) throw httpError(404, 'Nicht gefunden');

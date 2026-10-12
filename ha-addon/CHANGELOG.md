@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.17.1
+- **Storage location on a NAS or server:** print files, photos and backups can be moved under *Settings → System → Storage location* – so Home Assistant does not fill up and HA backups stay small. One path, own subfolders (`dateien`, `fotos`, `sicherungen`, each optional); PrintDock copies the existing files over with progress and only then deletes them locally. Works on every installation: add-on via HA network storage (`/share/<name>`, now also `/media/<name>`), Docker via a volume, Pi/Linux via fstab, Windows via UNC path (`\\nas\share\printdock`), macOS via `/Volumes`. *Check* tests write access and free space and warns when the folder is on the same disk as the data folder (NAS not mounted?)
+- **NAS unreachable:** PrintDock keeps working, stores into the data folder meanwhile and moves the files over once the NAS is back (every 10 minutes or *Move now*). *Today* and the platform check show it. A marker file prevents writing into an empty mount point on the local disk
+- Backups (download and automatic) include the files on the NAS
+
 ## 0.17.0
 - **Archive instead of a hidden history:** new menu item *Archive* (under Production) – every finished print with **start and end** (from–to), grouped by day with totals (prints, success rate, print time, filament, costs). **Search** across file, order, customer and printer; **filters** for period (today, 7/30 days, month, year, custom), printer, result, source and order; **CSV export**; *Print again*. Up to 20,000 prints are kept (was 1,000, of which only 300 were shown under *Statistics → History*)
 - **Prints sent straight from the slicer or started on the printer are archived properly:** PrintDock fetches the file from the printer into the library (Klipper/Snapmaker U1 via Moonraker, Bambu via FTPS incl. the printed plate, OctoPrint; Anycubic with Rinkhals) – with preview, grams, filament deduction (now also for Bambu), costs and *Print again*. Identical files are stored once. Multi-colour prints book the grams per tool or – on Bambu – by material and colour of the used slots

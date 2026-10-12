@@ -313,6 +313,7 @@ function vSystem() {
       ${srow(t('Datenordner'), a.addon ? t('Als Add-on steckt PrintDock außerdem in jeder Home-Assistant-Sicherung.') : '', `<span class="code">${esc(a.dataDir || '')}</span>`)}
     </div>
     ${autoBackupHTML()}
+    ${typeof storageHTML === 'function' ? storageHTML() : ''}
     <h3 class="shead">${t('Zugriff')}</h3>
     <div class="sbox">
       ${srow(t('Adresse im Heimnetz'), t('Für Slicer, Handy und Downloads'), `<span class="code">${esc(a.directUrl || location.origin)}</span> <button class="b b-sm" data-act="copy" data-text="${esc(a.directUrl || location.origin)}">${t('Kopieren')}</button>`)}

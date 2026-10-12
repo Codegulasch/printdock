@@ -305,6 +305,18 @@ Passwörter werden mit scrypt gespeichert, Sitzungen per HttpOnly-Cookie, nach 5
 
 **Sicherung:** PrintDock sichert sich täglich selbst – als Add-on nach `/share/printdock/sicherungen` (per Samba `\\homeassistant\share\printdock\sicherungen`), sonst in den Datenordner; die letzten 7 bleiben (einstellbar), mit oder ohne Druckdateien. *Einstellungen → System → Datensicherung* lädt eine `.zip` mit allem herunter. Einspielen lässt sie sich dort oder im Einrichtungsassistenten einer neuen Installation. Als Add-on, Docker-Container, systemd-Dienst oder mit `start-windows.cmd` startet PrintDock danach von selbst neu. Der vorherige Stand bleibt im Datenordner unter `before-restore-…` erhalten.
 
+**Speicherort (NAS):** Druckdateien, Fotos und Sicherungen lassen sich unter *Einstellungen → System → Speicherort* auf ein NAS, einen Server oder eine zweite Platte legen – damit läuft z. B. Home Assistant nicht voll, und die HA-Sicherungen bleiben klein. PrintDock legt dort die Unterordner `dateien`, `fotos` und `sicherungen` an (jeweils zuschaltbar), kopiert die vorhandenen Dateien hinüber und löscht sie erst danach im Datenordner. Einstellungen, Archiv und Spulen bleiben im Datenordner. Der Ort muss als Ordner erreichbar sein:
+
+| Installation | So kommt das NAS hinein |
+|---|---|
+| Home-Assistant-Add-on | *Einstellungen → System → Speicher → Netzwerkspeicher hinzufügen* (Verwendung „Freigabe“) → erscheint als `/share/<Name>`, z. B. `/share/nas/printdock` (Verwendung „Medien“ → `/media/<Name>`) |
+| Docker | NAS-Ordner auf dem Host einhängen und als Volume durchreichen, z. B. `- /mnt/nas/printdock:/nas` → `/nas` |
+| Raspberry Pi / Linux | per `/etc/fstab` einhängen (cifs oder nfs) → z. B. `/mnt/nas/printdock` |
+| Windows | UNC-Pfad direkt, z. B. `\\nas\drucken\printdock` |
+| macOS | Freigabe im Finder verbinden → `/Volumes/<Freigabe>/printdock` |
+
+Ist das NAS einmal nicht erreichbar, speichert PrintDock so lange im Datenordner und zieht die Dateien nach, sobald es wieder da ist; *Heute* und der Plattform-Check zeigen das an. Eine Kennungsdatei im Speicherort verhindert, dass PrintDock bei nicht eingehängtem NAS in den leeren Einhängepunkt auf der lokalen Platte schreibt. Sicherungen enthalten auch die Dateien vom NAS.
+
 **Plattform-Check:** *Einstellungen → System → Plattform-Check* zeigt Installationsart, Datenordner, ffmpeg, Neustart, Update, Fernzugriff, Home Assistant, Eingangsordner, Sicherung und Zeitzone – und was fehlt, damit alles wie auf den anderen Plattformen läuft.
 
 ## Slicer
@@ -406,6 +418,7 @@ lib/
   statuspage.js        Kunden-Statusseite (Daten)
   statusrender.js      Kunden-Statusseite (HTML, auch vom Status-Server genutzt)
   relay.js             Abgleich mit dem Status-Server
+  storage.js           Speicherort (NAS) für Druckdateien, Fotos, Sicherungen
   archive.js           Archiv: Fremddrucke erkennen, Datei vom Drucker holen, Auftrag zuordnen, Suche, CSV
   remote.js            Fernzugriff: Tailscale, Cloudflare Tunnel
   audit.js             Protokoll
@@ -439,6 +452,7 @@ Alle Endpunkte unter `/api/`. Mit Login-Schutz per Sitzung oder API-Key (*Einste
 | GET / DELETE | `/api/history` | Verlauf lesen / leeren |
 | GET | `/api/archive?q&from&to&printer&result&source&order&offset&limit` | Archiv mit Filtern, Summen und Seiten; `/api/archive/export.csv` als CSV |
 | GET / POST | `/api/archive/:id/candidates`, `/api/archive/:id/{assign,reprint}` | Passende Aufträge, zuordnen `{orderId, positionId} \| {none: true} \| {orderId: null}`, nochmal einplanen |
+| GET / PUT | `/api/storage`, POST `/api/storage/test`, `/api/storage/sync` | Speicherort lesen / übernehmen `{path, files, photos, backups}`, Pfad prüfen, lokal Zwischengespeichertes nachziehen |
 | POST | `/api/orders/:id/use-file` | Neue Dateiversion übernehmen `{from, to}` |
 | POST | `/api/history/:id/{fail,unfail,requeue,dismiss}` | Fehldruck werten, zurücknehmen, neu einreihen, „passt so“ |
 | GET / POST | `/api/files` | Bibliothek / hochladen (Rohdaten, Name im Header `X-Filename`) |

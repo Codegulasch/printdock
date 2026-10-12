@@ -261,6 +261,18 @@ Passwords are stored with scrypt, sessions use HttpOnly cookies, 5 wrong attempt
 
 **Backup:** PrintDock backs itself up daily – as add-on into `/share/printdock/sicherungen` (via Samba `\\homeassistant\share\printdock\sicherungen`), otherwise into the data folder; keeps the last 7 (adjustable), with or without print files. *Settings → System → Backup* downloads a single `.zip` with everything. Restore it there or in the setup wizard of a fresh installation. As add-on, Docker container, systemd service or with `start-windows.cmd` PrintDock restarts by itself. The previous state is kept in `before-restore-…` inside the data folder.
 
+**Storage location (NAS):** print files, photos and backups can be moved to a NAS, a server or a second disk under *Settings → System → Storage location* – so Home Assistant does not fill up and HA backups stay small. PrintDock creates the subfolders `dateien`, `fotos` and `sicherungen` there (each optional), copies the existing files over and only then deletes them in the data folder. Settings, archive and spools stay in the data folder. The location must be reachable as a folder:
+
+| Installation | How the NAS gets in |
+|---|---|
+| Home Assistant add-on | *Settings → System → Storage → Add network storage* (usage "Share") → shows up as `/share/<name>`, e.g. `/share/nas/printdock` (usage "Media" → `/media/<name>`) |
+| Docker | mount the NAS folder on the host and pass it as a volume, e.g. `- /mnt/nas/printdock:/nas` → `/nas` |
+| Raspberry Pi / Linux | mount via `/etc/fstab` (cifs or nfs) → e.g. `/mnt/nas/printdock` |
+| Windows | UNC path directly, e.g. `\\nas\print\printdock` |
+| macOS | connect the share in Finder → `/Volumes/<share>/printdock` |
+
+If the NAS is unreachable for a while, PrintDock stores into the data folder meanwhile and moves the files over once it is back; *Today* and the platform check show this. A marker file in the location prevents PrintDock from writing into an empty mount point on the local disk when the NAS is not mounted. Backups include the files on the NAS.
+
 **Platform check:** *Settings → System → Platform check* shows installation type, data folder, ffmpeg, restart, update, remote access, Home Assistant, inbox, backup and time zone – and what is missing for everything to work as on the other platforms.
 
 ## Slicer
@@ -323,6 +335,7 @@ lib/
   statuspage.js        customer status page (data)
   statusrender.js      customer status page (HTML, shared with the status server)
   relay.js             sync with the status server
+  storage.js           storage location (NAS) for print files, photos, backups
   archive.js           archive: detect outside prints, fetch the file from the printer, assign orders, search, CSV
   remote.js            remote access: Tailscale, Cloudflare Tunnel
   audit.js             log

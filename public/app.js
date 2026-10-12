@@ -1644,6 +1644,7 @@ function connect() {
   es.addEventListener('ha', () => reload('ha', 'emergency'));
   es.addEventListener('app', () => reload('app'));
   es.addEventListener('remote', () => reload('remote'));
+  es.addEventListener('storage', () => reload('storage', 'autobackup'));
   es.addEventListener('firstLayer', () => reload('printers'));
   es.addEventListener('station', (e) => typeof onStationLive === 'function' && onStationLive(JSON.parse(e.data)));
   es.addEventListener('history', (e) => {
