@@ -104,6 +104,15 @@ class BaseDriver extends EventEmitter {
     throw new Error(this.canPrint(job) || 'Druckstart nicht unterstützt');
   }
 
+  /**
+   * Datei des gerade laufenden Drucks vom Drucker holen (für Drucke, die nicht aus PrintDock kamen).
+   * @param dest Zielpfad, maxBytes Obergrenze
+   * @returns { name, plate? } oder null, wenn der Drucker das nicht kann
+   */
+  async fetchCurrentFile(dest, { maxBytes } = {}) { // eslint-disable-line no-unused-vars
+    return null;
+  }
+
   /** Steuerbefehl: 'pause' | 'resume' | 'cancel' | 'light' ({ on }) | 'speed' ({ level }). */
   async command(cmd, args = {}) {
     throw new Error(`Befehl "${cmd}" wird von diesem Treiber nicht unterstützt`);
@@ -177,6 +186,34 @@ async function fileBlob(filePath) {
   return new Blob([await fs.promises.readFile(filePath)]);
 }
 
+/** Datei per HTTP herunterladen (streamend, mit Größengrenze). */
+async function downloadTo(url, dest, { headers = {}, maxBytes = 500 * 1024 ** 2, timeoutMs = 10 * 60 * 1000 } = {}) {
+  const fs = require('fs');
+  const { Readable } = require('stream');
+  const { pipeline } = require('stream/promises');
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { headers, signal: ctrl.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const len = Number(res.headers.get('content-length')) || 0;
+    if (len && len > maxBytes) throw new Error(`Datei zu groß (${Math.round(len / 1024 ** 2)} MB)`);
+    let size = 0;
+    const src = Readable.fromWeb(res.body);
+    src.on('data', (c) => {
+      size += c.length;
+      if (size > maxBytes) src.destroy(new Error('Datei zu groß'));
+    });
+    await pipeline(src, fs.createWriteStream(dest));
+    return size;
+  } catch (err) {
+    fs.rmSync(dest, { force: true });
+    throw err;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 /** Multipart-Upload mit langem Timeout. */
 async function postForm(url, form, { headers = {}, timeoutMs = 15 * 60 * 1000 } = {}) {
   const ctrl = new AbortController();
@@ -191,4 +228,4 @@ async function postForm(url, form, { headers = {}, timeoutMs = 15 * 60 * 1000 } 
   }
 }
 
-module.exports = { BaseDriver, EMPTY_STATUS, SPEED_LEVELS, temp, fetchJson, fileBlob, postForm, netError };
+module.exports = { BaseDriver, EMPTY_STATUS, SPEED_LEVELS, temp, fetchJson, fileBlob, postForm, netError, downloadTo };

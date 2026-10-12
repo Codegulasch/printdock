@@ -20,6 +20,7 @@ const stats = require('./lib/stats');
 const hms = require('./lib/hms');
 let ha = null; // wird nach Produktion/Filament angelegt
 let relay = null; // Status-Server für Kunden-Links
+let archive = null; // Archiv aller Drucke (auch am Drucker/im Slicer gestartete)
 
 const PORT = Number(process.env.PORT) || 3080;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, 'data'));
@@ -27,7 +28,7 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const PRINTERS_FILE = path.join(DATA_DIR, 'printers.json');
 const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
 const CHANNELS_FILE = path.join(DATA_DIR, 'notifications.json');
-const HISTORY_MAX = 1000;
+const HISTORY_MAX = 20000; // Archiv: so viele Drucke bleiben gespeichert
 const MASK = '••••••';
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -245,7 +246,8 @@ function trackJob(cfg, rt, status) {
   if (rt.job?.restored && !ACTIVE.has(status.state) && Date.now() - rt.createdAt < 60_000) return null;
   if (ACTIVE.has(status.state)) {
     if (!rt.job || (status.file && rt.job.file !== status.file)) {
-      rt.job = { file: status.file, startedAt: Date.now() - (status.elapsedSec || 0) * 1000 };
+      rt.job = { id: crypto.randomUUID(), file: status.file, startedAt: Date.now() - (status.elapsedSec || 0) * 1000 };
+      archive?.onJobStart(cfg, rt, status);
       energy.start(cfg, rt.job).catch(() => {});
       persistJob(cfg, rt, true);
     }
@@ -257,7 +259,12 @@ function trackJob(cfg, rt, status) {
     persistJob(cfg, rt);
     rt.job.lastProgress = status.progress;
     if (status.remainingSec != null) rt.job.lastRemaining = status.remainingSec;
-    if (status.activeSlot) rt.job.activeSlot = status.activeSlot;
+    if (status.activeSlot) {
+      rt.job.activeSlot = status.activeSlot;
+      // benutzte Plätze merken – für die Filament-Zuordnung bei Mehrfarb-Drucken, die nicht aus PrintDock kamen
+      rt.job.slotsUsed ||= [];
+      if (!rt.job.slotsUsed.includes(status.activeSlot) && rt.job.slotsUsed.length < 16) rt.job.slotsUsed.push(status.activeSlot);
+    }
     if (status.filamentUsedMm != null) rt.job.filamentMm = status.filamentUsedMm;
     return null;
   }
@@ -289,6 +296,7 @@ function trackJob(cfg, rt, status) {
       ...(rt.job.recovered ? { recovered: true } : {}),
       ...(rt.job.l1Photo ? { l1Photo: rt.job.l1Photo } : {}),
     };
+    archive?.enrich(entry, rt.job);
     failures.onEnded(entry);
     history.push(entry);
     saveHistory();
@@ -321,6 +329,10 @@ production.ctx.startRule = (p, f) => startRules.check(p, f);
 // Hängende Warteschlangen-Einträge („druckt“, Drucker aber längst bereit)
 production.ctx.hasJob = (printerId) => Boolean(runtime.get(printerId)?.job);
 production.ctx.onHistoryLinked = () => saveHistory();
+production.ctx.externalJob = (printerId) => {
+  const j = runtime.get(printerId)?.job;
+  return j?.external ? j.file || '?' : null;
+};
 /** Druckende nachtragen, das PrintDock verpasst hat: Verlaufseintrag, Auftrag, Filament wie bei einem echten Ende */
 production.ctx.resolveLost = (q, result, { auto = false } = {}) => {
   const cfg = printerConfigs.find((p) => p.id === q.printerId);
@@ -372,6 +384,13 @@ const failures = new Failures({ history: () => history, saveHistory: () => saveH
 const { EnergyTracker } = require('./lib/energy');
 const energy = new EnergyTracker({ ha });
 const PHOTO_DIR = path.join(require('./lib/store').DATA_DIR, 'photos');
+
+// Archiv: Drucke, die nicht aus PrintDock kamen, erkennen, Datei vom Drucker holen, Auftrag zuordnen
+const { Archive } = require('./lib/archive');
+archive = new Archive({
+  history: () => history, saveHistory: () => saveHistory(), broadcast, production, files, app,
+  printers: () => printerConfigs, runtime, persistJob: (cfg, rt) => persistJob(cfg, rt),
+});
 // Status-Server für Kunden-Links (relay/): freigegebene Aufträge dorthin veröffentlichen
 const { Relay } = require('./lib/relay');
 relay = new Relay({ production, history: () => history, photoDir: PHOTO_DIR, lang: () => app.lang });
@@ -467,6 +486,7 @@ async function startPrinter(cfg) {
       } catch (err) {
         console.warn(`Filament-Abbuchung fehlgeschlagen: ${err.message}`);
       }
+      archive?.afterEnd(entry, cfg, rt); // Fremddruck: Datei holen, eindeutigen Auftrag zuordnen
       saveHistory(); // Auftrag, Warteschlange und Filament nachgetragen
       ha.onJobEnd(cfg);
     }
@@ -641,7 +661,7 @@ const audit = require('./lib/audit');
 const OPERATOR_WRITES = [
   /^queue$/, /^queue\/[^/]+$/, /^queue\/[^/]+\/(start|dry-start|dry-cancel|resolve|requeue)$/, /^queue\/reorder$/,
   /^printers\/[^/]+\/(plate-clear|command|power)$/,
-  /^history\/[^/]+\/(fail|unfail|requeue|dismiss)$/,
+  /^history\/[^/]+\/(fail|unfail|requeue|dismiss)$/, /^archive\/[^/]+\/(assign|reprint)$/,
   /^orders\/[^/]+\/(plan|post|mode)$/, /^labels\/printed$/,
   /^spools\/[^/]+\/(weigh|book|dried)$/, /^filament\/(assign|from-slot|ignore|disarm|dry)$/,
   /^rfid(\/.*)?$/, /^stations\/[^/]+\/(weigh|tare|identify|write)$/,
@@ -775,6 +795,18 @@ async function handleApi(req, res, url) {
   }
 
   // ---- Verlauf
+  // ---- Archiv: Suche, Filter, Export, Auftrag zuordnen, nochmal drucken
+  if (resource === 'archive') {
+    const deco = (h) => ({ ...h, costs: costs.forEntry(h) });
+    if (id === 'export.csv' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="printdock-archiv-${new Date().toISOString().slice(0, 10)}.csv"` });
+      return res.end(archive.csv(url.searchParams, deco));
+    }
+    if (!id && req.method === 'GET') return sendJson(res, 200, archive.query(url.searchParams, deco));
+    if (id && action === 'candidates' && req.method === 'GET') return sendJson(res, 200, archive.candidates(id));
+    if (id && action === 'assign' && req.method === 'POST') return sendJson(res, 200, archive.assign(id, await readBody(req)));
+    if (id && action === 'reprint' && req.method === 'POST') return sendJson(res, 201, archive.reprint(id, await readBody(req)));
+  }
   if (resource === 'history') {
     if (id && action === 'photo' && req.method === 'GET') {
       const file = path.join(PHOTO_DIR, `${String(id).replace(/[^\w-]/g, '')}.jpg`);
@@ -1118,7 +1150,10 @@ async function handleApi(req, res, url) {
 
   // ---- Dateien
   if (resource === 'files') {
-    if (!id && req.method === 'GET') return sendJson(res, 200, files.list());
+    if (!id && req.method === 'GET') {
+      // neu geslicte Version: Aufträge, die noch die ältere Datei nutzen
+      return sendJson(res, 200, files.list().map((f) => (f.replaces ? { ...f, replacesOrders: production.ordersUsingFile(f.replaces), replacesName: files.get(f.replaces)?.name || null } : f)));
+    }
     if (!id && req.method === 'POST') {
       const name = decodeURIComponent(req.headers['x-filename'] || '');
       if (!name) throw httpError(400, 'Dateiname fehlt');
@@ -1241,6 +1276,13 @@ async function handleApi(req, res, url) {
     }
     if (action === 'plan' && req.method === 'POST') return sendJson(res, 200, production.planOrder(id, await readBody(req)));
     if (action === 'mode' && req.method === 'POST') return sendJson(res, 200, production.orderMode(id, (await readBody(req)).mode));
+    if (action === 'use-file' && req.method === 'POST') {
+      const b = await readBody(req);
+      const r = production.useFile(id, b.from, b.to);
+      if (!production.ordersUsingFile(b.from).length) files.update(b.to, { replacesDone: true });
+      broadcast('files', null);
+      return sendJson(res, 200, r);
+    }
     if (action === 'share' && req.method === 'POST') return sendJson(res, 200, production.shareOrder(id, (await readBody(req)).enabled !== false));
     if (action === 'post' && req.method === 'POST') return sendJson(res, 200, production.setPost(id, await readBody(req)));
     if (action === 'archive' && req.method === 'POST') return sendJson(res, 200, production.archiveOrder(id, (await readBody(req)).archived !== false));

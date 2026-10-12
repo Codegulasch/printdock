@@ -580,7 +580,7 @@ function qStatusHTML(q) {
   if (q.waitReason) return `<span class="pill">${t('wartet')}</span><div class="meta wait-reason" title="${esc(t('Warum der Eintrag noch nicht automatisch startet'))}">⏳ ${esc(t(q.waitReason))}</div>`;
   const p = printerById(q.printerId);
   const busy = p && (S.queue.some((x) => x.printerId === p.id && ['printing', 'sending'].includes(x.status)) || ['printing', 'preparing', 'paused'].includes(p.status?.state));
-  if (busy) return `<span class="pill">${t('wartet')}</span><div class="meta">${t('bis {p} fertig ist', { p: esc(p.name) })}</div>`;
+  if (busy) return `<span class="pill">${t('wartet')}</span><div class="meta">${t('bis {p} fertig ist', { p: esc(p.name) })}${S.summary?.external?.[p.id] ? ` · ${t('druckt gerade etwas von außerhalb')}` : ''}</div>`;
   if (p && S.summary?.plate?.[p.id] === false) return `<span class="pill">${t('wartet')}</span><div class="meta">${t('auf „Platte frei“ bei {p}', { p: esc(p.name) })}</div>`;
   return `<span class="pill run">${t('startet automatisch')}</span>`;
 }
@@ -944,7 +944,7 @@ function vFiles() {
       m.printerModel ? `<span>${t('für')} <b>${esc(m.printerModel)}</b></span>` : '',
       m.layerHeight ? `<span>${t('Schicht')} <b>${fnum(m.layerHeight, 2)} mm</b></span>` : '',
       m.slicer ? `<span>${esc(m.slicer)}</span>` : '',
-      `<span>${fmtSize(f.size)}${f.source === 'slicer' ? ` · ${t('vom Slicer')}` : ''}</span>`,
+      `<span>${fmtSize(f.size)}${f.source === 'slicer' ? ` · ${t('vom Slicer')}` : f.source === 'printer' ? ` · ${t('vom Drucker übernommen')}` : ''}</span>`,
     ].join('');
     return `<article class="card fcard">
       <div class="pic">${f.thumb ? `<img src="api/files/${esc(f.id)}/thumb" alt="" loading="lazy">` : `<span>${esc(f.ext.toUpperCase())}</span>`}</div>

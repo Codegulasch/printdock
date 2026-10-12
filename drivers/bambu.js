@@ -466,6 +466,43 @@ class BambuDriver extends BaseDriver {
     });
   }
 
+  /**
+   * Laufende Datei per FTPS von der SD-Karte holen (z. B. aus Bambu Studio direkt gesendet).
+   * Bambu Studio legt sie als „<Aufgabe>.gcode.3mf“ bzw. „.3mf“ in /cache oder im Wurzelordner ab.
+   * Welche Platte gedruckt wird, steht in gcode_file („Metadata/plate_2.gcode“).
+   */
+  async fetchCurrentFile(dest, { maxBytes = 500 * 1024 ** 2 } = {}) {
+    const p = this.raw || {};
+    const task = String(p.subtask_name || '').trim();
+    const gfile = String(p.gcode_file || '');
+    const plate = Number((gfile.match(/plate_(\d+)\.gcode/i) || [])[1]) || null;
+    const direct = /\.3mf$/i.test(gfile) ? gfile.replace(/^(ftp|file):\/\/\/?/i, '').replace(/^\/?sdcard\//, '') : null;
+    if (!task && !direct) return null;
+    const { host, accessCode } = this.config;
+    const client = new ftp.Client(60_000);
+    try {
+      await client.access({ host, port: 990, user: 'bblp', password: String(accessCode), secure: 'implicit', secureOptions: { rejectUnauthorized: false } });
+      const want = new Set([`${task}.gcode.3mf`, `${task}.3mf`, task.replace(/[^\w.\-]+/g, '_') + '.gcode.3mf', task.replace(/[^\w.\-]+/g, '_') + '.3mf'].map((x) => x.toLowerCase()));
+      let found = null;
+      if (direct) found = { path: direct.startsWith('/') ? direct : `/${direct}`, size: 0 };
+      for (const dir of found ? [] : ['/cache', '/', '/model', '/sdcard', '/usb', '/udisk']) {
+        const list = await client.list(dir).catch(() => []);
+        const hits = list.filter((x) => x.isFile && want.has(x.name.toLowerCase())).sort((a, b) => (b.modifiedAt?.getTime?.() || 0) - (a.modifiedAt?.getTime?.() || 0));
+        if (hits[0]) {
+          found = { path: `${dir === '/' ? '' : dir}/${hits[0].name}`, size: hits[0].size };
+          break;
+        }
+      }
+      if (!found) throw new Error(`„${task}“ nicht auf der SD-Karte gefunden`);
+      if (found.size > maxBytes) throw new Error(`Datei zu groß (${Math.round(found.size / 1024 ** 2)} MB)`);
+      await client.downloadTo(dest, found.path);
+      const name = found.path.split('/').pop();
+      return { name: /\.gcode\.3mf$/i.test(name) ? name : name.replace(/\.3mf$/i, '.gcode.3mf'), plate };
+    } finally {
+      client.close();
+    }
+  }
+
   async cameraSource() {
     let mode = this.config.cameraMode || 'auto';
     if (mode === 'off') return null;

@@ -18,6 +18,7 @@ Läuft komplett lokal – keine Cloud, kein Konto, keine Datenbank. Als **Home-A
 - **Kamera** für jeden Drucker (auch Bambu RTSP und JPEG-Stream) mit Großansicht und Bild speichern; auf Wunsch **Foto nach der ersten Schicht**
 - **Startseite „Heute“**: was zu tun ist (Platte räumen, Fehldrucke, hängende Einträge, Etiketten, Feuchte, Einkauf, Wartung, Termine), was gerade läuft und was als Nächstes kommt
 - **Benachrichtigungen** mit Kamerabild per ntfy, Telegram, Discord, Gotify oder Webhook
+- **Archiv** aller Drucke mit Start und Ende, nach Tagen gruppiert, mit Suche, Filtern und CSV-Export – **auch Drucke direkt aus dem Slicer oder vom Touchscreen**
 - **Statistik**: Drucke, Erfolgsquote, Druckstunden, Material, Kosten, Fehldrucke und Ausschuss, Drucker im Vergleich
 
 ### Produktion
@@ -180,6 +181,23 @@ Auftrag anlegen (Datei × Stückzahl) ───┤ „Einplanen“
 ### Kosten, Strom und Fotos
 
 Jeder Druck im Verlauf zeigt seine Kosten – Filament nach Spulenpreis, Strom (über eine messende Steckdose in Home Assistant oder geschätzt), auf Wunsch Maschinenstunde und Aufschlag. Aufträge zeigen eine Kalkulation aus den geslicten Dateien, die Ist-Kosten und Ausschuss; „Kalkulation / Angebot drucken“ erzeugt eine druckbare Seite. Am Druckende speichert PrintDock ein Kamerabild des fertigen Teils im Verlauf und am Auftrag, auf Wunsch zusätzlich nach der ersten Schicht. Fertige Aufträge lassen sich archivieren.
+
+## Archiv
+
+*Archiv* im Menü zeigt jeden beendeten Druck mit **Start und Ende** (von–bis), Dauer, Drucker, Datei, Foto, Filament, Kosten, Auftrag und Ergebnis – nach Tagen gruppiert, mit Summen (Drucke, Erfolgsquote, Druckzeit, Filament, Kosten).
+
+- **Suche** über Datei, Auftrag, Kunde und Drucker; **Filter** nach Zeitraum (heute, 7/30 Tage, Monat, Jahr, frei wählbar), Drucker, Ergebnis (auch Fehldruck), Quelle (aus PrintDock oder am Drucker/Slicer) und Auftrag (mit, ohne, Zuordnung offen, ein bestimmter); **CSV-Export** der gefilterten Liste (für Excel)
+- **Nochmal drucken** plant die gleiche Datei (gleiche Platte) wieder ein
+- es bleiben bis zu 20 000 Drucke gespeichert
+
+**Drucke, die nicht aus PrintDock kamen** – direkt aus dem Slicer an den Drucker geschickt oder am Touchscreen gestartet – landen genauso im Archiv:
+
+- PrintDock erkennt sie am Druckerstatus und **holt die Datei vom Drucker** in die Bibliothek (*vom Drucker übernommen*): Klipper/Snapmaker U1 über Moonraker, Bambu per FTPS von der SD-Karte (inklusive gedruckter Platte), OctoPrint über die Download-Adresse, Anycubic nur mit Rinkhals. Gleiche Dateien werden am Inhalt erkannt und nicht doppelt abgelegt. Damit gibt es Vorschaubild, Gramm je Farbe, Filament-Abbuchung (auch bei Bambu), Kosten und *Nochmal drucken*. Bei Mehrfarb-Drucken ordnet PrintDock die Gramm nach Werkzeug bzw. – bei Bambu – nach Material und Farbe der benutzten Fächer zu.
+- **Auftrag zuordnen:** Passt der Druck eindeutig zu einer offenen Auftragsposition (gleiche Datei oder gleicher Name), zählt er dort automatisch mit. Sonst erscheint er auf *Heute* und im Archiv mit *Auftrag zuordnen …* (Vorschläge, beliebiger Auftrag oder *kein Auftrag*). Zugeordnete Drucke zählen als fertige Teile – mit Kosten, Foto, Etikett und Kunden-Statuslink; wartet in der Warteschlange schon ein Druck dieser Position, gilt er damit als erledigt.
+- Während ein solcher Druck läuft, zeigt die Warteschlange „wartet, bis X fertig ist“ und *Heute* sagt „Drucker belegt durch einen Druck, der nicht aus PrintDock kam“.
+- **Nach Stromausfall fortgesetzt:** Setzt der Drucker denselben Druck kurz nach einem Abbruch an gleicher Stelle fort, zählt PrintDock das als einen Druck – ohne doppelte Abbuchung, ohne „Fehldruck“-Nachfrage.
+- **Neu geslicte Version:** Wird eine Datei mit gleichem Namen, aber anderem Inhalt hochgeladen und nutzt ein offener Auftrag noch die alte, fragt *Heute*: neue Version für diesen Auftrag übernehmen?
+- Einstellungen unter *Einstellungen → Drucker & Filament → Archiv*: Datei übernehmen an/aus, Höchstgröße, übernommene Dateien ohne Auftrag nach X Tagen löschen (Standard 90, der Archiv-Eintrag bleibt), automatisch zuordnen an/aus.
 
 ## Kunden-Links
 
@@ -388,6 +406,7 @@ lib/
   statuspage.js        Kunden-Statusseite (Daten)
   statusrender.js      Kunden-Statusseite (HTML, auch vom Status-Server genutzt)
   relay.js             Abgleich mit dem Status-Server
+  archive.js           Archiv: Fremddrucke erkennen, Datei vom Drucker holen, Auftrag zuordnen, Suche, CSV
   remote.js            Fernzugriff: Tailscale, Cloudflare Tunnel
   audit.js             Protokoll
   platform.js, env.js, hostinfo.js  Plattform-Check, Umgebung
@@ -418,6 +437,9 @@ Alle Endpunkte unter `/api/`. Mit Login-Schutz per Sitzung oder API-Key (*Einste
 | POST | `/api/printers/:id/power` | Steckdose über Home Assistant `{on}` |
 | GET | `/api/printers/:id/camera.jpg`, `…/camera.mjpg` | Kamerabild / Livebild |
 | GET / DELETE | `/api/history` | Verlauf lesen / leeren |
+| GET | `/api/archive?q&from&to&printer&result&source&order&offset&limit` | Archiv mit Filtern, Summen und Seiten; `/api/archive/export.csv` als CSV |
+| GET / POST | `/api/archive/:id/candidates`, `/api/archive/:id/{assign,reprint}` | Passende Aufträge, zuordnen `{orderId, positionId} \| {none: true} \| {orderId: null}`, nochmal einplanen |
+| POST | `/api/orders/:id/use-file` | Neue Dateiversion übernehmen `{from, to}` |
 | POST | `/api/history/:id/{fail,unfail,requeue,dismiss}` | Fehldruck werten, zurücknehmen, neu einreihen, „passt so“ |
 | GET / POST | `/api/files` | Bibliothek / hochladen (Rohdaten, Name im Header `X-Filename`) |
 | GET / POST | `/api/queue` | Warteschlange / einplanen `{fileId, printerId?, count, mode?, options}` |

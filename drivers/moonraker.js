@@ -7,7 +7,7 @@
 //
 // Konfiguration: { host, port = 7125, apiKey? }
 
-const { BaseDriver, SPEED_LEVELS, temp, fetchJson, fileBlob, postForm, netError } = require('./base');
+const { BaseDriver, SPEED_LEVELS, temp, fetchJson, fileBlob, postForm, netError, downloadTo } = require('./base');
 const { normalize: normColor } = require('../lib/colors');
 
 const FAN_RE = /^(fan|fan_generic .+|heater_fan .+|controller_fan .+|temperature_fan .+)$/;
@@ -332,6 +332,15 @@ class MoonrakerDriver extends BaseDriver {
     form.append('print', 'true');
     form.append('file', await fileBlob(job.path), job.name);
     await postForm(`${this.base}/server/files/upload`, form, { headers: this.headers });
+  }
+
+  /** Laufende Datei über die Moonraker-Dateischnittstelle holen (z. B. vom Slicer direkt geschickt) */
+  async fetchCurrentFile(dest, { maxBytes } = {}) {
+    const name = this.status.file;
+    if (!name) return null;
+    const rel = String(name).replace(/^\/+/, '').split('/').map(encodeURIComponent).join('/');
+    await downloadTo(`${this.base}/server/files/gcodes/${rel}`, dest, { headers: this.headers, maxBytes });
+    return { name: String(name).split('/').pop() };
   }
 
   async gcode(script) {

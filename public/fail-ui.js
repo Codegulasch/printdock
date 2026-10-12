@@ -63,7 +63,7 @@ function failDialog(h, { mode = 'reason' } = {}) {
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-hfail]');
   if (!b) return;
-  const h = (S.history || []).find((x) => x.id === b.dataset.id);
+  const h = (S.history || []).find((x) => x.id === b.dataset.id) || S.archData?.items.find((x) => x.id === b.dataset.id);
   if (!h) return;
   const act = b.dataset.hfail;
   if (act === 'reason' || act === 'mark') return failDialog(h, { mode: act });

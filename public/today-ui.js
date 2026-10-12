@@ -41,6 +41,22 @@ function vToday() {
   if (on('queue') && typeof failOpenList === 'function') {
     for (const h of failOpenList()) items.push(todo('bad td-wide', '↻', t('{p}: Druck nicht fertig geworden', { p: esc(h.printerName) }), `${esc(h.file || '')} · ${h.result === 'cancelled' ? t('abgebrochen') : t('fehlgeschlagen')}${h.progress != null ? ` ${t('bei {n} %', { n: Math.floor(h.progress) })}` : ''}`, `${failActionsHTML(h, { compact: true })}<button class="b b-sm" data-hfail="reason" data-id="${esc(h.id)}">${t('Grund …')}</button>`));
   }
+  // Drucke vom Drucker/Slicer ohne Auftrag (letzte 14 Tage)
+  if (on('orders')) {
+    const open = (S.history || []).filter((h) => h.assignOpen && !h.orderId && Date.now() - Date.parse(h.endedAt) < 14 * 864e5);
+    if (open.length === 1) {
+      const h = open[0];
+      items.push(todo('info td-wide', '📥', t('{p}: Druck ohne Auftrag', { p: esc(h.printerName || '') }), `${esc(h.file || '')} · ${tfmt(h.endedAt)} · ${t('direkt aus dem Slicer oder am Drucker gestartet')}`, `<button class="b b-sm b-go" data-arassign="${esc(h.id)}">${t('Auftrag zuordnen …')}</button>`));
+    } else if (open.length > 1) {
+      items.push(todo('info', '📥', t('{n} Drucke ohne Auftrag', { n: open.length }), open.slice(0, 3).map((h) => esc(h.file || '')).join(' · '), `<button class="b b-sm" data-view="history" data-arshowopen>${t('Zuordnen …')}</button>`));
+    }
+    // Neu geslicte Version einer Datei, die ein Auftrag noch nutzt
+    for (const f of (S.files || []).filter((x) => x.replaces && x.replacesOrders?.length)) {
+      for (const o of f.replacesOrders) {
+        items.push(todo('info td-wide', '🆕', t('Neue Version: {f}', { f: esc(f.name) }), t('{nr} nutzt noch die ältere Datei – neue Version übernehmen?', { nr: esc(o.nr) }), `<button class="b b-sm b-go" data-usefile="${esc(o.id)}" data-from="${esc(f.replaces)}" data-to="${esc(f.id)}">${t('Übernehmen')}</button><button class="b b-sm" data-usefile-no="${esc(f.id)}">${t('Nicht')}</button>`));
+      }
+    }
+  }
   // Etiketten fertiger Teile
   if (S.labels?.length) items.push(todo('info', '🏷', S.labels.length === 1 ? t('1 Etikett drucken') : t('{n} Etiketten drucken', { n: S.labels.length }), esc([...new Set(S.labels.map((l) => l.nr))].join(', ')), `<button class="b b-sm b-go" data-plabels="pending">${t('Drucken …')}</button>`));
   // Filament
@@ -123,4 +139,19 @@ document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-plabels]');
   if (!b) return;
   partLabelsDialog(b.dataset.plabels === 'pending' ? null : b.dataset.plabels);
+});
+
+// Neue Dateiversion für einen Auftrag übernehmen bzw. Hinweis verwerfen
+document.addEventListener('click', async (e) => {
+  const u = e.target.closest('[data-usefile]');
+  if (u) {
+    const r = await run(() => api(`orders/${u.dataset.usefile}/use-file`, { method: 'POST', body: { from: u.dataset.from, to: u.dataset.to } }), t('Neue Version übernommen'));
+    if (r) reload('orders', 'queue', 'files', 'summary');
+    return;
+  }
+  const n = e.target.closest('[data-usefile-no]');
+  if (n) {
+    const r = await run(() => api(`files/${n.dataset.usefileNo}`, { method: 'PATCH', body: { replacesDone: true } }));
+    if (r) reload('files');
+  }
 });

@@ -168,7 +168,7 @@ function cardHTML(p) {
     const end = s.remainingSec != null ? Date.now() + s.remainingSec * 1000 : null;
     const pct = s.progress ?? 0;
     info = `<div class="st-file">${esc(item?.file?.name || s.file || t('Druck'))}</div>
-      <div class="st-meta">${item?.order ? `${esc(item.order.nr)} · ${esc(item.order.title)}` : item ? t('aus der Warteschlange') : t('am Drucker gestartet')}</div>
+      <div class="st-meta">${item?.order ? `${esc(item.order.nr)} · ${esc(item.order.title)}` : item ? t('aus der Warteschlange') : S.summary?.external?.[p.id] ? t('direkt aus dem Slicer oder am Drucker gestartet – wird archiviert') : t('am Drucker gestartet')}</div>
       <div class="prog"><div class="bar st ${sc}"><i style="width:${pct}%"></i></div><b class="num">${Math.floor(pct)} %</b></div>
       <div class="st-times">${s.remainingSec != null ? `<span>${t('noch')} <b class="num" ${s.state === 'printing' ? `data-end="${end}"` : ''}>${fmtTimer(s.remainingSec)}</b></span><span>${t('fertig um')} <b class="num">${hm(new Date(end))}</b></span>` : ''}
         ${s.layer != null && s.totalLayers ? `<span>${t('Schicht')} <b class="num">${s.layer}/${s.totalLayers}</b></span>` : ''}</div>`;

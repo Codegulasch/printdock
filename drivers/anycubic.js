@@ -13,7 +13,7 @@
 // ACE: Belegung, Temperatur, Trocknen (an/aus mit Temperatur und Dauer), Material/Farbe eines Fachs setzen.
 const crypto = require('crypto');
 const mqtt = require('mqtt');
-const { BaseDriver, temp, netError, fileBlob, postForm } = require('./base');
+const { BaseDriver, temp, netError, fileBlob, postForm, downloadTo } = require('./base');
 
 const PREFIX = 'anycubic/anycubicCloud/v1';
 const QUERIES = { info: 'query', tempature: 'query', fan: 'query', light: 'query', multiColorBox: 'getInfo', print: 'query', peripherie: 'query' };
@@ -185,6 +185,7 @@ class AnycubicDriver extends BaseDriver {
     } else if (i.state === 'busy') state = 'preparing';
     const active = ['printing', 'paused', 'preparing'].includes(state);
     const file = p?.filename ? String(p.filename).split('/').pop().replace(/\.(gcode|3mf)$/i, '') : null;
+    if (p?.filename) this.rawFile = String(p.filename).split('/').pop();
     const t = r.temp;
     // ACE-Einheiten
     const boxes = Object.values(r.boxes).sort((a, b) => a.id - b.id);
@@ -294,6 +295,23 @@ class AnycubicDriver extends BaseDriver {
     } catch (err) {
       throw new Error(`Moonraker (Rinkhals) auf Port ${this.config.moonrakerPort} nicht erreichbar: ${err.message}`);
     }
+  }
+
+  /** Laufende Datei holen – nur mit Rinkhals (Moonraker); der LAN-Modus selbst bietet keinen Download */
+  async fetchCurrentFile(dest, { maxBytes } = {}) {
+    if (!this.config.moonrakerPort || !this.status.file) return null;
+    const base = `http://${this.config.host}:${Number(this.config.moonrakerPort)}/server/files/gcodes/`;
+    const names = [...new Set([this.rawFile, `${this.status.file}.gcode`].filter(Boolean))];
+    let last = null;
+    for (const n of names) {
+      try {
+        await downloadTo(base + encodeURIComponent(n), dest, { maxBytes });
+        return { name: n };
+      } catch (err) {
+        last = err;
+      }
+    }
+    throw last || new Error('Datei nicht gefunden');
   }
 
   async diagnostics() {

@@ -18,6 +18,7 @@ Fully local – no cloud, no account, no database. Runs as a **Home Assistant ad
 - **Camera** for every printer (incl. Bambu RTSP and JPEG streams) with full-screen view and snapshot; optional **photo after the first layer**
 - **Start page "Today"**: what needs doing (clear plates, failed prints, stuck entries, labels, humidity, shopping, maintenance, due dates), what is printing and what comes next
 - **Notifications** with camera image via ntfy, Telegram, Discord, Gotify or webhook
+- **Archive** of all prints with start and end, grouped by day, with search, filters and CSV export – **including prints sent straight from the slicer or started on the touchscreen**
 - **Statistics**: prints, success rate, print hours, material, costs, failed prints and scrap, printers compared
 
 ### Production
@@ -169,6 +170,23 @@ Order (file × quantity) ───────────┤ "Schedule"
 
 Every print in the history shows its costs – filament by spool price, electricity (from a metering plug in Home Assistant, or estimated), optionally machine hours and markup. Orders show an estimate from the sliced files, the actual costs and scrap; *Print estimate / quote* creates a printable page. At the end of a print PrintDock saves a camera image of the finished part, optionally also after the first layer. Finished orders can be archived.
 
+## Archive
+
+*Archive* in the menu lists every finished print with **start and end** (from–to), duration, printer, file, photo, filament, costs, order and result – grouped by day, with totals (prints, success rate, print time, filament, costs).
+
+- **Search** across file, order, customer and printer; **filters** for period (today, 7/30 days, month, year, custom), printer, result (incl. failed print), source (from PrintDock or printer/slicer) and order (with, without, not yet assigned, a specific one); **CSV export** of the filtered list
+- **Print again** schedules the same file (same plate) again
+- up to 20,000 prints are kept
+
+**Prints that did not come from PrintDock** – sent straight from the slicer to the printer or started on the touchscreen – end up in the archive too:
+
+- PrintDock notices them in the printer status and **fetches the file from the printer** into the library (*taken over from the printer*): Klipper/Snapmaker U1 via Moonraker, Bambu via FTPS from the SD card (incl. the printed plate), OctoPrint via its download URL, Anycubic only with Rinkhals. Identical files are recognised by content and stored once. That gives preview, grams per colour, filament deduction (also on Bambu), costs and *Print again*. For multi-colour prints the grams go to the tools or – on Bambu – to the used slots by material and colour.
+- **Assign an order:** if the print clearly matches one open order item (same file or same name), it counts there automatically. Otherwise it shows up on *Today* and in the archive with *Assign order …* (suggestions, any order or *no order*). Assigned prints count as finished parts – with costs, photo, label and customer status link; a waiting queue entry of that item counts as done.
+- While such a print runs, the queue says "waiting until X is done" and *Today* says the printer is busy with a print that did not come from PrintDock.
+- **Resumed after a power cut:** if the printer resumes the same print at the same point shortly after it stopped, PrintDock counts it as one print – no double deduction, no failed-print question.
+- **Re-sliced version:** when a file with the same name but different content is uploaded and an open order still uses the old one, *Today* offers to switch that order to the new version.
+- Settings under *Settings → Printers & filament → Archive*: take over files on/off, maximum size, delete taken-over files without an order after X days (default 90, the archive entry stays), assign automatically on/off.
+
 ## Customer links
 
 Every order can get a **status link** with QR code: progress, due date, expected finish, post-processing and photos of finished parts – **no costs**, no login, not guessable. Plus **labels** for finished parts (order, part x of y, customer, date, QR code), printed together from *Today* or the order.
@@ -305,6 +323,7 @@ lib/
   statuspage.js        customer status page (data)
   statusrender.js      customer status page (HTML, shared with the status server)
   relay.js             sync with the status server
+  archive.js           archive: detect outside prints, fetch the file from the printer, assign orders, search, CSV
   remote.js            remote access: Tailscale, Cloudflare Tunnel
   audit.js             log
   platform.js, env.js, hostinfo.js  platform check, environment

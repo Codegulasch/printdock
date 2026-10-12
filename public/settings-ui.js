@@ -37,7 +37,7 @@ const setSection = (id, title, body, action = '') => `<section class="set-sec" i
 
 function vWorkshop() {
   const a = S.app || {};
-  const parts = [['ws-printers', t('Drucker#pl')], ['ws-start', t('Druckstart')]];
+  const parts = [['ws-printers', t('Drucker#pl')], ['ws-start', t('Druckstart')], ['ws-arch', t('Archiv')]];
   if (on('filament')) parts.push(['ws-fil', t('Filament')], ['ws-hum', t('Feuchte & Trocknen')]);
   parts.push(['ws-costs', t('Kosten & nach dem Druck')]);
   const jump = `<div class="set-jump">${parts.map(([id, l]) => `<button class="chip" data-anchor="${id}">${esc(l)}</button>`).join('')}</div>`;
@@ -46,10 +46,17 @@ function vWorkshop() {
       ${lrow(t('Druckplatte abfragen'), t('Vor jedem Start aus Warteschlange oder Auftrag bestätigen, dass die Platte geräumt ist.'), `<label class="tgl"><input type="checkbox" data-g-plate ${a.plateCheck ? 'checked' : ''}><span class="sw"></span></label>`)}
       ${on('queue') ? lrow(t('Standard-Druckart'), t('Für neue Einträge in der Warteschlange und neue Aufträge – an jedem Auftrag und Eintrag änderbar. Serie · auto: startet nach „Platte frei“ von selbst. Serie · manuell: jeder Start per Knopf. Einzeldruck: immer nur ein Druck.'), `<select class="in" data-g-pmode>${PMODES.map((m) => `<option value="${m}" ${pmodeOf(a.printMode) === m ? 'selected' : ''}>${t(PMODE_LABEL[m])}</option>`).join('')}</select>`) : ''}
     </div>`);
+  const ar = a.archive || {};
+  const archive = setSection('ws-arch', t('Archiv'), `<div class="sbox">
+      ${lrow(t('Datei vom Drucker übernehmen'), t('Druckt der Drucker etwas, das nicht aus PrintDock kam (Slicer direkt, Touchscreen), holt PrintDock die Datei in die Bibliothek – mit Vorschaubild, Gramm, Kosten und „Nochmal drucken“. Klipper/Snapmaker, Bambu (FTPS), OctoPrint; Anycubic nur mit Rinkhals.'), `<label class="tgl"><input type="checkbox" data-g-arch="fetch" ${ar.fetch !== false ? 'checked' : ''}><span class="sw"></span></label>`)}
+      ${lrow(t('Höchstens (MB)'), t('Größere Dateien bleiben auf dem Drucker; der Druck wird trotzdem archiviert.'), `<input class="in" type="number" min="1" max="2000" style="width:6.5rem" data-g-arch="maxMb" value="${esc(ar.maxMb ?? 200)}">`)}
+      ${lrow(t('Übernommene Dateien ohne Auftrag löschen nach'), t('Tage, 0 = nie. Der Archiv-Eintrag bleibt, nur die Datei wird entfernt. Dateien mit Auftrag bleiben immer.'), `<input class="in" type="number" min="0" max="3650" style="width:6.5rem" data-g-arch="keepDays" value="${esc(ar.keepDays ?? 90)}">`)}
+      ${on('orders') ? lrow(t('Auftrag automatisch zuordnen'), t('Passt ein Druck eindeutig zu einer offenen Auftragsposition (gleiche Datei oder gleicher Name), zählt er dort gleich mit. Sonst erscheint er auf „Heute“ zum Zuordnen.'), `<label class="tgl"><input type="checkbox" data-g-arch="autoAssign" ${ar.autoAssign !== false ? 'checked' : ''}><span class="sw"></span></label>`) : ''}
+    </div>`);
   const fil = on('filament') ? setSection('ws-fil', t('Filament'), noHead(vFilSettings())) : '';
   const hum = on('filament') ? setSection('ws-hum', t('Feuchte & Trocknen'), noHead(vHumSettings())) : '';
   const cost = setSection('ws-costs', t('Kosten & nach dem Druck'), costsSettingsHTML());
-  return `<div class="page-head"><h1>${t('Drucker & Filament')}</h1></div>${jump}${printers}${start}${fil}${hum}${cost}`;
+  return `<div class="page-head"><h1>${t('Drucker & Filament')}</h1></div>${jump}${printers}${start}${archive}${fil}${hum}${cost}`;
 }
 
 // Einstellungsansichten in die Hülle setzen
@@ -69,4 +76,11 @@ document.addEventListener('change', async (e) => {
   const el = e.target.closest('[data-g-pmode]');
   if (!el) return;
   saveApp({ printMode: el.value });
+});
+
+document.addEventListener('change', (e) => {
+  const el = e.target.closest('[data-g-arch]');
+  if (!el) return;
+  const k = el.dataset.gArch;
+  saveApp({ archive: { [k]: el.type === 'checkbox' ? el.checked : el.value } });
 });

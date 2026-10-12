@@ -3,7 +3,7 @@
 //
 // Konfiguration: { host, port = 80, apiKey }
 
-const { BaseDriver, temp, fetchJson, fileBlob, postForm, netError } = require('./base');
+const { BaseDriver, temp, fetchJson, fileBlob, postForm, netError, downloadTo } = require('./base');
 
 class OctoPrintDriver extends BaseDriver {
   static meta = {
@@ -67,6 +67,7 @@ class OctoPrintDriver extends BaseDriver {
       .map((k, i, arr) => ({ name: arr.length > 1 ? `T${i}` : 'Düse', ...temp(t[k].actual, t[k].target) }));
 
     const active = state === 'printing' || state === 'paused';
+    this.jobFile = job?.job?.file || null; // { name, path, origin }
     this.update({
       online: true,
       state,
@@ -91,6 +92,15 @@ class OctoPrintDriver extends BaseDriver {
   canPrint(file) {
     if (file.kind !== 'gcode') return 'OctoPrint braucht eine .gcode-Datei';
     return null;
+  }
+
+  /** Laufende Datei über die OctoPrint-Download-Adresse holen (nur Dateien im lokalen Speicher, nicht SD) */
+  async fetchCurrentFile(dest, { maxBytes } = {}) {
+    const f = this.jobFile;
+    if (!f?.path || (f.origin && f.origin !== 'local')) return null;
+    const rel = String(f.path).split('/').map(encodeURIComponent).join('/');
+    await downloadTo(`${this.base}/downloads/files/local/${rel}`, dest, { headers: this.headers, maxBytes });
+    return { name: f.name || String(f.path).split('/').pop() };
   }
 
   async startPrint(job) {
