@@ -146,7 +146,7 @@ function vSpools() {
   return `${stripHTML()}<div class="bar-row"><h2>${t('Spulen')}</h2><div class="chips">${chips}</div>
       ${mats.length > 1 ? `<select class="in" data-fact-change="spMaterial" aria-label="${t('Material')}"><option value="">${t('Alle Materialien')}</option>${mats.map((m) => `<option ${m === S.spMaterial ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>` : ''}
       <button class="b b-sm" data-nfc="scan" title="${esc(t('RFID/NFC-Tag mit dem Handy lesen'))}">📱 ${t('Tag lesen')}</button><button class="b b-sm" data-fact="labels">${t('Etiketten')}</button><button class="b b-sm b-go" data-fact="editSpool">${ICON.plus}${t('Neue Spule')}</button></div>
-    ${pendingTagHTML(F)}${armedHTML(F)}
+    ${pendingTagHTML(F)}${armedHTML(F)}${typeof stationMiniHTML === 'function' && stationMiniHTML() ? `<div class="st-minis">${stationMiniHTML()}</div>` : ''}
     <div class="strip" style="margin-top:-4px"><div><b class="num">${active.length}</b><span>${t('Spulen')}</span></div>
       <div><b class="num">${fnum(active.reduce((a, s) => a + s.remaining, 0) / 1000, 1)} kg</b><span>${t('auf Lager')}</span></div>
       <div><b class="num">${active.filter((s) => s.slot).length}</b><span>${t('im Drucker')}</span></div>
@@ -715,6 +715,7 @@ function stationEditDialog(x) {
       <label>${t('Fach')}<select name="slotKey"></select></label></div>
     <p class="hint" data-pr style="margin:0">${t('Mit festem Fach legt PrintDock eine gescannte Spule sofort hinein; ohne wartet es, in welches Fach des Druckers sie eingelegt wird.')}</p>
     <label class="check"><input type="checkbox" name="autoWeigh" ${x.autoWeigh ? 'checked' : ''}> ${t('Restmenge beim Auflegen nach Gewicht buchen')}</label>
+    <label class="check"><input type="checkbox" name="notify" ${x.notify !== false ? 'checked' : ''}> ${t('Hinweis in PrintDock, wenn etwas aufgelegt wird')}</label>
     <p class="form-error" hidden></p>
     <div class="dlg-actions"><button class="b b-fault left" type="button" data-del>${t('Entfernen')}</button><button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-done">${t('Speichern')}</button></div></form>`);
   const form = $('form', d);
@@ -735,7 +736,7 @@ function stationEditDialog(x) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-      await api(`stations/${x.id}`, { method: 'PUT', body: { name: form.name.value, role: form.role.value, printerId: form.printerId.value || null, slotKey: form.slotKey.value || null, autoWeigh: form.autoWeigh.checked } });
+      await api(`stations/${x.id}`, { method: 'PUT', body: { name: form.name.value, role: form.role.value, printerId: form.printerId.value || null, slotKey: form.slotKey.value || null, autoWeigh: form.autoWeigh.checked, notify: form.notify.checked } });
       d.close();
       toast(t('Gespeichert'));
       reload('filament');

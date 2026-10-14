@@ -1182,6 +1182,7 @@ async function handleApi(req, res, url) {
     if (id && !action && req.method === 'PUT') return sendJson(res, 200, stations.update(id, b));
     if (id && !action && req.method === 'DELETE') { stations.remove(id); return sendJson(res, 200, { ok: true }); }
     if (action === 'tare' && req.method === 'POST') return sendJson(res, 200, stations.tare(id));
+    if (action === 'undo' && req.method === 'POST') return sendJson(res, 200, stations.undo(id));
     if (action === 'weigh' && req.method === 'POST') return sendJson(res, 200, stations.weighSpool(id, b.spoolId));
     if (action === 'calibrate' && req.method === 'POST') return sendJson(res, 200, stations.calibrate(id, b.grams));
     if (action === 'identify' && req.method === 'POST') return sendJson(res, 200, stations.identifyStation(id));

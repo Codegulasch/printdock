@@ -43,7 +43,7 @@ Läuft komplett lokal – keine Cloud, kein Konto, keine Datenbank. Als **Home-A
 - **Spulenlager** mit Belegung von AMS, ACE und Werkzeugköpfen, automatischer Abbuchung nach jedem Druck, Kosten und Warnung bei knappen Spulen
 - **Reservierung** für alle offenen Drucke, **Einkaufsliste** mit Shop-Link, „Bestellt“ und „Angekommen“
 - **Feuchte**: Überwachung von AMS/ACE, Home-Assistant-Sensoren und Stationen; **Feuchte-Check vor dem Start** („erst trocknen, dann automatisch starten“); **Trocknen per Knopf**
-- **PrintDock Station** (ESP32 mit NFC, Waage, Feuchtesensor) mit eigener Seite, Live-Gewicht und **Inventur**
+- **PrintDock Station** (ESP32 mit NFC, Waage, Feuchtesensor) als **Arbeitsplatz**: Spule auflegen → erkannt, gewogen, mit Knopf direkt ins freie Fach; neue Tags anlegen oder zuordnen, Verlauf, Hinweis von überall und **Inventur**
 - **RFID/NFC-Tags mit dem Handy** lesen und beschreiben (Chrome auf Android); Spulen-Etiketten mit QR-Code
 - **Spoolman** optional – Bestand übernehmen und Verbrauch zurückmelden
 
@@ -73,8 +73,10 @@ Läuft komplett lokal – keine Cloud, kein Konto, keine Datenbank. Als **Home-A
 | Heute | Archiv |
 |---|---|
 | ![Heute](docs/screenshots/today.png) | ![Archiv](docs/screenshots/archive.png) |
-| **Statistik** | **Einrichtung** |
-| ![Statistik](docs/screenshots/stats.png) | ![Einrichtung](docs/screenshots/setup.png) |
+| **Station** | **Statistik** |
+| ![Station](docs/screenshots/station.png) | ![Statistik](docs/screenshots/stats.png) |
+| **Einrichtung** | |
+| ![Einrichtung](docs/screenshots/setup.png) | |
 
 **Neu hier?** → [Erste Schritte](docs/getting-started.md): in zehn Minuten vom ersten Start zum ersten Druck.
 
@@ -241,7 +243,7 @@ Meldet der Drucker ein anderes Material als die zugeordnete Spule, markiert Prin
 
 **Trocknen per Knopf** (*Filament → Feuchte & Trocknen*): Bambu AMS 2 Pro (45–65 °C) und AMS HT (45–85 °C) direkt per MQTT (LAN-Modus mit Entwicklermodus), Anycubic ACE Pro direkt im LAN-Modus; Klipper/Moonraker-Drucker über ein G-Code-Makro; alles andere über Home Assistant – Trockenbox an einer Steckdose oder ein Trockner mit eigener Integration (Start-/Stopp-Taste, Temperatur, Dauer). Temperatur und Dauer schlägt PrintDock aus den Spulen der Einheit vor (die empfindlichste bestimmt die Temperatur).
 
-**PrintDock Station:** ein ESP32 mit NFC-Leser (PN532), Waage (HX711), optional Feuchtesensor und kleinem Display, mit eigener Firmware: [printdock-station](https://github.com/Codegulasch/printdock-station). Spule auflegen → PrintDock erkennt sie (Tag-Kennung, Spulen-Link, OpenSpool- oder Anycubic-Daten), bucht die Restmenge nach Gewicht (das Leergewicht lernt es an einer neuen, vollen Spule) und merkt sie sich 3 Minuten: Das nächste Fach, das eine frisch eingelegte Spule meldet, bekommt sie – bei Bambu gehen Material und Farbe gleich ans AMS. Die Seite *Filament → Station* zeigt Brutto-/Nettogewicht live, die Tag-Daten und die erkannte Spule – Gewicht übernehmen, Tag beschreiben, tarieren. Bei der **Inventur** legt man Spule für Spule auf. Koppeln per sechsstelligem Code unter *Einstellungen → PrintDock Station*; ohne Hardware simuliert `node scripts/station-sim.js` eine Station.
+**PrintDock Station:** ein ESP32 mit NFC-Leser (PN532), Waage (HX711), optional Feuchtesensor und kleinem Display, mit eigener Firmware: [printdock-station](https://github.com/Codegulasch/printdock-station). Spule auflegen → PrintDock erkennt sie (Tag-Kennung, Spulen-Link, OpenSpool- oder Anycubic-Daten), bucht die Restmenge nach Gewicht (das Leergewicht lernt es an einer neuen, vollen Spule) und merkt sie sich 3 Minuten: Das nächste Fach, das eine frisch eingelegte Spule meldet, bekommt sie – bei Bambu gehen Material und Farbe gleich ans AMS. Die Seite *Filament → Station* ist ein Arbeitsplatz je Station: links der Teller der Waage mit Live-Gewicht (leer, unbekannter Tag oder Spule mit Restmengen-Ring), rechts, was zu tun ist. Bei einer bekannten Spule: Restmenge, zuletzt gewogen, Platz und Reservierungen, *Gewicht übernommen* mit *rückgängig*, **Gleich einlegen in …** mit den freien Fächern als Knöpfe, Tag beschreiben, Etikett, ins Lager. Bei einem leeren oder unbekannten Tag: neue Spule anlegen, vorhandene zuordnen oder ignorieren – dazu Vorschläge passender Spulen ohne Tag nach Gewicht. Darunter *Zuletzt an der Station*. Legt jemand etwas auf, kommt in PrintDock ein Hinweis mit *Ansehen* (je Station abschaltbar). Bei der **Inventur** legt man Spule für Spule auf. Koppeln per sechsstelligem Code unter *Einstellungen → PrintDock Station*; ohne Hardware simuliert `node scripts/station-sim.js` eine Station.
 
 **RFID/NFC mit dem Handy** (Chrome auf Android, über HTTPS): *Tag lesen* auf der Spulen-Seite öffnet bekannte Spulen, macht aus OpenSpool-Tags eine neue Spule und lässt unbekannte Tags zuordnen. Leere Tags lassen sich in vier Formaten beschreiben (PrintDock + OpenSpool, OpenSpool, nur Link, Anycubic ACE) – mit dem Handy oder an der Station. Auf dem iPhone erlaubt Apple kein NFC in Webseiten (QR-Etiketten funktionieren); Original-Bambu-Tags sind verschlüsselt, lesbar ist nur ihre Kennung. Vorhandene ESPHome-Leser funktionieren über `POST /api/rfid` mit `{"tag": "…", "printer": "…", "slot": "…"}`.
 
@@ -481,7 +483,7 @@ Alle Endpunkte unter `/api/`. Mit Login-Schutz per Sitzung oder API-Key (*Einste
 | POST / PUT / DELETE | `/api/spools`, `/api/spools/:id` | Spulen; `…/weigh`, `…/book`, `…/dried` |
 | POST | `/api/rfid`, `/api/rfid/phone` | Tag von ESPHome-Leser / vom Handy |
 | GET / PUT / DELETE | `/api/stations`, `/api/stations/:id` | Stationen |
-| POST | `/api/stations/pair`, `/api/stations/:id/{tare,calibrate,identify,weigh,write}` | Koppeln, Tara, Kalibrieren, Finden, Wiegen, Tag beschreiben |
+| POST | `/api/stations/pair`, `/api/stations/:id/{tare,calibrate,identify,weigh,write,undo}` | Koppeln, Tara, Kalibrieren, Finden, Wiegen, Tag beschreiben, letzte Wiegung zurücknehmen |
 | WS | `/api/station/ws` | Verbindung der Station |
 | GET / PUT | `/api/ha` | Home-Assistant-Einstellungen; `…/test`, `…/entities`, `…/blueprints`, `…/emergency` |
 | GET / PUT | `/api/remote` | Fernzugriff (Tailscale, Cloudflare) |

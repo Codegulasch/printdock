@@ -168,7 +168,7 @@ const ICON = {
   pause: '<svg class="ico" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></svg>',
   stop: '<svg class="ico" viewBox="0 0 24 24" fill="currentColor"><rect x="5.5" y="5.5" width="13" height="13" rx="1.5"/></svg>',
   cam: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h3l2-3h8l2 3h3v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg>',
-  gear: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg>',
+  gear: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>',
   check: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M4 12.5 9.5 18 20 6.5"/></svg>',
   plus: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg>',
   up: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 15 6-6 6 6"/></svg>',
@@ -385,8 +385,19 @@ function badges() {
   };
 }
 
+const GH_ICON = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';
+
+/** Unten links: Version, Update-Hinweis, Codegulasch und GitHub */
+function creditHTML() {
+  const v = S.app?.version;
+  return `<div class="r"><b>PrintDock${v ? ` ${esc(v)}` : ''}</b>${S.app?.update ? `<button class="upd" data-view="system" title="${esc(t('Update verfügbar'))}">${t('neu: {v}', { v: esc(S.app.update) })}</button>` : ''}</div>
+    <div class="r">${t('von')}&nbsp;<a href="https://github.com/Codegulasch" target="_blank" rel="noopener">Codegulasch</a><a class="gh" href="https://github.com/Codegulasch/printdock" target="_blank" rel="noopener">${GH_ICON}GitHub</a></div>`;
+}
+
 function renderHead() {
   const b = badges();
+  const cr = $('#credit');
+  if (cr) { const h = creditHTML(); if (cr._h !== h) { cr.innerHTML = h; cr._h = h; } }
   const groups = navGroups();
   const cur = viewGroup(S.view);
   $('#nav').innerHTML = groups.map((g) => {
@@ -1430,9 +1441,22 @@ function render() {
   if (render.last === S.view && S.view !== 'files') holdScroll(() => morph(app, html));
   else app.innerHTML = html;
   render.last = S.view;
+  alignSetNav();
   attachCameras();
   if (S.view === 'files') bindFileView();
 }
+
+/** Einstellungen: das Seitenmenü beginnt auf Höhe des ersten Kastens rechts (nicht auf Höhe der Überschrift) */
+function alignSetNav() {
+  const nav = $('.set-nav');
+  if (!nav) return;
+  const wrap = nav.parentElement;
+  const box = $('.set-main .sbox', wrap);
+  if (!box || getComputedStyle(wrap).gridTemplateColumns.split(' ').length < 2) { nav.style.marginTop = ''; return; }
+  const off = Math.max(0, Math.round(box.getBoundingClientRect().top - wrap.getBoundingClientRect().top));
+  nav.style.marginTop = `${off}px`;
+}
+window.addEventListener('resize', () => alignSetNav());
 
 /** Live-Updates dürfen die Ansicht nicht verschieben: Scrollposition merken und wiederherstellen,
     die Seitenhöhe kurz halten, bis nachladende Bilder wieder ihre Größe haben (sonst kürzt der
@@ -1704,6 +1728,7 @@ function connect() {
   es.addEventListener('storage', () => reload('storage', 'autobackup'));
   es.addEventListener('firstLayer', () => reload('printers'));
   es.addEventListener('station', (e) => typeof onStationLive === 'function' && onStationLive(JSON.parse(e.data)));
+  es.addEventListener('stationTag', (e) => typeof onStationTag === 'function' && onStationTag(JSON.parse(e.data)));
   es.addEventListener('history', (e) => {
     const h = JSON.parse(e.data);
     if (!h) return reload('history', 'maint', 'summary', 'filament', 'files', 'printers', 'labels', 'orders', 'reserve');

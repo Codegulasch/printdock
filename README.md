@@ -43,7 +43,7 @@ Fully local – no cloud, no account, no database. Runs as a **Home Assistant ad
 - **Spool inventory** with AMS, ACE and toolhead slots, automatic deduction after every print, costs and low-stock warnings
 - **Reservation** for all open prints, **shopping list** with shop link, "ordered" and "arrived"
 - **Humidity**: monitoring of AMS/ACE, Home Assistant sensors and stations; **humidity check before starting** ("dry first, then start automatically"); **drying at the push of a button**
-- **PrintDock Station** (ESP32 with NFC, scale, humidity sensor) with its own page, live weight and **stocktake**
+- **PrintDock Station** (ESP32 with NFC, scale, humidity sensor) as a **workbench**: place a spool → recognised, weighed, loaded into a free slot with one button; create or assign new tags, history, notice from anywhere and **stocktake**
 - **Read and write RFID/NFC tags with the phone** (Chrome on Android); spool labels with QR code
 - **Spoolman** optional – import inventory and report usage back
 
@@ -73,8 +73,10 @@ Fully local – no cloud, no account, no database. Runs as a **Home Assistant ad
 | Today | Archive |
 |---|---|
 | ![Today](docs/screenshots/today.png) | ![Archive](docs/screenshots/archive.png) |
-| **Statistics** | **Setup wizard** |
-| ![Statistics](docs/screenshots/stats.png) | ![Setup](docs/screenshots/setup.png) |
+| **Station** | **Statistics** |
+| ![Station](docs/screenshots/station.png) | ![Statistics](docs/screenshots/stats.png) |
+| **Setup wizard** | |
+| ![Setup](docs/screenshots/setup.png) | |
 
 **New here?** → [Getting started](docs/getting-started.md#getting-started): from first start to first print in ten minutes.
 

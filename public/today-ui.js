@@ -101,21 +101,10 @@ function vToday() {
   }
   if (S.app?.update) items.push(todo('info', '⬆', t('PrintDock {v} ist verfügbar', { v: esc(S.app.update) }), '', goBtn('system', t('Aktualisieren'))));
 
-  // Läuft gerade
-  const running = S.printers.filter(inAreaP).filter((p) => ['printing', 'preparing', 'paused'].includes(p.status?.state));
-  const runHTML = running.map((p) => {
-    const st = p.status;
-    const pct = Math.floor(st.progress || 0);
-    const end = st.remainingSec ? new Date(Date.now() + st.remainingSec * 1000) : null;
-    return `<div class="td-run"><div class="td-run-h"><b>${esc(p.name)}</b><span class="num">${pct} %</span></div>
-      <div class="meta td-file">${esc(st.file || '')}</div><div class="bar"><i style="width:${pct}%"></i></div>
-      <div class="meta">${st.state === 'paused' ? t('pausiert') : end ? t('fertig um {t}', { t: end.toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit' }) }) + ` · ${t('noch {d}', { d: fmtDur(st.remainingSec) })}` : t(pView(p).lamp)}</div>${typeof firstLayerHTML === 'function' ? firstLayerHTML(p) : ''}</div>`;
-  }).join('');
-
   // Als Nächstes
   // als Nächstes: im gewählten Bereich (fester Drucker dort, oder Eintrag für diesen Bereich bzw. ohne Bereich)
   const qInArea = (q) => !curArea() || (q.printerId ? inAreaP(printerById(q.printerId)) : !q.areaId || q.areaId === curArea());
-  const next = on('queue') ? S.queue.filter((q) => q.status === 'queued' && qInArea(q)).slice(0, 6) : [];
+  const next = on('queue') ? S.queue.filter((q) => q.status === 'queued' && qInArea(q)).slice(0, 4) : [];
   const nextHTML = next.map((q) => {
     const p = q.printerId ? printerById(q.printerId) : null;
     return `<div class="td-next">${thumbHTML(q.file)}<div style="min-width:0"><b>${esc(q.file?.name || '–')}</b>
@@ -129,13 +118,61 @@ function vToday() {
   const soonHTML = soon.map((o) => `<button class="td-due" data-act="oEdit" data-id="${o.id}"><b>${dfmt(o.due)}</b><span>${esc(o.nr)} ${esc(o.title)}</span><span class="meta">${t('{a} von {b}', { a: o.done, b: o.qty })}</span></button>`).join('');
 
   const dateTxt = new Date().toLocaleDateString(LOC, { weekday: 'long', day: 'numeric', month: 'long' });
+  const card = (cls, title, link, body) => `<section class="td-card ${cls}"><h3><span>${title}</span>${link || ''}</h3>${body}</section>`;
+  const more = (n, view, label) => (n > 0 ? `<button class="td-more" data-view="${view}">${label || t('+ {n} weitere', { n })}</button>` : '');
+  const link = (view, label) => `<button class="td-link" data-view="${view}">${label} →</button>`;
+
+  // Drucker: alle im Bereich, mit Ampel, Datei/Fortschritt bzw. Zustand
+  const prs = S.printers.filter(inAreaP);
+  const prHTML = prs.slice(0, 6).map((p) => {
+    const v = pView(p);
+    const st = p.status || {};
+    const active = ['printing', 'preparing', 'paused'].includes(st.state);
+    const pct = Math.floor(st.progress || 0);
+    const end = st.remainingSec ? new Date(Date.now() + st.remainingSec * 1000) : null;
+    const sub = active ? `${esc(st.file || '')} · ${pct} %${end ? ` · ${t('fertig um {t}', { t: end.toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit' }) })}` : ''}`
+      : v.mode === 'clear' ? `${t('Platte räumen')}${st.file ? ` · ${esc(st.file)}` : ''}` : esc(t(st.message || '')) || v.lamp;
+    return `<div class="td-pr"><span class="td-dot ${v.cls}"></span><div class="td-pr-t"><b>${esc(p.name)}</b>${active ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ''}<small>${sub}</small></div><span class="meta num">${active && st.remainingSec ? fmtDur(st.remainingSec) : v.lamp}</span></div>${active && typeof firstLayerHTML === 'function' ? firstLayerHTML(p) : ''}`;
+  }).join('');
+
+  // Filament: knappe Spulen und was auf der Station liegt
+  const low = on('filament') ? (F.spools || []).filter((s) => s.low && !s.archived).sort((a, b) => a.remaining - b.remaining) : [];
+  const filHTML = low.slice(0, 3).map((s) => `<button class="td-sp" data-fact="sheet" data-id="${s.id}">${spoolRing(s.color, pctOf(s), 30)}<span><b>${esc(s.nr)} ${esc(s.material)}${s.colorName ? ` ${esc(t(s.colorName))}` : ''}</b><small>${fnum(s.remaining, 0)} g · ${spoolPlace(s)}</small></span><span class="td-warn">${t('knapp')}</span></button>`).join('');
+  const mini = on('filament') && typeof stationMiniHTML === 'function' ? stationMiniHTML() : '';
+
+  // Letzte 7 Tage aus dem Verlauf
+  const since = Date.now() - 7 * 864e5;
+  const week = (S.history || []).filter((h) => h.endedAt && Date.parse(h.endedAt) >= since && inAreaP(printerById(h.printerId) || {}));
+  const ok = week.filter((h) => h.result === 'finished').length;
+  const sec = week.reduce((a, h) => a + (h.durationSec || 0), 0);
+  const grams = week.reduce((a, h) => a + (h.costs?.grams || (h.filament || []).reduce((g, f) => g + (f.grams || 0), 0)), 0);
+  const cost = week.reduce((a, h) => a + (h.costs?.total || 0), 0);
+  const days = [...Array(7)].map((_, i) => {
+    const d = new Date(Date.now() - (6 - i) * 864e5);
+    const key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const hs = week.filter((h) => { const e = new Date(h.endedAt); return `${e.getFullYear()}-${pad(e.getMonth() + 1)}-${pad(e.getDate())}` === key; });
+    return { lbl: d.toLocaleDateString(LOC, { weekday: 'short' }).slice(0, 2), n: hs.length, bad: hs.filter((h) => h.result !== 'finished').length };
+  });
+  const maxN = Math.max(1, ...days.map((d) => d.n));
+  const kpi = (v, l) => `<div class="td-k"><b class="num">${v}</b><span>${l}</span></div>`;
+  const weekHTML = `<div class="td-kpis">${kpi(week.length, week.length ? t('Drucke · {p} % ok', { p: Math.round((ok / week.length) * 100) }) : t('Drucke'))}${kpi(fmtDur(sec) || '0', t('Druckzeit'))}${kpi(`${fnum(grams / 1000, grams >= 1000 ? 1 : 2)} kg`, t('Filament'))}${cost ? kpi(`${fnum(cost, 2)} ${esc(S.app?.costs?.currency || '€')}`, t('Kosten')) : kpi(week.length - ok, t('nicht fertig'))}</div>
+    <div class="td-chart">${days.map((d) => `<div title="${d.n}"><i style="height:${Math.round((d.n / maxN) * 100)}%"></i>${d.bad ? `<i class="bad" style="height:${Math.round((d.bad / maxN) * 100)}%"></i>` : ''}<span>${esc(d.lbl)}</span></div>`).join('')}</div>`;
+
+  const qCount = on('queue') ? S.queue.filter((q) => q.status === 'queued' && qInArea(q)).length : 0;
+  const row2 = [
+    on('queue') ? card('', t('Als Nächstes'), link('queue', t('Warteschlange')), `${nextHTML || `<div class="td-empty">${t('Nichts in der Warteschlange.')}</div>`}${more(qCount - next.length, 'queue')}`) : '',
+    on('filament') ? card('', t('Filament'), link('spools', t('Spulen')), `${filHTML || `<div class="td-empty">✓ ${t('Keine Spule wird knapp.')}</div>`}${more(low.length - 3, 'spools')}${mini ? `<div class="td-foot">${mini}</div>` : ''}`) : '',
+    soon.length ? card('', t('Termine diese Woche'), on('orders') ? link('orders', t('Aufträge')) : '', `<div class="td-dues">${soonHTML}</div>`) : '',
+    card('', t('Letzte 7 Tage'), on('stats') ? link('stats', t('Statistik')) : '', weekHTML),
+  ].filter(Boolean);
   return `<div class="page-head"><h1>${TODAY_ICON}${t('Heute')}</h1><span class="meta">${esc(dateTxt)}</span></div>
     ${stripHTML()}
     <div class="today">
-      <section class="td-card td-todo"><h3>${t('Zu tun')}</h3>${items.length ? items.join('') : `<div class="td-empty">✓ ${t('Alles erledigt – nichts zu tun.')}</div>`}</section>
-      <section class="td-card"><h3>${t('Läuft gerade')}</h3>${runHTML || `<div class="td-empty">${t('Kein Drucker druckt gerade.')}</div>`}</section>
-      ${on('queue') ? `<section class="td-card"><h3>${t('Als Nächstes')}</h3>${nextHTML || `<div class="td-empty">${t('Nichts in der Warteschlange.')}</div>`}</section>` : ''}
-      ${soon.length ? `<section class="td-card"><h3>${t('Termine diese Woche')}</h3><div class="td-dues">${soonHTML}</div></section>` : ''}
+      <div class="td-row1">
+        ${card('td-todo', t('Zu tun'), items.length ? `<span class="td-n">${items.length}</span>` : '', items.length ? items.join('') : `<div class="td-empty td-allok">✓ ${t('Alles erledigt – nichts zu tun.')}</div>`)}
+        ${card('', t('Drucker#pl'), link('board', t('Übersicht')), `${prHTML || `<div class="td-empty">${t('Noch kein Drucker angelegt.')}</div>`}${more(prs.length - 6, 'board')}`)}
+      </div>
+      <div class="td-row2 n${row2.length}">${row2.join('')}</div>
     </div>`;
 }
 VIEW_FN.today = vToday;

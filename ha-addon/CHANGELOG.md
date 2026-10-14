@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.19.0
+- **Station page as a workbench:** each station shows its scale as a plate – empty, an unknown tag, or the spool with a remaining-amount ring. Header with module chips (NFC, scale, display, humidity), place, firmware and a gear to its settings
+  - **Known spool on it:** remaining amount, last weighed, place and reservations; *Weight applied* with **undo** (10 minutes); **Load right away into …** with the free slots as buttons (or just load it – the next slot that reports a fresh spool still gets it); open spool, write tag, label, to storage
+  - **Blank or unknown tag:** three clear ways – create a new spool, assign an existing one, or ignore it (e.g. the card that came with the reader) – plus suggestions of untagged spools that match by weight
+  - **Recently at the station:** the last weighings, assignments, loads and written tags (kept across restarts; repeated weighings of the same spool are merged)
+  - **Notice from anywhere** in PrintDock when something is placed on a station (*S-014 PETG Blue · 812 g → View*), can be switched off per station; small station card on *Today* and on *Spools*
+  - Fix: opening the station page directly (reload, bookmark) jumped to the start page
+- **New *Today*:** structured cards with equal heights per row – *To do* and *Printers* (all printers with status light, progress and finish time) on top, then *Up next*, *Filament* (low spools and the station), *Due this week* and *Last 7 days* (prints, success rate, print time, filament, costs and a small chart). Long lists end with “+ N more”
+- **One look throughout:** cards in a row have the same height and their buttons sit at the bottom (spools and other card grids); the settings menu starts level with the first box on the right
+- Printer card: the settings button is a gear again (was a sun-like icon)
+- Bottom left in the menu: version with update hint, *by Codegulasch* and a GitHub link
+
 ## 0.18.0
 - **SMB share directly:** new storage mode *SMB share* under *Settings → System → Storage location* – enter server, share, optional subfolder, user and password; no mounting, no Home Assistant network storage needed (NAS, TrueNAS, Synology, Windows share). New files are staged locally and pushed to the share, fetched back when needed (print start, download, photo); thumbnails stay local. Print files and photos are no longer part of the PrintDock/HA backup in SMB mode. Switching back pulls everything back, the copies on the NAS stay. Clear error messages (wrong password, share not found, no write access, VM without network bridge …). `smbclient` is included in the add-on and Docker images and installed by the Pi installer
 - **Areas:** group printers by room or print farm (*Settings → Printers & filament → Areas …*). The overview is grouped by area (collapsible) and can be filtered via the area chips; counts and *Today* follow the filter. Queue entries and orders can target an area – automatic printer choice then only uses printers there, and the queue says "no matching printer in area X". The HA overview card gets an `area` option
