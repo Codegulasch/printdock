@@ -107,9 +107,14 @@ function stSideHTML(x, sp, unknown) {
       <div class="st-kv">${kv}</div>
       ${la ? `<div class="st-note"><b>${t('Gewicht übernommen')}</b> – ${t('Rest {a} g, vorher {b} g', { a: fnum(la.after, 0), b: fnum(la.before, 0) })}${diff ? ` (${diff > 0 ? '+' : ''}${fnum(diff, 0)} g)` : ''} <button class="lnk" data-stl="undo" data-st="${x.id}">${t('rückgängig')}</button></div>`
         : x.autoWeigh === false && x.weight ? `<div class="st-note"><button class="b b-sm b-go" data-stl="weigh" data-st="${x.id}" data-sp="${sp.id}">${t('Gewicht übernehmen')}</button> <span class="meta">${t('Automatisches Buchen ist für diese Station aus.')}</span></div>` : ''}
-      ${!sp.slot && F.printers.length ? `<div><div class="meta st-lbl">${t('Gleich einlegen in …')}</div><div class="btns">${slots.slice(0, 6).join('')}<button class="b b-sm" data-fact="load" data-id="${sp.id}">${t('Platz wählen …')}</button></div>
-        ${armed ? `<div class="meta">${t('Oder einfach einlegen – das nächste Fach, das eine frische Spule meldet, bekommt sie (bis {t}).', { t: new Date(armed.until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}</div>` : ''}</div>` : ''}
-      <div class="btns"><button class="b b-sm" data-fact="sheet" data-id="${sp.id}">${t('Spule öffnen')}</button>${x.caps?.nfc !== false ? `<button class="b b-sm" data-fact="tagWrite" data-id="${sp.id}">${t('Tag beschreiben')}</button>` : ''}<button class="b b-sm" data-fact="labels" data-id="${sp.id}">${t('Etikett')}</button>${sp.slot ? `<button class="b b-sm" data-fact="unload" data-id="${sp.id}">${t('Ins Lager')}</button>` : ''}</div>`;
+      <div class="st-where">
+        <div class="st-opt"><b>${t('Ins Lager')}</b><span class="meta">${sp.slot ? t('Liegt in {p} – herausnehmen und einlagern.', { p: spoolPlace(sp) }) : t('Lagerort angeben, z. B. Regal oder Trockenbox.')}</span>
+          <div class="st-row2"><input class="in" data-stloc="${sp.id}" list="st-locs" value="${esc(sp.location || '')}" placeholder="${esc(t('Lagerort'))}"><button class="b b-sm b-go" data-stl="store" data-sp="${sp.id}">${t('Einlagern')}</button></div>
+          <datalist id="st-locs">${[...new Set(F.spools.map((s) => s.location).filter(Boolean))].map((l) => `<option value="${esc(l)}">`).join('')}</datalist></div>
+        ${F.printers.length ? `<div class="st-opt"><b>${t('Einlegen in …')}</b><span class="meta">${armed ? t('Wartet aufs Einlegen – das nächste Fach, das eine frische Spule meldet, bekommt sie (bis {t}).', { t: new Date(armed.until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }) : t('Fach direkt wählen:')}</span>
+          <div class="btns">${slots.slice(0, 6).join('')}<button class="b b-sm" data-fact="load" data-id="${sp.id}">${t('Platz wählen …')}</button>${armed ? `<button class="b b-sm" data-fact="disarm">${t('Nicht einlegen')}</button>` : `<button class="b b-sm" data-stl="arm" data-st="${x.id}" data-sp="${sp.id}" title="${esc(t('Spule einlegen – PrintDock erkennt das Fach'))}">${t('Nächstes Fach')}</button>`}</div></div>` : ''}
+      </div>
+      <div class="btns"><button class="b b-sm" data-fact="sheet" data-id="${sp.id}">${t('Spule öffnen')}</button>${x.caps?.nfc !== false ? `<button class="b b-sm" data-fact="tagWrite" data-id="${sp.id}">${t('Tag beschreiben')}</button>` : ''}<button class="b b-sm" data-fact="labels" data-id="${sp.id}">${t('Etikett')}</button></div>`;
   }
   if (unknown) {
     const d = x.tag.data;
@@ -266,6 +271,17 @@ document.addEventListener('click', async (e) => {
   if (act === 'undo') {
     const r = await run(() => api(`stations/${b.dataset.st}/undo`, { method: 'POST' }), t('Zurückgenommen'));
     if (r) reload('filament', 'summary');
+    return;
+  }
+  if (act === 'store') {
+    const loc = $(`[data-stloc="${b.dataset.sp}"]`)?.value ?? undefined;
+    const r = await run(() => api(`spools/${b.dataset.sp}/store`, { method: 'POST', body: { location: loc } }), t('Eingelagert'));
+    if (r) reload('filament', 'summary');
+    return;
+  }
+  if (act === 'arm') {
+    const r = await run(() => api(`stations/${b.dataset.st}/arm`, { method: 'POST', body: { spoolId: b.dataset.sp } }), t('Jetzt einlegen – PrintDock erkennt das Fach'));
+    if (r) reload('filament');
     return;
   }
   if (act === 'sugg') {

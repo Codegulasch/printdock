@@ -6,7 +6,7 @@ In zehn Minuten vom ersten Start bis zum ersten Druck aus PrintDock. Installatio
 
 ## 1. Einrichtungsassistent
 
-Beim ersten Öffnen (`http://<ip>:3080`, als Add-on über die Seitenleiste) fragt PrintDock Sprache, Aussehen, Funktionen und Zugang ab. Wer erst schauen möchte: **Demo-Daten einspielen** legt fünf simulierte Drucker mit Aufträgen und Verlauf an – sie lassen sich mit einem Klick wieder entfernen (*Einstellungen → System*).
+Beim ersten Öffnen (`http://<ip>:3080`, als Add-on über die Seitenleiste) fragt PrintDock Sprache, Aussehen, die **Ausbaustufe** (Hobby, Maker oder Werkstatt – später jederzeit änderbar) und den Zugang ab. Wer erst schauen möchte: **Demo-Daten einspielen** legt fünf simulierte Drucker mit Aufträgen und Verlauf an – sie lassen sich mit einem Klick wieder entfernen (*Einstellungen → System*).
 
 ## 2. Drucker anlegen
 
@@ -25,7 +25,7 @@ Trage beim Drucker das **Druckermodell** so ein, wie es im Slicer heißt (z. B. 
 
 - **OrcaSlicer, PrusaSlicer & Co.:** im Druckerprofil einen physischen Drucker vom Typ *OctoPrint* anlegen, Adresse und API-Key aus *Einstellungen → Slicer*. „Hochladen und drucken“ landet direkt in der Warteschlange.
 - **Bambu Studio:** *Geslicte Platte exportieren* in den Eingangsordner (Pfad unter *Einstellungen → Slicer*).
-- **Von Hand:** *Dateien → Hochladen* (G-code oder geslicte 3MF).
+- **Von Hand:** *Dateien → Teile → Hochladen* (G-code oder geslicte 3MF). PrintDock fragt, zu welchem **Teil** die Datei gehört und für welche Drucker sie ist. Slicst du dasselbe Teil für einen zweiten Drucker, wird es eine weitere Variante – eingeplant wird das Teil, gedruckt auf dem freien Drucker mit passender Variante.
 - Druckst du weiter direkt aus dem Slicer an den Drucker, landet der Druck trotzdem im **Archiv** – PrintDock holt die Datei vom Drucker.
 
 ## 4. Drucken
@@ -57,9 +57,9 @@ Fragen oder Fehler: [GitHub-Issues](https://github.com/Codegulasch/printdock/iss
 
 From first start to the first print from PrintDock in ten minutes. Installation: [installation.md](installation.md).
 
-1. **Setup wizard** – on first open (`http://<ip>:3080`, as add-on via the sidebar) PrintDock asks for language, look, features and access. *Load demo data* creates five simulated printers to try things out; remove them with one click under *Settings → System*.
+1. **Setup wizard** – on first open (`http://<ip>:3080`, as add-on via the sidebar) PrintDock asks for language, look, the **setup level** (Hobby, Maker or Workshop – changeable any time) and access. *Load demo data* creates five simulated printers to try things out; remove them with one click under *Settings → System*.
 2. **Add printers** – *Printers → + Printer*: Klipper/Moonraker (Snapmaker U1, Voron …: IP), Bambu Lab LAN (IP, serial, access code; LAN mode, developer mode on newer firmware), Anycubic LAN mode (IP; starting prints needs Rinkhals), OctoPrint (API key). Enter the **printer model** as the slicer names it. Several rooms or a print farm? *Settings → Printers & filament → Areas …*
-3. **Get files in** – OrcaSlicer/PrusaSlicer: add a physical printer of type *OctoPrint* with address and API key from *Settings → Slicer*. Bambu Studio: *Export plate sliced file* into the inbox folder. Or upload under *Files*. Prints sent straight from the slicer to the printer still end up in the **Archive** – PrintDock fetches the file from the printer.
+3. **Get files in** – OrcaSlicer/PrusaSlicer: add a physical printer of type *OctoPrint* with address and API key from *Settings → Slicer*. Bambu Studio: *Export plate sliced file* into the inbox folder. Or upload under *Files → Parts* – PrintDock asks which **part** the file belongs to and for which printers; a second slice of the same part for another printer becomes another variant. Prints sent straight from the slicer to the printer still end up in the **Archive** – PrintDock fetches the file from the printer.
 4. **Print** – *Queue → Schedule file* and **Start**, or create an **order** with files, quantities, due date and a **print mode**: series (automatic) starts by itself after "plate clear", series (manual) waits for the start button, single print schedules one part at a time. After every print the card shows **Clear plate** – nothing starts before **Plate is clear**.
 5. **Filament** – add spools under *Filament → Spools* and put them into slots under *Slots*. PrintDock then deducts after every print, warns about low spools and reserves filament for the queue.
 6. **Overview** – *Today* (what to do, what is running, what comes next), *Archive* (every print with start and end, search, filters, CSV), notifications (ntfy, Telegram, Discord, Gotify, webhook), Home Assistant (plugs, MQTT devices, dashboard cards, blueprints).

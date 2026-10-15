@@ -131,6 +131,9 @@ const production = new Production({
   },
 });
 
+// Teile: vorhandene Dateien beim ersten Start mit dieser Version je einem Teil zuordnen
+try { require('./lib/parts').migrate(); } catch (err) { console.warn(`Teile: ${err.message}`); }
+
 // Eingangsordner: Dateien aus Slicern ohne Druck-Host (Bambu Studio) automatisch übernehmen
 const { Inbox } = require('./lib/inbox');
 const inbox = new Inbox({ production, broadcast });
@@ -1149,6 +1152,7 @@ async function handleApi(req, res, url) {
     }
   }
   if (resource === 'spools' && action === 'dried' && req.method === 'POST') return sendJson(res, 200, filament.dried(id));
+  if (resource === 'spools' && action === 'store' && req.method === 'POST') return sendJson(res, 200, filament.store(id, (await readBody(req)).location));
   // RFID/NFC: Leser am Drucker (ESPHome) oder Handy melden einen Tag bzw. eine Spulennummer
   if (resource === 'rfid' && !id && req.method === 'POST') return sendJson(res, 200, filament.rfidScan(await readBody(req)));
   if (resource === 'rfid' && id === 'phone' && req.method === 'POST') return sendJson(res, 200, filament.phoneScan(await readBody(req)));
@@ -1183,6 +1187,7 @@ async function handleApi(req, res, url) {
     if (id && !action && req.method === 'DELETE') { stations.remove(id); return sendJson(res, 200, { ok: true }); }
     if (action === 'tare' && req.method === 'POST') return sendJson(res, 200, stations.tare(id));
     if (action === 'undo' && req.method === 'POST') return sendJson(res, 200, stations.undo(id));
+    if (action === 'arm' && req.method === 'POST') return sendJson(res, 200, stations.armSpool(id, b.spoolId));
     if (action === 'weigh' && req.method === 'POST') return sendJson(res, 200, stations.weighSpool(id, b.spoolId));
     if (action === 'calibrate' && req.method === 'POST') return sendJson(res, 200, stations.calibrate(id, b.grams));
     if (action === 'identify' && req.method === 'POST') return sendJson(res, 200, stations.identifyStation(id));
@@ -1203,6 +1208,20 @@ async function handleApi(req, res, url) {
   }
 
   // ---- Dateien
+  // ---- Teile (Modell mit Varianten je Drucker)
+  if (resource === 'parts') {
+    const parts = require('./lib/parts');
+    const prs = () => printerConfigs.map((p) => ({ id: p.id, name: p.name, model: production.modelOf(p) }));
+    if (!id && req.method === 'GET') return sendJson(res, 200, parts.view(prs()));
+    if (!id && req.method === 'POST') { const p = parts.create((await readBody(req)).name); broadcast('files', null); return sendJson(res, 201, p); }
+    if (id && !action && req.method === 'PUT') { const p = parts.update(id, await readBody(req)); broadcast('files', null); return sendJson(res, 200, p); }
+    if (id && !action && req.method === 'DELETE') {
+      if (production.queueView().some((q) => q.partId === id && ['queued', 'sending', 'printing'].includes(q.status))) throw httpError(409, 'Das Teil ist noch in der Warteschlange eingeplant');
+      parts.remove(id);
+      broadcast('files', null);
+      return sendJson(res, 200, { ok: true });
+    }
+  }
   if (resource === 'files') {
     if (!id && req.method === 'GET') {
       // neu geslicte Version: Aufträge, die noch die ältere Datei nutzen
@@ -1218,6 +1237,14 @@ async function handleApi(req, res, url) {
     const f = files.get(id);
     if (!f) throw httpError(404, 'Datei nicht gefunden');
     if (!action && req.method === 'GET') return sendJson(res, 200, f);
+    if (action === 'assign' && req.method === 'POST') {
+      const b = await readBody(req);
+      const valid = new Set(printerConfigs.map((p) => p.id));
+      const part = require('./lib/parts').assignFile(id, { partId: b.partId, partName: b.partName, targets: Array.isArray(b.targets) ? b.targets.filter((x) => valid.has(x)) : undefined });
+      broadcast('files', null);
+      broadcast('production', null);
+      return sendJson(res, 200, { file: files.get(id), part });
+    }
     if (!action && req.method === 'PATCH') {
       const updated = files.update(id, await readBody(req));
       broadcast('files', null);

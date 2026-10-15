@@ -315,7 +315,7 @@ function vBoard() {
       <div class="btns" style="justify-content:center"><button class="b b-go" data-act="editPrinter">${ICON.plus}${t('Drucker hinzufügen')}</button>${on('demo') ? `<button class="b" data-view="system">${t('Demo-Daten ansehen')}</button>` : ''}</div></div></div>`;
   }
   const q = S.boardSearch.trim().toLowerCase();
-  const list = S.printers.filter((p) => {
+  const list = sortPrinters(S.printers).filter((p) => {
     if (!inAreaP(p)) return false;
     if (q && !`${p.name} ${p.settings?.model || ''}`.toLowerCase().includes(q)) return false;
     const m = pView(p).mode;
@@ -328,10 +328,11 @@ function vBoard() {
     .map(([k, l]) => `<button class="chip" data-bact="filter" data-k="${k}" aria-pressed="${S.boardFilter === k}">${t(l)}</button>`).join('');
   return `<div class="page-head"><h1>${NAV_ICON.printer}${t('Drucker#pl')}</h1>
       <div class="tools"><input class="search" type="search" placeholder="${esc(t('Drucker suchen …'))}" value="${esc(S.boardSearch)}" data-bact-input="search" aria-label="${esc(t('Drucker suchen'))}"><div class="chips">${chips}</div>
-      <button class="b b-sm b-go" data-act="editPrinter">${ICON.plus}${t('Drucker')}</button></div>
+      ${arrangeBtnHTML('board')}<button class="b b-sm b-go" data-act="editPrinter">${ICON.plus}${t('Drucker')}</button></div>
       ${areaSwitchHTML()}
       <div id="headsum" style="width:100%">${headSummary()}</div></div>
-    ${list.length ? boardGroupsHTML(list) : `<div class="list"><div class="empty">${t('Kein Drucker passt zum Filter.')}</div></div>`}`;
+    ${arrangeBarHTML('board')}
+    ${S.arrange === 'board' ? boardArrangeHTML(list) : list.length ? boardGroupsHTML(list) : `<div class="list"><div class="empty">${t('Kein Drucker passt zum Filter.')}</div></div>`}`;
 }
 
 /** Drucker nach Bereichen gruppiert (ohne Bereiche: wie bisher ein Raster) – Gruppen lassen sich zuklappen */

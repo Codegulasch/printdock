@@ -163,6 +163,41 @@ function agoDays(iso) {
   return d <= 0 ? t('weniger als 1 Tag') : d === 1 ? t('1 Tag') : t('{n} Tagen', { n: d });
 }
 
+/** Neue Spule: Tag und Gewicht von einer verbundenen Station übernehmen */
+function stationImportHTML(F) {
+  const sts = (F.stations?.list || []).filter((x) => x.online && (x.tag || x.weight?.g >= 30) && !x.spool);
+  if (!sts.length) return '';
+  return `<div class="st-import" data-stimp>${sts.map((x) => `<div><span>${BI.spool || ''}</span><span><b>${esc(x.name)}</b><small>${[x.tag ? `${t('Tag')} ${esc(x.tag.uid)}${x.tag.data ? ` · ${esc([x.tag.data.brand, x.tag.data.material].filter(Boolean).join(' '))}` : ''}` : t('ohne Tag'), x.weight?.g >= 30 ? `${fnum(x.weight.g, 0)} g ${t('brutto')}` : ''].filter(Boolean).join(' · ')}</small></span>
+    <button class="b b-sm" type="button" data-stimport="${x.id}">${t('Übernehmen')}</button></div>`).join('')}</div>`;
+}
+
+function bindStationImport(d, form) {
+  const fillRest = () => {
+    const g = Number(form.dataset.stgross);
+    const tare = Number(form.tare.value);
+    if (g >= 30 && tare > 0) form.remaining.value = Math.min(Number(form.netWeight.value) || Infinity, Math.max(0, Math.round(g - tare)));
+  };
+  form.tare.addEventListener('input', () => form.dataset.stgross && fillRest());
+  $$('[data-stimport]', d).forEach((btn) => btn.addEventListener('click', () => {
+    const x = (fil().stations?.list || []).find((y) => y.id === btn.dataset.stimport);
+    if (!x) return;
+    const dt = x.tag?.data || {};
+    if (dt.material) form.material.value = dt.material;
+    if (dt.brand) form.brand.value = dt.brand;
+    if (dt.color) form.color.value = dt.color;
+    if (dt.netWeight) form.netWeight.value = dt.netWeight;
+    if (dt.diameter && form.diameter) form.diameter.value = String(dt.diameter);
+    if (x.tag?.uid) form.dataset.stuid = x.tag.uid;
+    if (x.weight?.g >= 30) form.dataset.stgross = x.weight.g;
+    fillRest();
+    btn.closest('div').classList.add('done');
+    btn.textContent = t('Übernommen ✓');
+    btn.disabled = true;
+    const hint = form.tare.value ? '' : `<p class="meta" style="margin:0">${t('Leergewicht unbekannt: Restmenge leer lassen bei einer vollen Spule – PrintDock lernt die Leerspule beim Wiegen. Sonst Leerspule eintragen, dann rechnet PrintDock den Rest aus.')}</p>`;
+    if (hint && !$('[data-stimphint]', d)) btn.closest('[data-stimp]').insertAdjacentHTML('afterend', `<div data-stimphint>${hint}</div>`);
+  }));
+}
+
 function spoolDialog(edit = null, pre = null, onCreated = null) {
   const F = fil();
   const s = edit;
@@ -179,12 +214,14 @@ function spoolDialog(edit = null, pre = null, onCreated = null) {
       <label>${t('Preis je Spule (€)')}<input name="price" type="number" min="0" step="0.01" value="${s?.price ?? ''}"></label></div>
     <div class="two"><label>${t('Lagerort')}<input name="location" value="${esc(v?.location || '')}" placeholder="${esc(t('z. B. Trockenbox 2'))}"></label>
       <label>${t('Durchmesser')}<select name="diameter"><option value="1.75" ${v?.diameter !== 2.85 ? 'selected' : ''}>${fnum(1.75, 2)} mm</option><option value="2.85" ${v?.diameter === 2.85 ? 'selected' : ''}>${fnum(2.85, 2)} mm</option></select></label></div>
+    ${!s ? stationImportHTML(F) : ''}
     ${s ? `<label>${t('RFID-Kennung')}<input name="rfid" value="${esc(s.rfid || '')}" placeholder="${esc(t('wird bei Bambu-Spulen automatisch erkannt'))}"></label>` : `<label>${t('Anzahl gleicher Spulen')}<input name="count" type="number" min="1" max="50" value="1"></label>`}
     <label>${t('Notiz')}<input name="note" value="${esc(v?.note || '')}"></label>
     ${s ? `<label class="check"><input type="checkbox" name="archived" ${s.archived ? 'checked' : ''}> ${t('Aufgebraucht / ausgemustert')}</label>` : ''}
     <p class="form-error" hidden></p>
     <div class="dlg-actions">${s ? `<button class="b b-fault left" type="button" data-del>${t('Löschen')}</button>` : ''}<button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-done">${t('Speichern')}</button></div></form>`);
   const form = $('form', d);
+  if (!s) bindStationImport(d, form);
   $('[data-del]', d)?.addEventListener('click', async () => {
     if (!(await confirmBox(t('Spule löschen'), t('{nr} endgültig löschen? Für leere Spulen besser „Aufgebraucht“ ankreuzen – dann bleibt der Verbrauch nachvollziehbar.', { nr: s.nr }), t('Löschen'), 'b-fault'))) return;
     await run(() => api(`spools/${s.id}`, { method: 'DELETE' }), t('Spule gelöscht'));
@@ -197,8 +234,12 @@ function spoolDialog(edit = null, pre = null, onCreated = null) {
       .filter((k) => form[k]).map((k) => [k, form[k].value]));
     if (form.archived) body.archived = form.archived.checked;
     try {
+      if (!s && form.dataset.stuid) body.rfid = form.dataset.stuid;
       const r = await api(s ? `spools/${s.id}` : 'spools', { method: s ? 'PUT' : 'POST', body });
-      if (!s && onCreated) await onCreated(Array.isArray(r) ? r[0] : r);
+      const created = Array.isArray(r) ? r[0] : r;
+      // Tag von der Station: offenen Tag gleich dieser Spule zuordnen (Station zeigt sie dann an)
+      if (!s && form.dataset.stuid && fil().pendingTag?.tag === form.dataset.stuid && !onCreated) await api('rfid/assign', { method: 'POST', body: { spoolId: created.id } });
+      if (!s && onCreated) await onCreated(created);
       d.close();
       toast(s ? t('Gespeichert') : t('Spule angelegt'));
       reload('filament', 'summary');

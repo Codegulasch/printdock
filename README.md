@@ -24,7 +24,8 @@ Fully local – no cloud, no account, no database. Runs as a **Home Assistant ad
 
 ### Production
 
-- **File library** for G-code and 3MF with detected print time, filament, printer profile and preview
+- **Parts with variants**: one model, one sliced file per printer – schedule the part, it prints on the free printer with a matching variant (across brands)
+- **File library** for G-code and 3MF with detected print time, filament, printer profile and preview; on upload PrintDock asks which part and which printers the file belongs to
 - **Slicer integration**: send from OrcaSlicer, PrusaSlicer & co., from Bambu Studio via the inbox folder; open files in your slicer
 - **Print mode per order and entry**: *series print (automatic)*, *series print (manual)* or *single print*
 - **Print queue** with *"plate is clear"* confirmation and **automatic printer choice** by profile and loaded filament
@@ -66,7 +67,8 @@ Fully local – no cloud, no account, no database. Runs as a **Home Assistant ad
 - **Login protection** always or only from outside; **several users** (admin, operator) with a **log**
 - **Updates** with one click (add-on, Docker, Pi, PC), **daily backup**, moving via backup zip
 - **Platform check** shows what works on the current installation
-- **Setup wizard**, **every feature can be switched off**, **arrange the menu** and choose the start page
+- **Setup levels** Hobby, Maker, Workshop – PrintDock shows only what you need; switched-off features are listed under **"Discover more"**
+- **Setup wizard**, **every feature can be switched off**, **arrange the menu, "Today" and printer cards** and choose the start page
 - **German and English**, accent colour, light and dark mode, works on phones
 - **Demo data** with one click: 5 simulated printers, files, spools, orders and 30 days of history
 
@@ -75,8 +77,8 @@ Fully local – no cloud, no account, no database. Runs as a **Home Assistant ad
 | ![Today](docs/screenshots/today.png) | ![Archive](docs/screenshots/archive.png) |
 | **Station** | **Statistics** |
 | ![Station](docs/screenshots/station.png) | ![Statistics](docs/screenshots/stats.png) |
-| **Setup wizard** | |
-| ![Setup](docs/screenshots/setup.png) | |
+| **Parts** | **Setup wizard** |
+| ![Parts](docs/screenshots/parts.png) | ![Setup](docs/screenshots/setup.png) |
 
 **New here?** → [Getting started](docs/getting-started.md#getting-started): from first start to first print in ten minutes.
 
@@ -131,6 +133,12 @@ The colours are fixed and independent of the accent colour; every light also sho
 ## Interface
 
 Sidebar with all areas and counters for open items; at the bottom language (DE/EN), light/dark and logout. **Order, hidden items and start page** of the menu are set under *Settings → General → Menu* – for all devices or only this one (e.g. the phone). Features switched off under *Settings → General → Features* disappear from the menu and the cards; their data is kept.
+
+**Setup levels:** in the setup wizard and under *Settings → General* you pick a starting point – **Hobby**, **Maker** (adds queue with auto start, statistics, maintenance) or **Workshop** (adds orders with costing, customer links, post-processing, areas). Every feature can still be switched individually; what is off is listed under **"Discover more"** with one sentence on what it does.
+
+**Arrange:** on *Today* and *Printers*, **Arrange** lets you drag (or move with arrows, also on phones) boxes and printer cards and hide boxes on *Today* – for all devices or only this one.
+
+**Parts with variants:** under *Files → Parts* a part is a model with one sliced file per printer (type). Queue and orders schedule the part; it starts on the free printer that has a variant – an order "20 × cable clip" spreads over several printers of different brands. On upload PrintDock asks which part the file belongs to and for which printers (preselected by the printer model in the file), optionally scheduling it right away. Files from the slicer and the inbox are assigned automatically: same name and printer = new version, same name and other printer = another variant.
 
 Every printer card shows header (model image, name, nozzle, plug button), badges (connection, Wi-Fi, Bambu HMS, humidity, maintenance, planned prints), status (preview, file, order, progress, time left, finish time, layer – or "clear plate" / "ready", then the next queued print or "does not start: …" with the reason), temperatures with history, fans, controls (light, camera, speed, pause/resume/stop) and filament (AMS/ACE units with humidity, temperature and dryer, every slot with colour, material and remaining amount).
 

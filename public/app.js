@@ -308,7 +308,7 @@ const loaders = {
   summary: async () => (S.summary = await api('summary')),
   queue: async () => (S.queue = await api('queue')),
   orders: async () => (S.orders = await api('orders')),
-  files: async () => (S.files = await api('files')),
+  files: async () => { [S.files, S.parts] = await Promise.all([api('files'), api('parts')]); },
   maint: async () => (S.maint = await api('maintenance')),
   filament: async () => {
     S.fil = await api('filament');
@@ -390,7 +390,8 @@ const GH_ICON = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"
 /** Unten links: Version, Update-Hinweis, Codegulasch und GitHub */
 function creditHTML() {
   const v = S.app?.version;
-  return `<div class="r"><b>PrintDock${v ? ` ${esc(v)}` : ''}</b>${S.app?.update ? `<button class="upd" data-view="system" title="${esc(t('Update verfügbar'))}">${t('neu: {v}', { v: esc(S.app.update) })}</button>` : ''}</div>
+  const off = typeof MODULE_INFO !== 'undefined' ? MODULE_INFO.filter(([k]) => S.app?.modules?.[k] === false && k !== 'demo').length : 0;
+  return `${off ? `<button class="side-disc" data-view="general" data-anchor-to="discover">✨ ${t('{n} weitere Funktionen entdecken', { n: off })}</button>` : ''}<div class="r"><b>PrintDock${v ? ` ${esc(v)}` : ''}</b>${S.app?.update ? `<button class="upd" data-view="system" title="${esc(t('Update verfügbar'))}">${t('neu: {v}', { v: esc(S.app.update) })}</button>` : ''}</div>
     <div class="r">${t('von')}&nbsp;<a href="https://github.com/Codegulasch" target="_blank" rel="noopener">Codegulasch</a><a class="gh" href="https://github.com/Codegulasch/printdock" target="_blank" rel="noopener">${GH_ICON}GitHub</a></div>`;
 }
 
@@ -682,7 +683,7 @@ function vQueue() {
       + (typeof reserveWarnHTML === 'function' ? reserveWarnHTML(q) : '')
       + (q.afterDry && q.status === 'queued' ? `<div class="meta hc-wait">💧 ${t('wird zuerst getrocknet ({n}) – startet danach automatisch', { n: esc(q.afterDry.name || '') })} <button class="x" data-qdry-cancel="${q.id}">${t('Nicht automatisch starten')}</button></div>` : '');
     return `<div class="row q-row ${['done', 'retried'].includes(q.status) ? 'dim' : ''} ${['printing', 'sending'].includes(q.status) ? 'q-live' : ''}">
-      <div class="c-main filecell">${thumbHTML(q.file)}<div style="min-width:0"><b>${esc(q.file?.name || t('Datei gelöscht'))}</b><span class="meta">${materialsHTML(q.file?.meta)}</span></div></div>
+      <div class="c-main filecell">${thumbHTML(q.file)}<div style="min-width:0"><b>${esc(q.part?.name || q.file?.name || t('Datei gelöscht'))}</b><span class="meta">${q.part ? `${t('Teil')} · ${q.printerId || q.status !== 'queued' ? esc(q.file?.name || '') : t('Variante je Drucker')} · ` : ''}${materialsHTML(q.file?.meta)}</span></div></div>
       <div><span class="lbl">${t('Auftrag')}</span>${q.order ? `<b>${esc(q.order.nr)}</b><div class="meta">${esc(q.order.title)}</div>` : '<span class="meta">–</span>'}</div>
       <div><span class="lbl">${t('Drucker')}</span>${printerCell}${warn}</div>
       <div><span class="lbl">${t('Druckart')}</span>${modeCell}</div>
@@ -696,7 +697,7 @@ function vQueue() {
   const live = list.filter((q) => ['printing', 'sending'].includes(q.status));
   const rest = list.filter((q) => !['printing', 'sending'].includes(q.status));
   const group = (title, n, extra = '') => `<div class="q-group"><b>${esc(title)}</b><span class="meta">${n}</span>${extra}</div>`;
-  const head = `<div class="row q-row head"><div>${t('Datei')}</div><div>${t('Auftrag')}</div><div>${t('Drucker')}</div><div>${t('Druckart')}</div><div>${t('Dauer')}</div><div>${t('Status')}</div><div></div></div>`;
+  const head = `<div class="row q-row head"><div>${t('Teil / Datei')}</div><div>${t('Auftrag')}</div><div>${t('Drucker')}</div><div>${t('Druckart')}</div><div>${t('Dauer')}</div><div>${t('Status')}</div><div></div></div>`;
   let body;
   if (S.qFilter === 'offen' && list.length) {
     const nAuto = openList.filter((q) => pmodeOf(q.mode) === 'auto').length;
@@ -707,21 +708,41 @@ function vQueue() {
   } else body = head + list.map(rowHTML).join('');
   return `${stripHTML()}<div class="bar-row"><h2>${t('Warteschlange')}</h2><div class="chips">${chips}</div>
       ${S.qFilter !== 'offen' ? `<button class="b b-sm" data-act="qClear">${t('Erledigte aufräumen')}</button>` : ''}
-      <button class="b b-sm b-go" data-act="qAdd">${ICON.plus}${t('Datei einplanen')}</button></div>
+      <button class="b b-sm b-go" data-act="qAdd">${ICON.plus}${t('Einplanen')}</button></div>
     <div class="list">${list.length ? body
       : `<div class="empty"><h3>${S.qFilter === 'offen' ? t('Nichts in der Warteschlange') : t('Keine Einträge')}</h3><p>${t('Dateien aus der Bibliothek oder einem Auftrag einplanen – oder direkt aus dem Slicer senden.')}</p></div>`}</div>
     <p class="meta" style="margin-top:10px">${t('Die Druckart steht an jedem Eintrag: „Serie · auto“ startet von selbst, sobald ein passender Drucker frei und die Platte als geräumt bestätigt ist. „Serie · manuell“ und „Einzeldruck“ starten nur per Knopf. Einträge ohne festen Drucker bekommt der Drucker, zu dessen Profil die Datei geslict ist und in dem das passende Filament liegt.')}</p>`;
 }
 
-function queueAddDialog({ fileId = null, printerId = null } = {}) {
+/** Auswahl „was drucken“: Teile (Variante je Drucker) und einzelne Dateien. Wert part:<id> oder file:<id> */
+function itemOptionsHTML({ partId = null, fileId = null, printable = true } = {}) {
+  const ps = (S.parts || []).filter((p) => p.variants.length && (!printable || p.printable));
+  const fs = S.files.filter((f) => !printable || f.printable);
+  const sel = partId ? `part:${partId}` : fileId ? `file:${fileId}` : ps[0] ? `part:${ps[0].id}` : fs[0] ? `file:${fs[0].id}` : '';
+  const cov = (p) => p.cover.filter((c) => c.fileId).map((c) => c.name).join(', ');
+  return `${ps.length ? `<optgroup label="${esc(t('Teile (passende Variante je Drucker)'))}">${ps.map((p) => `<option value="part:${p.id}" ${sel === `part:${p.id}` ? 'selected' : ''}>${esc(p.name)}${cov(p) ? ` – ${esc(cov(p))}` : ''}</option>`).join('')}</optgroup>` : ''}
+    ${fs.length ? `<optgroup label="${esc(t('Einzelne Datei'))}">${fs.map((f) => `<option value="file:${f.id}" ${sel === `file:${f.id}` ? 'selected' : ''}>${esc(f.name)}${f.meta?.printerModel ? ` (${esc(f.meta.printerModel)})` : ''}${f.printable ? '' : ` (${t('nicht gesliced')})`}</option>`).join('')}</optgroup>` : ''}`;
+}
+/** part:<id>/file:<id> → { partId, fileId, file } (file = erste druckfertige Variante bzw. die Datei) */
+function itemValue(v) {
+  const [k, id] = String(v || '').split(':');
+  if (k === 'part') {
+    const p = (S.parts || []).find((x) => x.id === id);
+    const fid = p?.variants.find((x) => x.printable)?.id || p?.variants[0]?.id || null;
+    return { partId: id, fileId: fid, file: fileById(fid) };
+  }
+  return { partId: null, fileId: id, file: fileById(id) };
+}
+
+function queueAddDialog({ fileId = null, printerId = null, partId = null } = {}) {
   const printable = S.files.filter((f) => f.printable);
   if (!printable.length) {
     toast(t('Noch keine druckfertige Datei. Erst unter Dateien hochladen oder aus dem Slicer senden.'), true);
     return;
   }
   const d = openDialog(`<form class="dlg" method="dialog">
-    <h2>${t('Datei einplanen')}</h2>
-    <label>${t('Datei')}<select name="fileId">${printable.map((f) => `<option value="${f.id}" ${f.id === fileId ? 'selected' : ''}>${esc(f.name)}${f.meta?.printerModel ? ` (${esc(f.meta.printerModel)})` : ''}</option>`).join('')}</select></label>
+    <h2>${t('Einplanen')}</h2>
+    <label>${t('Teil oder Datei')}<select name="fileId">${itemOptionsHTML({ partId, fileId })}</select></label>
     <div class="two">
       <label>${t('Drucker')}<select name="printerId">${targetOptionsHTML(printerId, null, 'Passender Drucker (nach Modell)')}</select></label>
       <label data-count>${t('Anzahl Drucke')}<input name="count" type="number" min="1" max="200" value="1"></label>
@@ -738,7 +759,7 @@ function queueAddDialog({ fileId = null, printerId = null } = {}) {
     <div class="dlg-actions"><button class="b" type="button" data-close>${t('Abbrechen')}</button><button class="b b-go">${t('Einplanen')}</button></div></form>`);
   const form = $('form', d);
   const sync = () => {
-    const f = fileById(form.fileId.value);
+    const f = itemValue(form.fileId.value).file;
     $('[data-bambu]', d).hidden = f?.kind !== '3mf';
     form.plate.innerHTML = (f?.meta?.plates?.length ? f.meta.plates : [1]).map((n) => `<option>${n}</option>`).join('');
   };
@@ -752,11 +773,12 @@ function queueAddDialog({ fileId = null, printerId = null } = {}) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-      const f = fileById(form.fileId.value);
+      const it = itemValue(form.fileId.value);
+      const f = it.file;
       await api('queue', {
         method: 'POST',
         body: {
-          fileId: form.fileId.value, ...targetValue(form.printerId.value), count: form.mode.value === 'single' ? 1 : form.count.value, top: form.top.checked, mode: form.mode.value,
+          fileId: it.fileId, partId: it.partId, ...targetValue(form.printerId.value), count: form.mode.value === 'single' ? 1 : form.count.value, top: form.top.checked, mode: form.mode.value,
           options: f?.kind === '3mf' ? { plate: form.plate.value, useAms: form.useAms.checked, amsMapping: form.amsMapping.value } : {},
         },
       });
@@ -927,9 +949,9 @@ function orderDialog(o = null) {
     toast(t('Erst Dateien hochladen, dann einen Auftrag anlegen.'), true);
     return;
   }
-  const fileOpts = (sel) => S.files.map((f) => `<option value="${f.id}" ${f.id === sel ? 'selected' : ''}>${esc(f.name)}${f.printable ? '' : ` (${t('nicht gesliced')})`}</option>`).join('');
+  const fileOpts = (sel, part) => itemOptionsHTML({ partId: part || null, fileId: part ? null : sel, printable: false });
   const posRow = (p = {}) => `<div class="pos" data-pos="${esc(p.id || '')}">
-      <select class="in" name="pf" aria-label="${t('Datei')}">${fileOpts(p.fileId)}</select>
+      <select class="in" name="pf" aria-label="${t('Teil oder Datei')}">${fileOpts(p.fileId, p.partId)}</select>
       <input class="in" name="pq" type="number" min="1" max="9999" value="${p.qty || 1}" aria-label="${t('Stückzahl')}" title="${esc(t('Stückzahl'))}">
       <span class="pp"><input class="in" name="ppl" type="number" min="1" max="500" value="${p.perPlate || 1}" aria-label="${t('Stück je Druck')}" title="${esc(t('Stück je Druck (Teile auf einer Platte)'))}"><span class="meta">${t('je Druck')}</span></span>
       <button class="x del" type="button" data-rm title="${t('Position entfernen')}" aria-label="${t('Position entfernen')}">${ICON.trash}</button>
@@ -981,7 +1003,7 @@ function orderDialog(o = null) {
     const body = {
       title: form.title.value, customer: form.customer.value, due: form.due.value, prio: Number(form.prio.value), notes: form.notes.value, mode: form.mode.value, ...(form.areaId ? { areaId: form.areaId.value || null } : {}),
       closed: form.closed?.checked || false,
-      positions: $$('.pos', d).map((el) => ({ id: el.dataset.pos || null, fileId: $('[name=pf]', el).value, qty: Number($('[name=pq]', el).value), perPlate: Number($('[name=ppl]', el).value) || 1 })),
+      positions: $$('.pos', d).map((el) => ({ id: el.dataset.pos || null, ...(({ fileId, partId }) => ({ fileId, partId }))(itemValue($('[name=pf]', el).value)), qty: Number($('[name=pq]', el).value), perPlate: Number($('[name=ppl]', el).value) || 1 })),
     };
     try {
       const saved = await api(o ? `orders/${o.id}` : 'orders', { method: o ? 'PUT' : 'POST', body });
@@ -1016,7 +1038,7 @@ function vFiles() {
     return `<article class="card fcard">
       <div class="pic">${f.thumb ? `<img src="api/files/${esc(f.id)}/thumb" alt="" loading="lazy">` : `<span>${esc(f.ext.toUpperCase())}</span>`}</div>
       <div class="fb"><h3>${esc(f.name)}</h3>
-        <div>${f.printable ? `<span class="pill run">${t('druckfertig')}</span>` : `<span class="pill">${t('Modell – erst slicen')}</span>`} <span class="meta">${materialsHTML(m)}</span></div>
+        <div>${f.printable ? `<span class="pill run">${t('druckfertig')}</span>` : `<span class="pill">${t('Modell – erst slicen')}</span>`}${f.partId && typeof partById === 'function' && partById(f.partId) ? ` <button class="pill" data-view="parts" title="${esc(t('Teil'))}">${t('Teil')}: ${esc(partById(f.partId).name)}</button>` : ''} <span class="meta">${materialsHTML(m)}</span></div>
         <div class="facts">${facts}</div>
         <div class="btns">
           ${f.printable && on('queue') ? `<button class="b b-sm b-go" data-act="qAdd" data-file="${f.id}">${ICON.plus}${t('Einplanen')}</button>` : ''}
@@ -1030,15 +1052,18 @@ function vFiles() {
     ${list.length ? `<div class="cards">${cards}</div>` : `<div class="list"><div class="empty"><h3>${t('Keine Dateien')}</h3><p>${t('Hochladen oder im Slicer „An Drucker senden“ nutzen (Einstellungen → Slicer).')}</p></div></div>`}`;
 }
 
-function uploadFiles(fileList) {
+function uploadFiles(fileList, { partId = null } = {}) {
   const filesArr = [...fileList];
   if (!filesArr.length) return;
   const drop = $('[data-drop]');
+  const done = [];
   let i = 0;
   const next = () => {
     if (i >= filesArr.length) {
       if (drop) drop.textContent = t('{n} Datei(en) hochgeladen.', { n: filesArr.length });
-      reload('files');
+      // gleich fragen: welches Teil, welche Drucker, einplanen?
+      if (done.length && typeof uploadAssignDialog === 'function') uploadAssignDialog(done, partId);
+      else reload('files');
       return;
     }
     const f = filesArr[i++];
@@ -1053,6 +1078,8 @@ function uploadFiles(fileList) {
         let msg = 'Upload fehlgeschlagen';
         try { msg = JSON.parse(xhr.responseText).error || msg; } catch {}
         toast(`${f.name}: ${t(msg)}`, true);
+      } else {
+        try { done.push(JSON.parse(xhr.responseText)); } catch {}
       }
       next();
     };
@@ -1438,12 +1465,12 @@ function render() {
   const html = (VIEW_FN[S.view] || VIEW_FN.board)();
   // Gleiche Ansicht: nur Geändertes austauschen. So bleiben Bilder, Kamera, Scrollposition und
   // offene Auswahllisten stehen (vorher sprang die Druckeransicht bei Live-Updates teils nach oben).
-  if (render.last === S.view && S.view !== 'files') holdScroll(() => morph(app, html));
+  if (render.last === S.view && S.view !== 'files' && S.view !== 'parts') holdScroll(() => morph(app, html));
   else app.innerHTML = html;
   render.last = S.view;
   alignSetNav();
   attachCameras();
-  if (S.view === 'files') bindFileView();
+  if (S.view === 'files' || S.view === 'parts') bindFileView();
 }
 
 /** Einstellungen: das Seitenmenü beginnt auf Höhe des ersten Kastens rechts (nicht auf Höhe der Überschrift) */
@@ -1583,7 +1610,7 @@ document.addEventListener('click', async (e) => {
       }
       return render();
     case 'qStart': return startItem(id, el.dataset.printer || null);
-    case 'qAdd': return queueAddDialog({ fileId: el.dataset.file, printerId: el.dataset.printer });
+    case 'qAdd': return queueAddDialog({ fileId: el.dataset.file, printerId: el.dataset.printer, partId: el.dataset.part });
     case 'qFilter': S.qFilter = el.dataset.k; return render();
     case 'qMove': {
       const open = S.queue.filter((q) => q.status === 'queued');

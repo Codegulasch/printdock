@@ -16,6 +16,32 @@ const MODULE_INFO = [
   ['slicer', 'Slicer-Anbindung', 'Aus OrcaSlicer & Co. direkt an PrintDock senden.'],
   ['demo', 'Demo-Daten', 'Simulierte Drucker zum Ausprobieren.'],
 ];
+/** Ausbaustufen: Startpunkt je nach Nutzer – danach jede Funktion einzeln schaltbar */
+const TIERS = [
+  ['hobby', 'Hobby', 'Ein, zwei Drucker, gedruckt wird meist direkt aus dem Slicer: Übersicht, Teile & Dateien, Archiv, Filament, Kamera, Benachrichtigungen, Home Assistant.',
+    { queue: false, orders: false, files: true, filament: true, maintenance: false, history: true, stats: false, camera: true, notifications: true, homeassistant: true, slicer: true }],
+  ['maker', 'Maker', 'Mehrere Drucker und Serien: zusätzlich Warteschlange mit Auto-Start, Statistik und Wartungsplan.',
+    { queue: true, orders: false, files: true, filament: true, maintenance: true, history: true, stats: true, camera: true, notifications: true, homeassistant: true, slicer: true }],
+  ['shop', 'Werkstatt', 'Kleine Firma oder Printfarm: zusätzlich Aufträge mit Kalkulation, Kunden-Links, Nachbearbeitung und Bereichen.',
+    { queue: true, orders: true, files: true, filament: true, maintenance: true, history: true, stats: true, camera: true, notifications: true, homeassistant: true, slicer: true }],
+];
+/** Welche Ausbaustufe passt zu den eingeschalteten Funktionen? sonst 'custom' */
+function tierOf(mods = {}) {
+  const hit = TIERS.find(([, , , m]) => Object.entries(m).every(([k, v]) => (mods[k] !== false) === v));
+  return hit ? hit[0] : 'custom';
+}
+function tierPicker(mods, attr) {
+  const cur = tierOf(mods);
+  return `<div class="mods tiers">${TIERS.map(([k, l, d]) => `<button type="button" class="mod tier ${cur === k ? 'on' : ''}" ${attr}="${k}" aria-pressed="${cur === k}"><span class="sw radio" aria-hidden="true"></span><span class="mt"><b>${esc(t(l))}</b><span>${esc(t(d))}</span></span></button>`).join('')}</div>`;
+}
+/** Abgeschaltete Funktionen als Kacheln: was sie bringen, mit einem Klick an */
+function discoverHTML(mods = {}) {
+  const off = MODULE_INFO.filter(([k]) => mods[k] === false && k !== 'demo');
+  if (!off.length) return '';
+  return `<h3 class="shead" id="discover">✨ ${t('Mehr entdecken')} <span class="meta" style="text-transform:none;letter-spacing:0;font-weight:400">· ${t('{n} Funktionen sind aus', { n: off.length })}</span></h3>
+    <div class="disc">${off.map(([k, l, d]) => `<div class="disc-i"><b>${esc(t(l))}</b><span>${esc(t(d))}</span><button class="b b-sm" data-g-on="${k}">${t('Einschalten')}</button></div>`).join('')}</div>`;
+}
+
 const ACCENTS = [['cobalt', 'Kobalt'], ['violet', 'Violett'], ['petrol', 'Petrol'], ['green', 'Grün'], ['orange', 'Orange'], ['magenta', 'Magenta'], ['graphite', 'Graphit']];
 
 /** Abhängigkeiten: Aufträge brauchen Warteschlange und Dateien, Warteschlange braucht Dateien. */
@@ -122,9 +148,10 @@ function renderSetup() {
       ${statusLegendHTML()}
       <p class="meta" style="margin-top:14px">${t('Umzug oder Neuinstallation?')} <label class="linkish">${t('Sicherung einspielen')}<input type="file" accept=".zip,application/zip" hidden data-restore></label> – ${t('Drucker, Einstellungen und Daten sind dann sofort wieder da.')}</p>`;
   } else if (W.step === 1) {
-    body = `<h2>${t('Welche Funktionen brauchst du?')}</h2>
-      <p class="intro">${t('Was du nicht brauchst, schaltest du ab – es verschwindet dann aus Menü und Druckerkarten. Die Druckerübersicht ist immer dabei.')}</p>
-      ${moduleGrid(W.modules, 'data-w-mod')}`;
+    body = `<h2>${t('Wofür nutzt du PrintDock?')}</h2>
+      <p class="intro">${t('Wähle einen Startpunkt – PrintDock zeigt dann nur, was du dafür brauchst. Alles andere lässt sich jederzeit unter Einstellungen → Allgemein dazuschalten.')}</p>
+      ${tierPicker(W.modules, 'data-w-tier')}
+      <details class="wz-more" ${tierOf(W.modules) === 'custom' ? 'open' : ''}><summary>${t('Funktionen einzeln wählen')}</summary>${moduleGrid(W.modules, 'data-w-mod')}</details>`;
   } else if (W.step === 2) {
     body = `<h2>${t('Sicherheit und Zugriff')}</h2>
       <label class="mod ${W.plateCheck ? 'on' : ''}"><input type="checkbox" data-w-plate ${W.plateCheck ? 'checked' : ''}><span class="sw"></span>
@@ -216,6 +243,12 @@ document.addEventListener('click', async (e) => {
     setLang(W.lang);
     return renderSetup();
   }
+  const tier = e.target.closest('[data-w-tier]');
+  if (tier) {
+    const preset = TIERS.find((x) => x[0] === tier.dataset.wTier)[3];
+    W.modules = { ...W.modules, ...preset };
+    return renderSetup();
+  }
   if (w === 'next') { W.step = Math.min(3, W.step + 1); return renderSetup(); }
   if (w === 'back') { W.step = Math.max(0, W.step - 1); return renderSetup(); }
   if (w === 'skip') { W.start = 'none'; return finishSetup(); }
@@ -279,6 +312,9 @@ function vGeneral() {
         ${typeof navSettingsHTML === 'function' ? navSettingsHTML() : ''}
       </div>
       <div>
+        <h3 class="shead">${t('Ausbaustufe')} <span class="meta" style="text-transform:none;letter-spacing:0;font-weight:400">· ${tierOf(mods) === 'custom' ? t('eigene Auswahl') : esc(t(TIERS.find((x) => x[0] === tierOf(mods))[1]))}</span></h3>
+        ${tierPicker(mods, 'data-g-tier')}
+        ${discoverHTML(mods)}
         <h3 class="shead">${t('Funktionen')} <span class="meta" style="text-transform:none;letter-spacing:0;font-weight:400">· ${t('{n} von {m} an', { n: MODULE_INFO.filter(([k]) => mods[k] !== false).length, m: MODULE_INFO.length })}</span></h3>
         <div class="sbox mlist">${modRows}</div>
         <p class="meta">${t('Abgeschaltete Bereiche verschwinden aus Menü und Druckerkarten; ihre Daten bleiben erhalten.')}</p>
@@ -439,6 +475,16 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (act === 'wizard') return showSetup();
+});
+
+document.addEventListener('click', (e) => {
+  const tier = e.target.closest('[data-g-tier]');
+  if (tier) {
+    const preset = TIERS.find((x) => x[0] === tier.dataset.gTier)[3];
+    return saveApp({ modules: { ...S.app.modules, ...preset } });
+  }
+  const on1 = e.target.closest('[data-g-on]');
+  if (on1) return saveApp({ modules: fixModules({ ...S.app.modules, [on1.dataset.gOn]: true }, on1.dataset.gOn) });
 });
 
 document.addEventListener('change', async (e) => {

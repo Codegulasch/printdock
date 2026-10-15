@@ -27,6 +27,14 @@ function vToday() {
     else if (st.state === 'error') items.push(todo('bad', '⚠', t('{p}: Störung', { p: esc(p.name) }), esc(t(st.message || '')), goBtn('board', t('Ansehen'))));
     else if (st.state === 'paused') items.push(todo('warn', '⏸', t('{p}: pausiert', { p: esc(p.name) }), esc(t(st.message || '')), goBtn('board', t('Ansehen'))));
   }
+  // Leerer/unbekannter Tag an Station oder Handy: welche Spule?
+  if (on('filament') && F.pendingTag) {
+    const p = F.pendingTag;
+    const where = p.stationName ? t('Station „{s}“', { s: esc(p.stationName) }) : p.phone ? t('Handy') : t('Leser');
+    items.push(todo('info td-wide', '🏷', p.data ? t('{w}: neue Spule auf dem Tag', { w: where }) : p.blank ? t('{w}: leerer Tag aufgelegt', { w: where }) : t('{w}: unbekannter Tag aufgelegt', { w: where }),
+      `${esc(p.tag)}${p.data ? ` · ${esc([p.data.brand, p.data.material].filter(Boolean).join(' '))}` : ''} · ${t('welche Spule ist das?')}`,
+      p.stationId ? `<button class="b b-sm b-go" data-view="stlive">${t('Zuordnen …')}</button>` : `<button class="b b-sm b-go" data-view="spools">${t('Zuordnen …')}</button>`));
+  }
   // Nach „Platte frei“ nicht gestartet – mit Grund
   for (const p of S.printers.filter(inAreaP)) {
     const si = S.summary?.startInfo?.[p.id];
@@ -107,7 +115,7 @@ function vToday() {
   const next = on('queue') ? S.queue.filter((q) => q.status === 'queued' && qInArea(q)).slice(0, 4) : [];
   const nextHTML = next.map((q) => {
     const p = q.printerId ? printerById(q.printerId) : null;
-    return `<div class="td-next">${thumbHTML(q.file)}<div style="min-width:0"><b>${esc(q.file?.name || '–')}</b>
+    return `<div class="td-next">${thumbHTML(q.file)}<div style="min-width:0"><b>${esc(q.part?.name || q.file?.name || '–')}</b>
       <div class="meta">${p ? esc(p.name) : t('passender Drucker')}${q.order ? ` · ${esc(q.order.nr)}` : ''} · ${fmtDur(q.file?.meta?.estimatedSec)}</div>
       ${q.waitReason ? `<div class="meta">⏳ ${esc(t(q.waitReason))}</div>` : ''}</div>
       <button class="b b-sm b-go" data-act="qStart" data-id="${q.id}" ${q.file?.printable && S.printers.some(printerReady) ? '' : 'disabled'}>${ICON.play}${t('Start')}</button></div>`;
@@ -123,7 +131,7 @@ function vToday() {
   const link = (view, label) => `<button class="td-link" data-view="${view}">${label} →</button>`;
 
   // Drucker: alle im Bereich, mit Ampel, Datei/Fortschritt bzw. Zustand
-  const prs = S.printers.filter(inAreaP);
+  const prs = (typeof sortPrinters === 'function' ? sortPrinters(S.printers) : S.printers).filter(inAreaP);
   const prHTML = prs.slice(0, 6).map((p) => {
     const v = pView(p);
     const st = p.status || {};
@@ -159,21 +167,19 @@ function vToday() {
     <div class="td-chart">${days.map((d) => `<div title="${d.n}"><i style="height:${Math.round((d.n / maxN) * 100)}%"></i>${d.bad ? `<i class="bad" style="height:${Math.round((d.bad / maxN) * 100)}%"></i>` : ''}<span>${esc(d.lbl)}</span></div>`).join('')}</div>`;
 
   const qCount = on('queue') ? S.queue.filter((q) => q.status === 'queued' && qInArea(q)).length : 0;
-  const row2 = [
-    on('queue') ? card('', t('Als Nächstes'), link('queue', t('Warteschlange')), `${nextHTML || `<div class="td-empty">${t('Nichts in der Warteschlange.')}</div>`}${more(qCount - next.length, 'queue')}`) : '',
-    on('filament') ? card('', t('Filament'), link('spools', t('Spulen')), `${filHTML || `<div class="td-empty">✓ ${t('Keine Spule wird knapp.')}</div>`}${more(low.length - 3, 'spools')}${mini ? `<div class="td-foot">${mini}</div>` : ''}`) : '',
-    soon.length ? card('', t('Termine diese Woche'), on('orders') ? link('orders', t('Aufträge')) : '', `<div class="td-dues">${soonHTML}</div>`) : '',
-    card('', t('Letzte 7 Tage'), on('stats') ? link('stats', t('Statistik')) : '', weekHTML),
-  ].filter(Boolean);
-  return `<div class="page-head"><h1>${TODAY_ICON}${t('Heute')}</h1><span class="meta">${esc(dateTxt)}</span></div>
+  // Kästen nach Schlüssel – Reihenfolge und Ausblenden über „Anordnen“ (layout-ui.js)
+  const cards = {
+    todo: card('td-todo', t('Zu tun'), items.length ? `<span class="td-n">${items.length}</span>` : '', items.length ? items.join('') : `<div class="td-empty td-allok">✓ ${t('Alles erledigt – nichts zu tun.')}</div>`),
+    printers: card('', t('Drucker#pl'), link('board', t('Übersicht')), `${prHTML || `<div class="td-empty">${t('Noch kein Drucker angelegt.')}</div>`}${more(prs.length - 6, 'board')}`),
+    next: on('queue') ? card('', t('Als Nächstes'), link('queue', t('Warteschlange')), `${nextHTML || `<div class="td-empty">${t('Nichts in der Warteschlange.')}</div>`}${more(qCount - next.length, 'queue')}`) : '',
+    filament: on('filament') ? card('', t('Filament'), link('spools', t('Spulen')), `${filHTML || `<div class="td-empty">✓ ${t('Keine Spule wird knapp.')}</div>`}${more(low.length - 3, 'spools')}${mini ? `<div class="td-foot">${mini}</div>` : ''}`) : '',
+    dues: soon.length || S.arrange === 'today' ? card('', t('Termine diese Woche'), on('orders') ? link('orders', t('Aufträge')) : '', soon.length ? `<div class="td-dues">${soonHTML}</div>` : `<div class="td-empty">${t('Keine Termine in den nächsten 7 Tagen.')}</div>`) : '',
+    week: card('', t('Letzte 7 Tage'), on('stats') ? link('stats', t('Statistik')) : '', weekHTML),
+  };
+  return `<div class="page-head"><h1>${TODAY_ICON}${t('Heute')}</h1><span class="meta">${esc(dateTxt)}</span>${arrangeBtnHTML('today')}</div>
     ${stripHTML()}
-    <div class="today">
-      <div class="td-row1">
-        ${card('td-todo', t('Zu tun'), items.length ? `<span class="td-n">${items.length}</span>` : '', items.length ? items.join('') : `<div class="td-empty td-allok">✓ ${t('Alles erledigt – nichts zu tun.')}</div>`)}
-        ${card('', t('Drucker#pl'), link('board', t('Übersicht')), `${prHTML || `<div class="td-empty">${t('Noch kein Drucker angelegt.')}</div>`}${more(prs.length - 6, 'board')}`)}
-      </div>
-      <div class="td-row2 n${row2.length}">${row2.join('')}</div>
-    </div>`;
+    ${arrangeBarHTML('today')}
+    <div class="today">${todayGridHTML(cards)}</div>`;
 }
 VIEW_FN.today = vToday;
 

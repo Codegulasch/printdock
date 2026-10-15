@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.20.0
+- **Parts with variants:** under *Files → Parts* a part is one model (e.g. "cable clip") with one sliced file per printer or printer type. Queue and orders schedule the part – it starts on the free printer that has a variant, so an order "20 × cable clip" spreads over X2D, U1 and Kobra at the same time. Each part shows which printers are covered and which are missing; per variant you can pin fixed printers instead of the model from the file. Existing files become one part each on update – nothing is lost
+- **Asked on upload:** after uploading, PrintDock asks which part the file belongs to (suggested from the name, e.g. "Kabelclip_X2D" → "Kabelclip") and for which printers (preselected by the printer model in the 3MF/G-code), optionally scheduling it right away. Files from the slicer and the inbox are assigned automatically: same name and printer = new version, same name and other printer = another variant
+- **Setup levels:** Hobby, Maker or Workshop in the setup wizard and under *Settings → General* – PrintDock shows only what you need, every feature can still be switched individually. **Discover more** lists what is off with one sentence on what it brings and *Switch on*; a small hint in the sidebar points there
+- **Arrange views:** *Arrange* on *Today* and *Printers* – drag boxes and printer cards or move them with arrows (also on phones), hide boxes on *Today*. For all devices or only this one; *Default* resets
+- Queue and *Today* show the part name; the queue column is now "Part / file"
+
+## 0.19.1
+- **Station: decide yourself where a spool goes.** After assigning or creating a spool at a storage/workbench station there are two equal ways: **Store** (with storage place, suggestions from existing places – also takes it out of a slot) or **Load into …** (free slots as buttons, or *Next slot*: the next slot that reports a fresh spool gets it)
+- Fix: after assigning a tag the spool no longer jumps to "waiting to be loaded" on its own. Only stations at a printer (or the button on the station / *Next slot*) arm a spool for loading
+- **New spool from the station:** *New spool* offers *Apply* for every connected station – takes the tag (and its data from OpenSpool/ACE tags) and the gross weight; with an empty spool weight PrintDock calculates the remaining amount. The tag is assigned to the new spool right away – also for filament you don't have in stock yet
+- *Today*: a blank or unknown tag on a station (or read with the phone) appears at the top of *To do* with *Assign …*
+
 ## 0.19.0
 - **Station page as a workbench:** each station shows its scale as a plate – empty, an unknown tag, or the spool with a remaining-amount ring. Header with module chips (NFC, scale, display, humidity), place, firmware and a gear to its settings
   - **Known spool on it:** remaining amount, last weighed, place and reservations; *Weight applied* with **undo** (10 minutes); **Load right away into …** with the free slots as buttons (or just load it – the next slot that reports a fresh spool still gets it); open spool, write tag, label, to storage

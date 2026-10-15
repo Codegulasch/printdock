@@ -24,7 +24,8 @@ Läuft komplett lokal – keine Cloud, kein Konto, keine Datenbank. Als **Home-A
 
 ### Produktion
 
-- **Dateibibliothek** für G-code und 3MF mit erkannter Druckzeit, Filament, Druckerprofil und Vorschaubild
+- **Teile mit Varianten**: ein Modell, eine geslicte Datei je Drucker – eingeplant wird das Teil, gedruckt auf dem freien Drucker mit passender Variante (auch über verschiedene Marken hinweg)
+- **Dateibibliothek** für G-code und 3MF mit erkannter Druckzeit, Filament, Druckerprofil und Vorschaubild; beim Hochladen fragt PrintDock, zu welchem Teil und welchen Druckern die Datei gehört
 - **Slicer-Anbindung**: aus OrcaSlicer, PrusaSlicer & Co. direkt senden, aus Bambu Studio über den Eingangsordner; Dateien per Klick im Slicer öffnen
 - **Druckart je Auftrag und Eintrag**: *Seriendruck (automatisch)*, *Seriendruck (manuell)* oder *Einzeldruck*
 - **Warteschlange** mit „Platte frei“-Bestätigung und **automatischer Druckerwahl** nach Profil und eingelegtem Filament
@@ -66,7 +67,8 @@ Läuft komplett lokal – keine Cloud, kein Konto, keine Datenbank. Als **Home-A
 - **Login-Schutz** immer oder nur von außen; **mehrere Benutzer** (Admin, Bediener) mit **Protokoll**
 - **Updates** per Klick (Add-on, Docker, Pi, PC), **tägliche Sicherung**, Umzug per Sicherungs-Zip
 - **Plattform-Check** zeigt, was auf der jeweiligen Installation funktioniert
-- **Einrichtungsassistent**, **jede Funktion abschaltbar**, **Menü frei anordnen** und Startseite wählen
+- **Ausbaustufen** Hobby, Maker, Werkstatt – PrintDock zeigt nur, was man braucht; abgeschaltete Funktionen stehen unter **„Mehr entdecken“**
+- **Einrichtungsassistent**, **jede Funktion abschaltbar**, **Menü, „Heute“ und Druckerkarten frei anordnen** und Startseite wählen
 - **Deutsch und Englisch**, Akzentfarbe, hell und dunkel, fürs Handy geeignet
 - **Demo-Daten** mit einem Klick: 5 simulierte Drucker, Dateien, Spulen, Aufträge und 30 Tage Verlauf
 
@@ -75,8 +77,8 @@ Läuft komplett lokal – keine Cloud, kein Konto, keine Datenbank. Als **Home-A
 | ![Heute](docs/screenshots/today.png) | ![Archiv](docs/screenshots/archive.png) |
 | **Station** | **Statistik** |
 | ![Station](docs/screenshots/station.png) | ![Statistik](docs/screenshots/stats.png) |
-| **Einrichtung** | |
-| ![Einrichtung](docs/screenshots/setup.png) | |
+| **Teile** | **Einrichtung** |
+| ![Teile](docs/screenshots/parts.png) | ![Einrichtung](docs/screenshots/setup.png) |
 
 **Neu hier?** → [Erste Schritte](docs/getting-started.md): in zehn Minuten vom ersten Start zum ersten Druck.
 
@@ -133,6 +135,12 @@ Die Farben sind fest und unabhängig von der gewählten Akzentfarbe. Neben jeder
 ## Oberfläche
 
 Seitenleiste mit allen Bereichen und Zählern für offene Punkte; unten Sprache (DE/EN), hell/dunkel und Abmelden. **Reihenfolge, ausgeblendete Menüpunkte und Startseite** lassen sich unter *Einstellungen → Allgemein → Menü* festlegen – für alle Geräte oder nur für dieses (z. B. das Handy). Abgeschaltete Funktionen (*Einstellungen → Allgemein → Funktionen*) verschwinden aus Menü und Druckerkarten, ihre Daten bleiben erhalten.
+
+**Ausbaustufen:** Im Einrichtungsassistenten und unter *Einstellungen → Allgemein* wählt man einen Startpunkt – **Hobby** (Übersicht, Teile & Dateien, Archiv, Filament, Kamera, Benachrichtigungen, Home Assistant), **Maker** (zusätzlich Warteschlange mit Auto-Start, Statistik, Wartungsplan) oder **Werkstatt** (zusätzlich Aufträge mit Kalkulation, Kunden-Links, Nachbearbeitung, Bereiche). Danach lässt sich jede Funktion einzeln schalten. Was aus ist, steht unter **„Mehr entdecken“** mit einem Satz, was es bringt, und *Einschalten*; unten in der Seitenleiste erinnert ein kleiner Hinweis daran.
+
+**Anordnen:** Auf *Heute* und *Drucker* öffnet **Anordnen** den Umstellmodus: Kästen bzw. Druckerkarten ziehen oder mit den Pfeilen verschieben (auch am Handy), Kästen auf *Heute* aus- und einblenden. Gilt für alle oder nur für dieses Gerät; *Standard* setzt zurück.
+
+**Teile mit Varianten:** Unter *Dateien → Teile* ist ein Teil ein Modell („Kabelclip“) mit einer geslicten Datei je Drucker bzw. Druckertyp. Warteschlange und Aufträge planen das Teil ein; gestartet wird auf dem freien Drucker, für den es eine Variante gibt – ein Auftrag „20 × Kabelclip“ verteilt sich so auf X2D, U1 und Kobra gleichzeitig. Beim Hochladen fragt PrintDock, zu welchem Teil die Datei gehört (Vorschlag nach dem Namen) und für welche Drucker sie ist (vorausgewählt nach dem Druckermodell in der Datei), auf Wunsch gleich mit Anzahl zum Einplanen. Dateien aus dem Slicer und dem Eingangsordner ordnet PrintDock selbst zu: gleicher Name und Drucker = neue Version, gleicher Name und anderer Drucker = weitere Variante. Je Variante lassen sich feste Drucker statt des Modells wählen.
 
 Jede Druckerkarte zeigt:
 
@@ -467,7 +475,9 @@ Alle Endpunkte unter `/api/`. Mit Login-Schutz per Sitzung oder API-Key (*Einste
 | POST | `/api/orders/:id/use-file` | Neue Dateiversion übernehmen `{from, to}` |
 | POST | `/api/history/:id/{fail,unfail,requeue,dismiss}` | Fehldruck werten, zurücknehmen, neu einreihen, „passt so“ |
 | GET / POST | `/api/files` | Bibliothek / hochladen (Rohdaten, Name im Header `X-Filename`) |
-| GET / POST | `/api/queue` | Warteschlange / einplanen `{fileId, printerId?, areaId?, count, mode?, options}` – `areaId` beschränkt die Druckerwahl auf einen Bereich |
+| POST | `/api/files/:id/assign` | Datei einem Teil zuordnen `{partId \| partName, targets: [printerId]}` (leere targets = nach Druckermodell) |
+| GET / POST / PUT / DELETE | `/api/parts`, `/api/parts/:id` | Teile mit Varianten und Abdeckung je Drucker / anlegen `{name}` / umbenennen / löschen (Dateien bleiben) |
+| GET / POST | `/api/queue` | Warteschlange / einplanen `{fileId \| partId, printerId?, areaId?, count, mode?, options}` – `partId` plant ein Teil ein (Variante je Drucker), `areaId` beschränkt die Druckerwahl auf einen Bereich |
 | PUT / DELETE | `/api/queue/:id` | Eintrag ändern / entfernen |
 | POST | `/api/queue/:id/{start,requeue,resolve,humcheck,dry-start,dry-cancel}` | Starten, neu einreihen, hängenden Eintrag abschließen `{result}`, Feuchte prüfen, erst trocknen |
 | POST | `/api/queue/reorder`, `/api/queue/clear-finished` | Sortieren / Erledigte entfernen |
