@@ -2162,6 +2162,7 @@
     'Hinzufügen': 'Add',
     'Noch keine Bereiche.': 'No areas yet.',
     'Bereiche gespeichert': 'Areas saved',
+    'Umslicen braucht die Funktion „Dateien“': 'Reslicing needs the “Files” feature',
     '„{p}“ für {pr} ist geslict – die Variante ist da': '“{p}” for {pr} is sliced – the variant is ready',
     'Umslicen fehlgeschlagen: {p} für {pr}': 'Reslicing failed: {p} for {pr}',
     'Wird gerade geslict': 'Being sliced right now',

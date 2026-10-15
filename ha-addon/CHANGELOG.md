@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.21.1
+- Fix: after switching on *Reslicing*, *Settings → Reslicing* stayed on "Loading …" (and *slice* was missing under *Parts*) until the page was reloaded. If the data can't be loaded, the page now says why and offers *Try again*
+
 ## 0.21.0
 - **Reslicing with OrcaSlicer** (new, optional – *Settings → General → Features* or *Discover more*): if a part lacks the variant for a printer, PrintDock has it sliced by a small helper on your PC. Under *Parts* every missing printer gets *slice*; the result becomes a new variant for exactly that printer, so queue and orders use it right away
   - **Learns your profiles:** when you upload a 3MF that belongs to a printer, PrintDock remembers its settings – printer, process and the filament per material (from Bambu Studio, Snapmaker Orca, Anycubic Slicer Next or OrcaSlicer). Taken from the source part: layer height, walls, infill, supports, brim, seam; everything else comes from the target printer's profile. Without a learned profile Orca's own default profiles are used

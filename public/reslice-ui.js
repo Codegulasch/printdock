@@ -17,7 +17,13 @@ const RS_RELEASES = 'https://github.com/Codegulasch/printdock/releases/latest/do
 
 loaders.reslice = async () => {
   const before = S.rs;
-  S.rs = on('reslice') && on('files') ? await api('reslice') : null;
+  try {
+    S.rs = on('reslice') && on('files') ? await api('reslice') : null;
+    S.rsErr = on('reslice') && !on('files') ? 'Umslicen braucht die Funktion „Dateien“' : null;
+  } catch (err) {
+    S.rsErr = err.message;
+    throw err;
+  }
   // fertig / fehlgeschlagen: kurz Bescheid geben
   if (before?.jobs && S.rs?.jobs) {
     for (const j of S.rs.jobs) {
@@ -29,6 +35,16 @@ loaders.reslice = async () => {
   }
   return S.rs;
 };
+
+// Modul gerade eingeschaltet (oder aus): Daten nachladen – sonst bliebe die Seite bei „Lade …“ stehen
+{
+  const appLoader = loaders.app;
+  loaders.app = async () => {
+    const r = await appLoader();
+    if (on('reslice') && on('files') ? !S.rs : S.rs) reload('reslice');
+    return r;
+  };
+}
 
 const rsOpenJob = (partId, printerId) => (S.rs?.jobs || []).find((j) => j.partId === partId && j.printerId === printerId && ['queued', 'running', 'failed'].includes(j.status));
 const rsOnline = () => Boolean(S.rs?.helper?.online);
@@ -166,7 +182,13 @@ function resliceTodoHTML() {
 
 function vReslice() {
   const R = S.rs;
-  if (!R) return `<div class="page-head"><h1>${t('Umslicen')}</h1></div><div class="empty">${t('Lade …')}</div>`;
+  if (!R) {
+    if (!S.rsErr && !S.rsLoading) {
+      S.rsLoading = true;
+      loaders.reslice().catch(() => {}).finally(() => { S.rsLoading = false; render(); });
+    }
+    return `<div class="page-head"><h1>${t('Umslicen')}</h1></div><div class="empty">${S.rsErr ? `${esc(t(S.rsErr))} <button class="b b-sm" data-rs="reload">${t('Nochmal versuchen')}</button>` : t('Lade …')}</div>`;
+  }
   const h = R.helper;
   const addr = S.app?.directUrl || location.origin;
   const status = h
@@ -211,6 +233,7 @@ document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-rs]');
   if (!b) return;
   const act = b.dataset.rs;
+  if (act === 'reload') { S.rsErr = null; return render(); }
   if (act === 'open') return resliceDialog(b.dataset.part, b.dataset.printer);
   if (act === 'job') return resliceJobDialog(b.dataset.id);
   if (act === 'dismiss') {
