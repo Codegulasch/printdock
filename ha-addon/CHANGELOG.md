@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.21.0
+- **Reslicing with OrcaSlicer** (new, optional – *Settings → General → Features* or *Discover more*): if a part lacks the variant for a printer, PrintDock has it sliced by a small helper on your PC. Under *Parts* every missing printer gets *slice*; the result becomes a new variant for exactly that printer, so queue and orders use it right away
+  - **Learns your profiles:** when you upload a 3MF that belongs to a printer, PrintDock remembers its settings – printer, process and the filament per material (from Bambu Studio, Snapmaker Orca, Anycubic Slicer Next or OrcaSlicer). Taken from the source part: layer height, walls, infill, supports, brim, seam; everything else comes from the target printer's profile. Without a learned profile Orca's own default profiles are used
+  - **Three attempts:** learned profile → learned profile with Orca's printer profile → Orca default profiles; clear messages when a part is too big for the bed, has too many colors or OrcaSlicer is too old, with the OrcaSlicer output for details
+  - **Colors:** for multi-color parts a short dialog asks for the material per color; the slot is chosen at start as usual
+  - **Helper:** program for Windows, macOS and Linux (or the script with Node.js) – finds OrcaSlicer and its profiles itself, paired once with a code like the station. Jobs wait while the PC is off
+  - *Today*: if a printer is free and a scheduled part has no variant for it, PrintDock suggests slicing one
+- *Settings → Reslicing*: helper status, download and pairing, learned profiles per printer (forget), recent jobs with retry
+
+## 0.20.1
+- Fix: printers can now be assigned to areas – an *Area* column right in the printer list under *Settings → Printers & filament*, and the area field moved to the top of the printer dialog. The area switch above the printers has *⚙ Areas …* to create and rename areas
+- The side menu in *Settings* stays in place instead of scrolling along
+- Sidebar footer: version and GitHub link only
+
 ## 0.20.0
 - **Parts with variants:** under *Files → Parts* a part is one model (e.g. "cable clip") with one sliced file per printer or printer type. Queue and orders schedule the part – it starts on the free printer that has a variant, so an order "20 × cable clip" spreads over X2D, U1 and Kobra at the same time. Each part shows which printers are covered and which are missing; per variant you can pin fixed printers instead of the model from the file. Existing files become one part each on update – nothing is lost
 - **Asked on upload:** after uploading, PrintDock asks which part the file belongs to (suggested from the name, e.g. "Kabelclip_X2D" → "Kabelclip") and for which printers (preselected by the printer model in the 3MF/G-code), optionally scheduling it right away. Files from the slicer and the inbox are assigned automatically: same name and printer = new version, same name and other printer = another variant

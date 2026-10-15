@@ -26,6 +26,7 @@ Fully local – no cloud, no account, no database. Runs as a **Home Assistant ad
 
 - **Parts with variants**: one model, one sliced file per printer – schedule the part, it prints on the free printer with a matching variant (across brands)
 - **File library** for G-code and 3MF with detected print time, filament, printer profile and preview; on upload PrintDock asks which part and which printers the file belongs to
+- **Reslicing** (optional): if a part lacks the variant for a printer, a small helper on your PC slices it with OrcaSlicer – using the settings PrintDock learned per printer from your 3MF uploads
 - **Slicer integration**: send from OrcaSlicer, PrusaSlicer & co., from Bambu Studio via the inbox folder; open files in your slicer
 - **Print mode per order and entry**: *series print (automatic)*, *series print (manual)* or *single print*
 - **Print queue** with *"plate is clear"* confirmation and **automatic printer choice** by profile and loaded filament

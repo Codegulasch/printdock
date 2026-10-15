@@ -148,8 +148,15 @@ function areaSwitchHTML() {
   const a = curArea();
   const chip = (id, label) => `<button class="chip" data-area="${esc(id)}" aria-pressed="${a === id}">${esc(label)}</button>`;
   const none = S.printers.some((p) => !areas().some((x) => x.id === p.settings?.area));
-  return `<div class="area-switch"><span class="meta">${t('Bereich')}</span>${chip('', t('Alle'))}${areas().map((x) => chip(x.id, x.name)).join('')}${none ? chip('-', t('Ohne Bereich')) : ''}</div>`;
+  return `<div class="area-switch"><span class="meta">${t('Bereich')}</span>${chip('', t('Alle'))}${areas().map((x) => chip(x.id, x.name)).join('')}${none ? chip('-', t('Ohne Bereich')) : ''}<button class="chip" data-areas-edit title="${esc(t('Bereiche anlegen und Drucker zuordnen'))}">⚙ ${t('Bereiche …')}</button></div>`;
 }
+// Bereich direkt in der Druckerliste ändern
+document.addEventListener('change', async (e) => {
+  const sel = e.target.closest('[data-parea]');
+  if (!sel) return;
+  const r = await run(() => api(`printers/${sel.dataset.parea}/area`, { method: 'PUT', body: { area: sel.value } }), t('Bereich gespeichert'));
+  if (r) reload('printers');
+});
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-area]');
   if (!b) return;
@@ -391,8 +398,7 @@ const GH_ICON = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"
 function creditHTML() {
   const v = S.app?.version;
   const off = typeof MODULE_INFO !== 'undefined' ? MODULE_INFO.filter(([k]) => S.app?.modules?.[k] === false && k !== 'demo').length : 0;
-  return `${off ? `<button class="side-disc" data-view="general" data-anchor-to="discover">✨ ${t('{n} weitere Funktionen entdecken', { n: off })}</button>` : ''}<div class="r"><b>PrintDock${v ? ` ${esc(v)}` : ''}</b>${S.app?.update ? `<button class="upd" data-view="system" title="${esc(t('Update verfügbar'))}">${t('neu: {v}', { v: esc(S.app.update) })}</button>` : ''}</div>
-    <div class="r">${t('von')}&nbsp;<a href="https://github.com/Codegulasch" target="_blank" rel="noopener">Codegulasch</a><a class="gh" href="https://github.com/Codegulasch/printdock" target="_blank" rel="noopener">${GH_ICON}GitHub</a></div>`;
+  return `${off ? `<button class="side-disc" data-view="general" data-anchor-to="discover">✨ ${t('{n} weitere Funktionen entdecken', { n: off })}</button>` : ''}<div class="r"><b>PrintDock${v ? ` ${esc(v)}` : ''}</b>${S.app?.update ? `<button class="upd" data-view="system" title="${esc(t('Update verfügbar'))}">${t('neu: {v}', { v: esc(S.app.update) })}</button>` : ''}<a class="gh" href="https://github.com/Codegulasch/printdock" target="_blank" rel="noopener">${GH_ICON}GitHub</a></div>`;
 }
 
 function renderHead() {
@@ -1233,6 +1239,7 @@ function vPrinters() {
       <span class="meta">${esc(v.lamp)}</span>
       <span class="meta num">${on('maintenance') ? `${fnum(st?.hours, 1)} h` : ''}</span>
       <span class="meta">${on('homeassistant') && p.settings?.powerEntity ? t('Steckdose') : ''}</span>
+      <span class="pr-area">${areas().length ? `<select class="in" data-parea="${p.id}" aria-label="${esc(t('Bereich von {n}', { n: p.name }))}"><option value="">${t('Ohne Bereich')}</option>${areas().map((a) => `<option value="${esc(a.id)}" ${p.settings?.area === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : ''}</span>
       <span class="pr-edit">${ICON.edit}</span></div>`;
   }).join('');
   return `<div class="page-head"><h1>${NAV_ICON.gear}${t('Drucker#pl')}</h1><span class="grow"></span><button class="b b-sm b-go" data-act="editPrinter">${ICON.plus}${t('Drucker hinzufügen')}</button></div>
@@ -1247,6 +1254,7 @@ function printerDialog(p = null) {
   const d = openDialog(`<form class="dlg" method="dialog">
     <h2>${p ? t('{n} einstellen', { n: esc(p.name) }) : t('Drucker hinzufügen')}</h2>
     <label>${t('Name')}<input name="name" required value="${esc(p?.name || '')}" placeholder="${esc(t('z. B. Bambu X2D Werkstatt'))}" autocomplete="off"></label>
+    ${areas().length ? `<label>${t('Bereich')}<select name="area"><option value="">${t('Ohne Bereich')}</option>${areas().map((a) => `<option value="${esc(a.id)}" ${p?.settings?.area === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>` : ''}
     <label>${t('Anbindung')}<select name="driver">${S.drivers.map((x) => `<option value="${x.id}" ${x.id === p?.driver ? 'selected' : ''}>${esc(t(x.label))}</option>`).join('')}</select></label>
     <p class="hint" data-hint></p>
     <div data-fields style="display:contents"></div>
@@ -1254,7 +1262,6 @@ function printerDialog(p = null) {
       <label>${t('Druckermodell')}<input name="model" list="models" value="${esc(p?.settings?.model || '')}" placeholder="${esc(t('z. B. Snapmaker U1'))}"></label>
       <datalist id="models">${models.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>
       <p class="hint" style="margin-top:-4px">${t('Damit nicht zugewiesene Drucke nur auf passenden Druckern landen. Steht so im Slicer (z. B. „Bambu Lab X2D“).')}</p>
-      ${areas().length ? `<label>${t('Bereich')}<select name="area"><option value="">${t('Ohne Bereich')}</option>${areas().map((a) => `<option value="${esc(a.id)}" ${p?.settings?.area === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>` : ''}
       <label ${on('maintenance') ? '' : 'hidden'}>${t('Betriebsstunden vor PrintDock')}<input name="hoursOffset" type="number" min="0" step="0.1" value="${esc(p?.settings?.hoursOffset || 0)}"></label>
       <label ${on('filament') ? '' : 'hidden'}>${t('Filament-Plätze')}<input name="slots" value="${esc(p?.settings?.slots || '')}" placeholder="${esc(t('z. B. ACE 1, ACE 2, ACE 3, ACE 4'))}"></label>
       <p class="hint" style="margin-top:-4px" ${on('filament') ? '' : 'hidden'}>${t('Nur nötig, wenn der Drucker seine Plätze nicht selbst meldet (Bambu-AMS meldet sie). Leer = ein Platz je Düse.')}</p>
@@ -1581,6 +1588,7 @@ document.addEventListener('click', async (e) => {
     await api('logout', { method: 'POST' }).catch(() => {});
     return location.reload();
   }
+  if (e.target.closest('[data-parea]')) return; // Bereich in der Druckerliste
   const el = e.target.closest('[data-act]');
   if (!el || el.disabled) return;
   const { act, id } = el.dataset;
@@ -1745,6 +1753,7 @@ function connect() {
   es.addEventListener('printers', () => reload('printers', 'summary'));
   es.addEventListener('production', () => reload('summary', 'queue', 'orders', 'maint', 'reserve'));
   es.addEventListener('files', () => reload('files'));
+  es.addEventListener('reslice', () => reload('reslice'));
   es.addEventListener('channels', () => reload('channels'));
   es.addEventListener('settings', () => reload('settings'));
   es.addEventListener('filament', () => reload('filament', 'summary', 'reserve'));

@@ -41,7 +41,8 @@ function vWorkshop() {
   if (on('filament')) parts.push(['ws-fil', t('Filament')], ['ws-hum', t('Feuchte & Trocknen')]);
   parts.push(['ws-costs', t('Kosten & nach dem Druck')]);
   const jump = `<div class="set-jump">${parts.map(([id, l]) => `<button class="chip" data-anchor="${id}">${esc(l)}</button>`).join('')}</div>`;
-  const printers = setSection('ws-printers', t('Drucker#pl'), noHead(VIEW_FN.printers()), `<button class="b b-sm" data-areas-edit>${t('Bereiche …')}</button><button class="b b-sm b-go" data-act="editPrinter">${ICON.plus}${t('Drucker hinzufügen')}</button>`);
+  const areaHint = !areas().length && S.printers.length > 1 ? `<p class="meta">${t('Mehrere Räume oder eine Printfarm? Mit „Bereiche …“ anlegen – danach steht in jeder Zeile eine Auswahl für den Bereich.')}</p>` : '';
+  const printers = setSection('ws-printers', t('Drucker#pl'), noHead(VIEW_FN.printers()) + areaHint, `<button class="b b-sm" data-areas-edit>${t('Bereiche …')}</button><button class="b b-sm b-go" data-act="editPrinter">${ICON.plus}${t('Drucker hinzufügen')}</button>`);
   const start = setSection('ws-start', t('Druckstart'), `<div class="sbox">
       ${lrow(t('Druckplatte abfragen'), t('Vor jedem Start aus Warteschlange oder Auftrag bestätigen, dass die Platte geräumt ist.'), `<label class="tgl"><input type="checkbox" data-g-plate ${a.plateCheck ? 'checked' : ''}><span class="sw"></span></label>`)}
       ${on('queue') ? lrow(t('Standard-Druckart'), t('Für neue Einträge in der Warteschlange und neue Aufträge – an jedem Auftrag und Eintrag änderbar. Serie · auto: startet nach „Platte frei“ von selbst. Serie · manuell: jeder Start per Knopf. Einzeldruck: immer nur ein Druck.'), `<select class="in" data-g-pmode>${PMODES.map((m) => `<option value="${m}" ${pmodeOf(a.printMode) === m ? 'selected' : ''}>${t(PMODE_LABEL[m])}</option>`).join('')}</select>`) : ''}
@@ -90,7 +91,7 @@ function areasDialog() {
   let list = (S.app?.areas || []).map((a) => ({ ...a }));
   const count = (id) => S.printers.filter((p) => p.settings?.area === id).length;
   const d = openDialog(`<form class="dlg" method="dialog"><h2>${t('Bereiche')}</h2>
-    <p class="hint" style="margin:0">${t('Drucker lassen sich Bereichen zuordnen – z. B. Printfarm 1, Werkstatt, Keller. Die Druckerseite gruppiert danach, oben lässt sich ein Bereich auswählen, und Aufträge bzw. Einträge können auf „passender Drucker im Bereich“ zeigen. Zuordnen: beim Drucker unter „Bereich“.')}</p>
+    <p class="hint" style="margin:0">${t('Drucker lassen sich Bereichen zuordnen – z. B. Printfarm 1, Werkstatt, Keller. Die Druckerseite gruppiert danach, oben lässt sich ein Bereich auswählen, und Aufträge bzw. Einträge können auf „passender Drucker im Bereich“ zeigen. Zuordnen: nach dem Speichern in der Druckerliste (Spalte Bereich) oder beim Drucker.')}</p>
     <div data-alist></div>
     <div class="two"><input class="in" data-anew placeholder="${esc(t('Neuer Bereich, z. B. Printfarm 1'))}" maxlength="40"><button class="b b-sm" type="button" data-aadd>${ICON.plus}${t('Hinzufügen')}</button></div>
     <div class="form-error" hidden></div>

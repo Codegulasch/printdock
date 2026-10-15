@@ -131,6 +131,10 @@ const production = new Production({
   },
 });
 
+// Umslicen mit OrcaSlicer (Helfer auf dem PC)
+const reslice = require('./lib/reslice');
+reslice.init({ printers: () => printerConfigs, modelOf: (p) => production.modelOf(p), moduleOn: (m) => app.moduleOn(m), broadcast, lang: () => app.lang });
+
 // Teile: vorhandene Dateien beim ersten Start mit dieser Version je einem Teil zuordnen
 try { require('./lib/parts').migrate(); } catch (err) { console.warn(`Teile: ${err.message}`); }
 
@@ -699,6 +703,7 @@ const OPERATOR_WRITES = [
   /^history\/[^/]+\/(fail|unfail|requeue|dismiss)$/, /^archive\/[^/]+\/(assign|reprint)$/,
   /^orders\/[^/]+\/(plan|post|mode)$/, /^labels\/printed$/,
   /^spools\/[^/]+\/(weigh|book|dried)$/, /^filament\/(assign|from-slot|ignore|disarm|dry)$/,
+  /^reslice\/jobs(\/[^/]+(\/retry)?)?$/, /^reslice\/dismiss$/,
   /^rfid(\/.*)?$/, /^stations\/[^/]+\/(weigh|tare|identify|write)$/,
   /^filament\/shop\/order(\/[^/]+\/arrived)?$/,
 ];
@@ -1209,6 +1214,22 @@ async function handleApi(req, res, url) {
 
   // ---- Dateien
   // ---- Teile (Modell mit Varianten je Drucker)
+  // ---- Umslicen (OrcaSlicer über den Helfer)
+  if (resource === 'reslice') {
+    if (!id && req.method === 'GET') { const v = reslice.view(); if (me.role === 'operator') delete v.token; return sendJson(res, 200, v); }
+    if (id === 'token' && req.method === 'POST') { if (me.role === 'operator') throw httpError(403, 'Nur für Admins'); reslice.newToken(); return sendJson(res, 200, reslice.view()); }
+    if (id === 'plan' && req.method === 'GET') return sendJson(res, 200, await reslice.plan(url.searchParams.get('part'), url.searchParams.get('printer')));
+    if (id === 'dismiss' && req.method === 'POST') { const b = await readBody(req); reslice.dismiss(b.partId, b.printerId); return sendJson(res, 200, { ok: true }); }
+    if (id === 'profiles' && action && req.method === 'DELETE') { reslice.removeProfile(action); return sendJson(res, 200, reslice.view()); }
+    if (id === 'jobs' && !action && req.method === 'POST') return sendJson(res, 201, await reslice.createJob({ ...(await readBody(req)), by: me.name || null }));
+    if (id === 'jobs' && action && req.method === 'DELETE') { reslice.removeJob(action); return sendJson(res, 200, { ok: true }); }
+    if (id === 'jobs' && action && parts[4] === 'retry' && req.method === 'POST') return sendJson(res, 200, reslice.retryJob(action));
+    if (id === 'helper.js' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Content-Disposition': 'attachment; filename="printdock-slicer.js"' });
+      return fs.createReadStream(path.join(__dirname, 'helper', 'printdock-slicer.js')).pipe(res);
+    }
+  }
+
   if (resource === 'parts') {
     const parts = require('./lib/parts');
     const prs = () => printerConfigs.map((p) => ({ id: p.id, name: p.name, model: production.modelOf(p) }));
@@ -1243,6 +1264,7 @@ async function handleApi(req, res, url) {
       const part = require('./lib/parts').assignFile(id, { partId: b.partId, partName: b.partName, targets: Array.isArray(b.targets) ? b.targets.filter((x) => valid.has(x)) : undefined });
       broadcast('files', null);
       broadcast('production', null);
+      reslice.learn(id).catch((err) => console.warn(`Profil lernen: ${err.message}`));
       return sendJson(res, 200, { file: files.get(id), part });
     }
     if (!action && req.method === 'PATCH') {
@@ -1474,6 +1496,16 @@ async function handleApi(req, res, url) {
       return res.end(JSON.stringify(data, null, 2));
     }
 
+    if (action === 'area' && req.method === 'PUT') {
+      const cfg = printerConfigs.find((x) => x.id === id);
+      if (!cfg) throw httpError(404, 'Drucker nicht gefunden');
+      const area = String((await readBody(req)).area || '').replace(/[^\w-]/g, '').slice(0, 40);
+      if (area && !(app.areas || []).some((a) => a.id === area)) throw httpError(400, 'Bereich nicht gefunden');
+      cfg.settings = { ...(cfg.settings || {}), area };
+      savePrinters();
+      broadcast('printers', null);
+      return sendJson(res, 200, { ok: true, area });
+    }
     if (action === 'plate-clear' && req.method === 'POST') {
       production.setPlateClear(id, true);
       return sendJson(res, 200, { ok: true });
@@ -1511,6 +1543,8 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
     if (url.pathname.startsWith('/slicer') && (await slicer.handleOctoPrint(req, res, url, production))) return;
+    // Umslice-Helfer auf dem PC (eigener Kopplungscode, keine Anmeldung)
+    if (url.pathname.startsWith('/helper/') && (await reslice.handleHelper(req, res, url))) return;
     // „Gerät“-Ansicht im Slicer (OrcaSlicer zeigt die Host-Adresse als Webseite): zur Oberfläche weiterleiten
     if (/^\/slicer(\/[^/]+)?\/?$/.test(url.pathname) && req.method === 'GET') {
       res.writeHead(302, { Location: '/' });

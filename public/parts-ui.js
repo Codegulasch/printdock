@@ -26,7 +26,7 @@ function vParts() {
   const q = S.ptSearch.trim().toLowerCase();
   const list = (S.parts || []).filter((p) => !q || p.name.toLowerCase().includes(q) || p.variants.some((v) => v.name.toLowerCase().includes(q)));
   const cards = list.map((p) => {
-    const cover = p.cover.map((c) => `<span class="pt-cov ${c.fileId ? 'ok' : ''}" title="${esc(c.fileId ? t('Variante vorhanden') : t('Keine Variante für diesen Drucker'))}">${c.fileId ? '✓' : '–'} ${esc(c.name)}</span>`).join('');
+    const cover = p.cover.map((c) => (typeof rsCoverHTML === 'function' && rsCoverHTML(p, c)) || `<span class="pt-cov ${c.fileId ? 'ok' : ''}" title="${esc(c.fileId ? t('Variante vorhanden') : t('Keine Variante für diesen Drucker'))}">${c.fileId ? '✓' : '–'} ${esc(c.name)}</span>`).join('');
     const vars = p.variants.map((v) => {
       const who = v.targets.length ? t('nur {p}', { p: v.targets.map((id) => esc(printerById(id)?.name || '?')).join(', ') }) : v.meta.printerModel ? t('für {m}', { m: esc(v.meta.printerModel) }) : t('Drucker unbekannt');
       return `<div class="pt-var"><div class="pt-vt"><span class="pt-vn" title="${esc(v.name)}">${esc(v.name)}</span><span class="meta">${who}${v.meta.estimatedSec ? ` · ${fmtDur(v.meta.estimatedSec)}` : ''}${v.meta.filamentG ? ` · ${fnum(v.meta.filamentG, 0)} g` : ''}${v.printable ? '' : ` · ${t('nicht gesliced')}`}</span></div>

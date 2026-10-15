@@ -26,6 +26,7 @@ Läuft komplett lokal – keine Cloud, kein Konto, keine Datenbank. Als **Home-A
 
 - **Teile mit Varianten**: ein Modell, eine geslicte Datei je Drucker – eingeplant wird das Teil, gedruckt auf dem freien Drucker mit passender Variante (auch über verschiedene Marken hinweg)
 - **Dateibibliothek** für G-code und 3MF mit erkannter Druckzeit, Filament, Druckerprofil und Vorschaubild; beim Hochladen fragt PrintDock, zu welchem Teil und welchen Druckern die Datei gehört
+- **Umslicen** (optional): fehlt einem Teil die Variante für einen Drucker, slict ein kleiner Helfer auf dem PC sie mit OrcaSlicer – mit den Einstellungen, die PrintDock aus deinen 3MF-Uploads je Drucker gelernt hat
 - **Slicer-Anbindung**: aus OrcaSlicer, PrusaSlicer & Co. direkt senden, aus Bambu Studio über den Eingangsordner; Dateien per Klick im Slicer öffnen
 - **Druckart je Auftrag und Eintrag**: *Seriendruck (automatisch)*, *Seriendruck (manuell)* oder *Einzeldruck*
 - **Warteschlange** mit „Platte frei“-Bestätigung und **automatischer Druckerwahl** nach Profil und eingelegtem Filament

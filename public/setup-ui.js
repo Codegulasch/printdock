@@ -14,6 +14,7 @@ const MODULE_INFO = [
   ['notifications', 'Benachrichtigungen', 'Meldungen per Home Assistant, ntfy, Telegram, Discord, Gotify oder Webhook – auf Wunsch mit Kamerabild.'],
   ['homeassistant', 'Home Assistant', 'Drucker über Steckdosen schalten und PrintDock in Home Assistant anzeigen.'],
   ['slicer', 'Slicer-Anbindung', 'Aus OrcaSlicer & Co. direkt an PrintDock senden.'],
+  ['reslice', 'Umslicen', 'Fehlt einem Teil die Variante für einen Drucker, slict ein kleiner Helfer auf deinem PC sie mit OrcaSlicer – mit den Einstellungen, die PrintDock aus deinen Uploads gelernt hat.', ['files']],
   ['demo', 'Demo-Daten', 'Simulierte Drucker zum Ausprobieren.'],
 ];
 /** Ausbaustufen: Startpunkt je nach Nutzer – danach jede Funktion einzeln schaltbar */
@@ -23,11 +24,12 @@ const TIERS = [
   ['maker', 'Maker', 'Mehrere Drucker und Serien: zusätzlich Warteschlange mit Auto-Start, Statistik und Wartungsplan.',
     { queue: true, orders: false, files: true, filament: true, maintenance: true, history: true, stats: true, camera: true, notifications: true, homeassistant: true, slicer: true }],
   ['shop', 'Werkstatt', 'Kleine Firma oder Printfarm: zusätzlich Aufträge mit Kalkulation, Kunden-Links, Nachbearbeitung und Bereichen.',
-    { queue: true, orders: true, files: true, filament: true, maintenance: true, history: true, stats: true, camera: true, notifications: true, homeassistant: true, slicer: true }],
+    { queue: true, orders: true, files: true, filament: true, maintenance: true, history: true, stats: true, camera: true, notifications: true, homeassistant: true, slicer: true, reslice: true }],
 ];
 /** Welche Ausbaustufe passt zu den eingeschalteten Funktionen? sonst 'custom' */
 function tierOf(mods = {}) {
-  const hit = TIERS.find(([, , , m]) => Object.entries(m).every(([k, v]) => (mods[k] !== false) === v));
+  // Umslicen ist ein Zusatz: zählt nicht für die Erkennung der Stufe (an oder aus passt beides)
+  const hit = TIERS.find(([, , , m]) => Object.entries(m).every(([k, v]) => k === 'reslice' || (mods[k] !== false) === v));
   return hit ? hit[0] : 'custom';
 }
 function tierPicker(mods, attr) {
@@ -279,7 +281,7 @@ const srow = (label, hint, control) => `<div class="srow"><div class="sl"><b>${l
 
 /** Gruppen für die Funktionsliste unter Allgemein */
 const MODULE_GROUPS = [
-  ['Produktion', ['queue', 'orders', 'files']],
+  ['Produktion', ['queue', 'orders', 'files', 'reslice']],
   ['Material und Wartung', ['filament', 'maintenance']],
   ['Auswertung', ['history', 'stats']],
   ['Anbindungen', ['camera', 'notifications', 'homeassistant', 'slicer']],
