@@ -1,0 +1,48 @@
+blueprint:
+  name: "PrintDock: Licht an, wenn ein Druck fertig ist"
+  description: >
+    Schaltet ein Licht ein (z. B. in der Werkstatt oder ein Signallicht), sobald ein Drucker fertig ist,
+    und wieder aus, wenn die Platte als frei bestätigt wurde.
+  domain: automation
+  source_url: https://github.com/Codegulasch/printdock/blob/main/blueprints/printdock-light-finished.yaml
+  input:
+    plate_sensor:
+      name: Platte räumen
+      description: binary_sensor „… Platte räumen“ des Druckers
+      selector:
+        entity:
+          filter: [{ domain: binary_sensor, integration: mqtt }]
+    light:
+      name: Licht
+      selector:
+        target:
+          entity: [{ domain: [light, switch] }]
+    turn_off:
+      name: Wieder ausschalten, wenn die Platte frei ist
+      default: true
+      selector: { boolean: {} }
+mode: restart
+trigger:
+  - platform: state
+    entity_id: !input plate_sensor
+    to: "on"
+    id: done
+  - platform: state
+    entity_id: !input plate_sensor
+    from: "on"
+    to: "off"
+    id: cleared
+action:
+  - choose:
+      - conditions: [{ condition: trigger, id: done }]
+        sequence:
+          - service: homeassistant.turn_on
+            target: !input light
+      - conditions:
+          - condition: trigger
+            id: cleared
+          - condition: template
+            value_template: !input turn_off
+        sequence:
+          - service: homeassistant.turn_off
+            target: !input light

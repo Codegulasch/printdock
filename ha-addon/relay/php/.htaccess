@@ -1,0 +1,20 @@
+# Schöne Links: /status/s/<code> statt /status/index.php?r=/s/<code>
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Authorization-Kopfzeile an PHP weiterreichen (bei CGI/FPM sonst verschluckt)
+  RewriteCond %{HTTP:Authorization} .
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^ index.php [QSA,L]
+</IfModule>
+# Konfiguration und Daten nicht ausliefern
+<FilesMatch "^(config\.php|config\.sample\.php)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+Options -Indexes

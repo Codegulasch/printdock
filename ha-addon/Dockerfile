@@ -1,15 +1,28 @@
-# PrintDock als Home-Assistant-Add-on
-# Wird von der GitHub-Action für amd64, aarch64 und armv7 gebaut (BUILD_FROM je Architektur).
-# Lokal bauen: vorher "npm run ha-addon" ausführen (füllt ha-addon/app).
-ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:latest
-FROM ${BUILD_FROM}
+# PrintDock – Docker-Image für NAS, Raspberry Pi und Server
+# Läuft auf amd64, arm64 (Pi 4/5, aktuelle NAS) und armv7 (Pi 2/3 mit 32-Bit-System).
+FROM node:22-alpine
+
+# ffmpeg für RTSP-Kameras (Bambu X1, H2D, X2D), tzdata für die Uhrzeit in Meldungen
 # samba-client: Speicherort auf einer SMB-Freigabe (NAS) ohne Einhängen
-RUN apk add --no-cache nodejs npm ffmpeg tzdata samba-client
+RUN apk add --no-cache ffmpeg tzdata samba-client
+
 WORKDIR /app
-COPY app/ /app/
+COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
-# S6_KEEP_ENV: s6-overlay startet sonst mit leerer Umgebung – ohne DATA_DIR und SUPERVISOR_TOKEN
-# landeten die Daten im Container und wären nach jedem Update weg.
-ENV NODE_ENV=production DATA_DIR=/data PORT=3080 S6_KEEP_ENV=1
-LABEL io.hass.type="addon" io.hass.name="PrintDock"
-CMD ["node", "server.js"]
+COPY server.js camera.js notify.js launcher.js ./
+COPY drivers ./drivers
+COPY lib ./lib
+COPY public ./public
+COPY dist ./dist
+COPY blueprints ./blueprints
+COPY helper ./helper
+
+ENV NODE_ENV=production PORT=3080 DATA_DIR=/data PRINTDOCK_RESTART=exit
+VOLUME /data
+EXPOSE 3080
+
+HEALTHCHECK --interval=60s --timeout=5s --start-period=20s \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3080)+'/api/app').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+# launcher.js: startet eine in PrintDock installierte neuere Version aus /data/app, sonst die des Images
+CMD ["node", "launcher.js"]
