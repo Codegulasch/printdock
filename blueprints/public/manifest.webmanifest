@@ -1,0 +1,9 @@
+{
+  "name": "PrintDock",
+  "short_name": "PrintDock",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#e6e9ed",
+  "theme_color": "#3F5BD8",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
