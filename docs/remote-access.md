@@ -1,112 +1,91 @@
-# Fernzugriff · Remote access
+# Remote access
 
-*English below.*
+*English · [Deutsch](remote-access.de.md)*
 
-PrintDock ist fürs Heimnetz gebaut. Für den Zugriff von unterwegs gibt es drei sichere Wege – **niemals** einfach Port 3080 am Router freigeben.
+PrintDock is built for your home network. For access on the go there are three safe options – **never** just forward port 3080 on your router.
 
-| Weg | Für wen | Öffentlich erreichbar? | Login-Schutz nötig? |
+> PrintDock is in **public beta** – please report problems via [GitHub issues](https://github.com/Codegulasch/printdock/issues/new/choose).
+
+| Option | For | Publicly reachable? | Login protection needed? |
 |---|---|---|---|
-| **Tailscale** (VPN) | Nur du und deine Geräte | Nein | Empfohlen |
-| **Cloudflare Tunnel** | Eigene Adresse mit HTTPS, z. B. für Kollegen | Ja | **Pflicht** |
-| **Home Assistant** (Add-on) | Wer Home Assistant schon von außen nutzt | über HA | nein (HA-Login) |
+| **Tailscale** (VPN) | You and your devices only | No | Recommended |
+| **Cloudflare Tunnel** | Your own address with HTTPS, e.g. for colleagues | Yes | **Required** |
+| **Home Assistant** (add-on) | If you already use Home Assistant remotely | via HA | No (HA login) |
 
-Zuerst die Einrichtung in PrintDock abschließen (der Assistent ist ohne Login erreichbar, solange er nicht abgeschlossen ist).
+Finish the setup wizard in PrintDock first (it is reachable without login until it is completed).
 
-## Am einfachsten: direkt in PrintDock (ab 0.15)
+## Easiest: right in PrintDock (0.15+)
 
-**Einstellungen → Fernzugriff.** PrintDock lädt das passende Programm beim Einschalten selbst herunter (in den Datenordner unter `bin/`, bleibt bei Updates erhalten, nicht in Sicherungen) und startet es bei jedem Start wieder. Gleich für Home-Assistant-Add-on, Docker und Raspberry Pi – es braucht keine Root-Rechte und kein `/dev/net/tun`.
+**Settings → Remote access.** When you switch an option on, PrintDock downloads the matching program by itself (into the data folder under `bin/`, kept across updates, not included in backups) and starts it again on every start. Works the same for the Home Assistant add-on, Docker and a Raspberry Pi – no root rights and no `/dev/net/tun` needed.
 
 **Tailscale**
-1. Schalter *Tailscale* einschalten.
-2. Ohne Auth-Key erscheint *Bei Tailscale anmelden* – Link öffnen, mit dem eigenen Tailscale-Konto bestätigen. Mit Auth-Key (*Tailscale-Admin → Settings → Keys*) geht es ohne Klick.
-3. Danach zeigt die Seite die Adresse, z. B. `http://printdock:3080`, und – wenn im Tailnet unter *DNS → HTTPS Certificates* eingeschaltet – `https://printdock.<tailnet>.ts.net`. Die HTTPS-Adresse braucht es für NFC am Handy.
-4. *Abmelden und zurücksetzen* verlässt das Tailnet; das Gerät danach im Tailscale-Admin entfernen.
+1. Switch on *Tailscale*.
+2. Without an auth key, *Sign in to Tailscale* appears – open the link and confirm with your Tailscale account. With an auth key (*Tailscale admin → Settings → Keys*) it works without a click.
+3. The page then shows the address, e.g. `http://printdock:3080`, and – if *HTTPS Certificates* is enabled under *DNS* in your tailnet – `https://printdock.<tailnet>.ts.net`. You need the HTTPS address for NFC on your phone.
+4. *Sign out and reset* leaves the tailnet; afterwards remove the device in the Tailscale admin console.
 
-**Cloudflare Tunnel** (nur mit Login-Schutz)
-- *Schnelltest*: ohne Konto, zufällige Adresse `https://….trycloudflare.com` – ändert sich bei jedem Neustart.
-- *Eigene Adresse*: in Cloudflare Zero Trust einen Tunnel anlegen (*Networks → Tunnels → Create → Cloudflared*), den Token in PrintDock einfügen (auch der ganze angezeigte Befehl geht) und unter *Public Hostname* z. B. `drucker.example.com` mit Service **HTTP** und URL **`localhost:3080`** eintragen.
-- Wird der Login-Schutz ausgeschaltet, stoppt PrintDock den Tunnel sicherheitshalber.
+**Cloudflare Tunnel** (only with login protection)
+- *Quick test*: no account needed, random address `https://….trycloudflare.com` – it changes on every restart.
+- *Own address*: create a tunnel in Cloudflare Zero Trust (*Networks → Tunnels → Create → Cloudflared*), paste the token into PrintDock (pasting the whole command shown works too) and under *Public Hostname* add e.g. `printer.example.com` with service **HTTP** and URL **`localhost:3080`**.
+- If you turn login protection off, PrintDock stops the tunnel to be safe.
 
-**Login-Schutz „nur von außen“**: Unter *Einstellungen → System* bzw. *Fernzugriff* lässt sich wählen, ob die Anmeldung immer oder nur von außen verlangt wird. „Nur von außen“ heißt: Geräte im Heimnetz (private Adresse, kein Proxy) und die Home-Assistant-Seitenleiste ohne Passwort; alles, was über Tunnel oder Tailscale kommt, mit Passwort. Die Home-Assistant-Seitenleiste fragt nie nach dem PrintDock-Passwort – Home Assistant hat schon angemeldet.
+**Login “Only from outside”**: under *Settings → Remote access → Require sign-in* you choose whether sign-in is required *Always* or *Only from outside*. “Only from outside” means: devices on your home network (private address, no proxy) and the Home Assistant sidebar get in without a password; everything coming in via tunnel or Tailscale needs the password. The Home Assistant sidebar never asks for the PrintDock password – Home Assistant has already signed you in.
 
-Die Wege mit Docker Compose (unten) funktionieren weiterhin, z. B. wenn Tailscale schon auf dem Rechner läuft.
+The Docker Compose setups below still work, e.g. if Tailscale is already running on the machine.
 
-## Login-Schutz einschalten
+## Turn on login protection
 
-**Einstellungen → Allgemein → Zugriff und Sicherheit**: Benutzer und Passwort (mind. 6 Zeichen) eintragen, **Login-Schutz** einschalten. Danach braucht jeder Browser eine Anmeldung (30 Tage gültig). Nach 5 falschen Versuchen ist eine Minute Pause.
+**Settings → System → Access**: switch on **Login protection**, enter user and password (at least 6 characters), *Save access*. From then on every browser needs to sign in (valid for 30 days). After 5 wrong attempts there is a one-minute pause.
 
-Ohne Anmeldung bleiben nur erreichbar:
-- `/slicer/…` – Upload aus dem Slicer, geschützt durch den Slicer-API-Key,
-- Kamerabild und Download-Links mit `?k=<API-Key>` (für Home Assistant), Schlüssel unter *Einstellungen → Allgemein → API-Key*.
+Without signing in, only these remain reachable:
+- `/slicer/…` – uploads from the slicer, protected by the slicer API key,
+- camera image and download links with `?k=<API key>` (for Home Assistant); the key is under *Settings → System → Access → API key*.
 
-## Tailscale
+## Tailscale with Docker Compose
 
-1. Kostenloses Konto auf [tailscale.com](https://tailscale.com), Tailscale auf Handy/Laptop installieren.
-2. Auth-Key erzeugen: *Admin-Konsole → Settings → Keys → Generate auth key*.
-3. Neben `docker-compose.yml` eine Datei `.env` anlegen (Vorlage `.env.example`):
+1. Create a free account at [tailscale.com](https://tailscale.com) and install Tailscale on your phone/laptop.
+2. Create an auth key: *Admin console → Settings → Keys → Generate auth key*.
+3. Next to `docker-compose.yml`, create a file `.env` (template: `.env.example`):
    ```
    TS_AUTHKEY=tskey-auth-…
    TS_HOSTNAME=printdock
    ```
-4. Starten:
+4. Start:
    ```bash
    docker compose --profile tailscale up -d
    ```
-5. Von unterwegs (Tailscale an): `http://printdock:3080`
+5. On the go (Tailscale on): `http://printdock:3080`
 
-Läuft PrintDock ohne Docker (Raspberry Pi mit `install.sh`), Tailscale direkt installieren: `curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up`. Für HTTPS im Tailnet: `sudo tailscale serve --bg 3080` → `https://printdock.<tailnet>.ts.net`.
+If PrintDock runs without Docker (Raspberry Pi with `install.sh`), install Tailscale directly: `curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up`. For HTTPS in your tailnet: `sudo tailscale serve --bg 3080` → `https://printdock.<tailnet>.ts.net`.
 
-## Cloudflare Tunnel
+## Cloudflare Tunnel with Docker Compose
 
-Voraussetzung: eine eigene Domain bei Cloudflare.
+Requirement: your own domain at Cloudflare.
 
-1. [Cloudflare Zero Trust](https://one.dash.cloudflare.com) → *Networks → Tunnels → Create a tunnel* → Typ *Cloudflared* → Namen vergeben → den angezeigten **Token** kopieren.
-2. Unter *Public Hostname* z. B. `drucker.example.com` anlegen, Service **HTTP**, URL **`localhost:3080`**.
+1. [Cloudflare Zero Trust](https://one.dash.cloudflare.com) → *Networks → Tunnels → Create a tunnel* → type *Cloudflared* → give it a name → copy the **token** shown.
+2. Under *Public Hostname* add e.g. `printer.example.com`, service **HTTP**, URL **`localhost:3080`**.
 3. In `.env`:
    ```
    CF_TUNNEL_TOKEN=eyJh…
    ```
-4. Starten:
+4. Start:
    ```bash
    docker compose --profile cloudflare up -d
    ```
-5. In PrintDock den **Login-Schutz einschalten** (siehe oben). Zusätzlich lässt sich in Cloudflare *Access* davorschalten (z. B. Anmeldung per E-Mail-Code).
+5. **Turn on login protection** in PrintDock (see [above](#turn-on-login-protection)). You can additionally put Cloudflare *Access* in front (e.g. sign-in with an email code).
 
-Ohne Docker: `cloudflared` nach [Anleitung](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/get-started/) installieren und `sudo cloudflared service install <TOKEN>` ausführen.
+Without Docker: install `cloudflared` following the [guide](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/get-started/) and run `sudo cloudflared service install <TOKEN>`.
 
-Hinweise:
-- Slicer-Upload über den Tunnel: Adresse `https://drucker.example.com/slicer/queue` mit dem Slicer-API-Key.
-- Cloudflare begrenzt Uploads im kostenlosen Tarif auf 100 MB pro Datei.
+Notes:
+- Slicer upload through the tunnel: address `https://printer.example.com/slicer/queue` with the slicer API key.
+- On the free plan, Cloudflare limits uploads to 100 MB per file.
 
 ## Home Assistant
 
-Als Add-on erscheint PrintDock in der Home-Assistant-Seitenleiste. Ist Home Assistant von außen erreichbar (Nabu Casa oder eigener Zugang), ist es PrintDock automatisch auch – mit der Home-Assistant-Anmeldung.
+As an add-on, PrintDock appears in the Home Assistant sidebar. If your Home Assistant is reachable from outside (Nabu Casa or your own setup), PrintDock is too – with the Home Assistant login.
 
----
+## Customer links for customers outside your network
 
-## English
+Status pages for customers run on your own **status server** on the internet – set it up under *Settings → Remote access → Customer links*, guide in [relay/README.md](../relay/README.md).
 
-PrintDock is built for your home network. For access on the go there are three safe options – **never** just forward port 3080 on your router.
-
-| Option | For | Public? | Login protection |
-|---|---|---|---|
-| **Tailscale** (VPN) | You and your devices only | No | Recommended |
-| **Cloudflare Tunnel** | Own address with HTTPS, e.g. for colleagues | Yes | **Required** |
-| **Home Assistant** (add-on) | If you already use HA remotely | via HA | no (HA login) |
-
-Finish the setup wizard first (it is reachable without login until completed).
-
-**Easiest (0.15+): right in PrintDock** – *Settings → Remote access*. PrintDock downloads `tailscale` or `cloudflared` into its data folder (`bin/`, kept across updates, not in backups) and keeps it running – the same for the Home Assistant add-on, Docker and a Pi, no root or `/dev/net/tun` needed.
-- **Tailscale:** switch on, then *Sign in to Tailscale* via the link (or enter an auth key). The page shows `http://printdock:3080` and, if *HTTPS Certificates* is enabled in your tailnet's DNS settings, `https://printdock.<tailnet>.ts.net` (needed for NFC on the phone).
-- **Cloudflare Tunnel** (login protection required): *Quick test* without an account (random `…trycloudflare.com` address) or *Own address* with a tunnel token from Cloudflare Zero Trust; public hostname service **HTTP**, URL **`localhost:3080`**. Turning login protection off stops the tunnel.
-- **Login "only from outside":** no password on the home network and in the Home Assistant sidebar, password via tunnel and Tailscale. The Home Assistant sidebar never asks for the PrintDock password.
-
-The Docker Compose profiles below still work.
-
-**Login protection:** *Settings → General → Access and security* – set user and password (min. 6 characters), enable **Login protection**. Sessions last 30 days; 5 wrong attempts lock for a minute. Without login only `/slicer/…` (slicer API key) and camera/download links with `?k=<API key>` remain reachable.
-
-**Tailscale:** create an auth key in the Tailscale admin console, put `TS_AUTHKEY=…` into `.env`, run `docker compose --profile tailscale up -d`, then open `http://printdock:3080` from any device in your tailnet. Without Docker: install Tailscale on the host; `sudo tailscale serve --bg 3080` adds HTTPS.
-
-**Cloudflare Tunnel:** in Cloudflare Zero Trust create a tunnel (type Cloudflared), add a public hostname pointing to `http://localhost:3080`, put the token into `.env` as `CF_TUNNEL_TOKEN=…`, run `docker compose --profile cloudflare up -d` and **enable login protection** in PrintDock. Optionally put Cloudflare Access in front. Free plan uploads are limited to 100 MB per file.
-
-**Home Assistant:** the add-on is available wherever your Home Assistant is, using Home Assistant's login.
+Back to [Getting started](getting-started.md) · [Installation](installation.md)

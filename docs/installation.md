@@ -1,19 +1,23 @@
 # Installation
 
-*English below.*
+*English · [Deutsch](installation.de.md)*
 
-PrintDock läuft überall, wo Node.js 18+ oder Docker läuft. Daten liegen als JSON-Dateien in einem Ordner – keine Datenbank. Beim ersten Öffnen führt ein **Einrichtungsassistent** durch Sprache, Aussehen, Funktionen und Zugang.
+PrintDock runs anywhere Node.js 18+ or Docker runs. Data is stored as JSON files in one folder – no database. On first open, a **setup wizard** walks you through language, appearance, features and access.
 
-| Plattform | Empfohlener Weg |
+> PrintDock is in **public beta** – keep backups and please report problems via [GitHub issues](https://github.com/Codegulasch/printdock/issues/new/choose).
+
+| Platform | Recommended |
 |---|---|
-| Synology, QNAP, Unraid, TrueNAS, Server | [Docker](#docker-nas-server) |
-| Raspberry Pi 3/4/5 | [Docker](#docker-nas-server) oder [Installationsskript](#raspberry-pi-ohne-docker) |
+| Synology, QNAP, Unraid, TrueNAS, servers | [Docker](#docker-nas-server) |
+| Raspberry Pi 3/4/5 | [Docker](#docker-nas-server) or the [install script](#raspberry-pi-without-docker) |
 | Home Assistant OS / Supervised | [Add-on](#home-assistant-add-on) |
-| Windows, macOS, Linux-PC | [Node.js](#nodejs-windows-macos-linux) |
+| Windows, macOS, Linux desktop | [Node.js](#nodejs-windows-macos-linux) |
 
-Fertige Images: `ghcr.io/codegulasch/printdock` für **amd64**, **arm64** und **armv7**.
+Ready-made images: `ghcr.io/codegulasch/printdock` for **amd64**, **arm64** and **armv7**.
 
-## Docker (NAS, Server)
+Afterwards, continue with [Getting started](getting-started.md).
+
+## Docker (NAS, server)
 
 ```bash
 mkdir printdock && cd printdock
@@ -21,50 +25,50 @@ curl -O https://raw.githubusercontent.com/Codegulasch/printdock/main/docker-comp
 docker compose up -d
 ```
 
-Dann `http://<ip>:3080` öffnen. Daten liegen in `./data`.
+Then open `http://<ip>:3080`. Data is stored in `./data`.
 
-Wichtig ist `network_mode: host` (steht schon in der Datei): PrintDock muss die Drucker im Heimnetz direkt erreichen (Bambu-MQTT, Kamera-Streams).
+Keep `network_mode: host` (already in the file): PrintDock needs to reach your printers on the home network directly (Bambu MQTT, camera streams).
 
-**Synology (Container Manager):** Ordner `docker/printdock` anlegen → *Container Manager → Projekt → Erstellen* → Pfad wählen, Inhalt der `docker-compose.yml` einfügen → *Fertig*.
-**QNAP (Container Station):** *Anwendungen → Erstellen* → YAML einfügen.
-**Unraid:** Plugin *Compose Manager* → neuen Stack anlegen → YAML einfügen. Alternativ *Docker → Add Container*: Repository `ghcr.io/codegulasch/printdock:latest`, Network Type `host`, Pfad `/data` → `/mnt/user/appdata/printdock`.
-**TrueNAS SCALE:** *Apps → Discover → Custom App* → Image `ghcr.io/codegulasch/printdock`, Host-Netzwerk an, Speicher `/data`.
+**Synology (Container Manager):** create the folder `docker/printdock` → *Container Manager → Project → Create* → choose the path, paste the contents of `docker-compose.yml` → *Done*.
+**QNAP (Container Station):** *Applications → Create* → paste the YAML.
+**Unraid:** plugin *Compose Manager* → add a new stack → paste the YAML. Or *Docker → Add Container*: repository `ghcr.io/codegulasch/printdock:latest`, network type `host`, path `/data` → `/mnt/user/appdata/printdock`.
+**TrueNAS SCALE:** *Apps → Discover → Custom App* → image `ghcr.io/codegulasch/printdock`, host network on, storage `/data`.
 
-Aktualisieren: `docker compose pull && docker compose up -d`.
+Update: `docker compose pull && docker compose up -d`.
 
-Ohne `docker compose`:
+Without `docker compose`:
 ```bash
 docker run -d --name printdock --restart unless-stopped --network host \
   -e TZ=Europe/Berlin -v "$PWD/data:/data" ghcr.io/codegulasch/printdock:latest
 ```
 
-## Raspberry Pi ohne Docker
+## Raspberry Pi without Docker
 
-Für Raspberry Pi OS (Bookworm, 32 oder 64 Bit), Debian und Ubuntu:
+For Raspberry Pi OS (Bookworm, 32 or 64 bit), Debian and Ubuntu:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Codegulasch/printdock/main/scripts/install.sh | sudo bash
 ```
 
-Das Skript installiert Node.js und ffmpeg, legt PrintDock nach `/opt/printdock`, die Daten nach `/var/lib/printdock` und richtet den Dienst `printdock` ein (startet mit dem Pi). Zum Aktualisieren denselben Befehl noch einmal ausführen.
+The script installs Node.js and ffmpeg, puts PrintDock into `/opt/printdock` and its data into `/var/lib/printdock`, and sets up the `printdock` service (starts with the Pi). To update, run the same command again.
 
 ```bash
-systemctl status printdock     # läuft er?
-journalctl -u printdock -f     # Protokoll
+systemctl status printdock     # is it running?
+journalctl -u printdock -f     # log
 ```
 
-Ein Pi 3 reicht für mehrere Drucker. Für RTSP-Kameras (Bambu X1/H2D/X2D) ist ein Pi 4 oder 5 angenehmer, weil ffmpeg das Bild umrechnet.
+A Pi 3 is enough for several printers. For RTSP cameras (Bambu X1/H2D/X2D) a Pi 4 or 5 is more comfortable, because ffmpeg converts the video.
 
-## Home Assistant Add-on
+## Home Assistant add-on
 
-1. *Einstellungen → Add-ons → Add-on-Store → ⋮ → Repositories* → `https://github.com/Codegulasch/printdock` hinzufügen.
-2. **PrintDock** installieren, starten, *In Seitenleiste anzeigen* einschalten.
+1. *Settings → Add-ons → Add-on Store → ⋮ → Repositories* → add `https://github.com/Codegulasch/printdock`.
+2. Install and start **PrintDock**, enable *Show in sidebar*.
 
-Home Assistant und der Mosquitto-Broker werden automatisch verbunden. Läuft auf amd64, aarch64 (Pi 4/5, Green, Yellow) und armv7.
+Home Assistant and the Mosquitto broker are connected automatically. Runs on amd64, aarch64 (Pi 4/5, Green, Yellow) and armv7.
 
 ## Node.js (Windows, macOS, Linux)
 
-Node.js 18 oder neuer von [nodejs.org](https://nodejs.org), dann:
+Install Node.js 18 or newer from [nodejs.org](https://nodejs.org), then:
 
 ```bash
 git clone https://github.com/Codegulasch/printdock.git
@@ -73,45 +77,24 @@ npm install
 npm start
 ```
 
-Für Bambu-Kameras mit RTSP zusätzlich ffmpeg: Windows `winget install ffmpeg`, macOS `brew install ffmpeg`.
+For Bambu cameras with RTSP you also need ffmpeg: Windows `winget install ffmpeg`, macOS `brew install ffmpeg`.
 
-**Windows:** statt `npm start` besser `scripts\start-windows.cmd` doppelklicken – dann startet PrintDock nach einem Update aus der Oberfläche oder dem Einspielen einer Sicherung von selbst neu. Fernzugriff: Cloudflare Tunnel lädt PrintDock selbst, für Tailscale die Tailscale-App installieren und anmelden.
+**Windows:** instead of `npm start`, double-click `scripts\start-windows.cmd` – PrintDock then restarts by itself after an update from the interface or after restoring a backup. Remote access: PrintDock downloads Cloudflare Tunnel by itself; for Tailscale, install the Tailscale app and sign in (see [Remote access](remote-access.md)).
 
-Was auf welcher Installation geht, zeigt *Einstellungen → System → Plattform-Check*. In Docker funktioniert das Update aus PrintDock ab 0.16 ebenfalls (die neue Version liegt im Datenordner; ein neueres Image per `docker compose pull` hat wieder Vorrang).
+## Updates and platform check
 
-## Einstellungen über Umgebungsvariablen
+*Settings → System → Platform check* shows what works on your installation. Updates are under *Settings → System → Updates* – in Docker too (since 0.16). The new version is then stored in the data folder; a newer image pulled with `docker compose pull` takes precedence again.
 
-| Variable | Standard | Bedeutung |
+## Settings via environment variables
+
+| Variable | Default | Meaning |
 |---|---|---|
-| `PORT` | `3080` | Port der Weboberfläche |
-| `DATA_DIR` | `./data` (Docker: `/data`) | Datenordner |
-| `PRINTDOCK_LANG` | `de` | Sprache beim ersten Start (`de`, `en`) |
-| `TZ` | – | Zeitzone für Uhrzeiten in Meldungen |
-| `FFMPEG_PATH` | `ffmpeg` | Pfad zu ffmpeg |
+| `PORT` | `3080` | Port of the web interface |
+| `DATA_DIR` | `./data` (Docker: `/data`) | Data folder |
+| `PRINTDOCK_LANG` | `de` | Language on first start (`de`, `en`) |
+| `TZ` | – | Time zone for times in notifications |
+| `FFMPEG_PATH` | `ffmpeg` | Path to ffmpeg |
 
-## Datensicherung
+## Backup
 
-Den Datenordner sichern (`./data`, `/var/lib/printdock` bzw. Add-on-Backup). Er enthält Einstellungen, Drucker, Verlauf, Spulen und hochgeladene Dateien.
-
----
-
-## English
-
-PrintDock runs anywhere Node.js 18+ or Docker runs. Data is stored as JSON files in one folder – no database. On first open, a **setup wizard** asks for language, look, features and access.
-
-| Platform | Recommended |
-|---|---|
-| Synology, QNAP, Unraid, TrueNAS, servers | Docker |
-| Raspberry Pi 3/4/5 | Docker or the install script |
-| Home Assistant OS / Supervised | Add-on |
-| Windows, macOS, Linux desktop | Node.js |
-
-**Docker:** download `docker-compose.yml` and run `docker compose up -d`, then open `http://<ip>:3080`. Keep `network_mode: host` so PrintDock can reach your printers directly. Images: `ghcr.io/codegulasch/printdock` (amd64, arm64, armv7). Update with `docker compose pull && docker compose up -d`.
-
-**Raspberry Pi without Docker:** `curl -fsSL https://raw.githubusercontent.com/Codegulasch/printdock/main/scripts/install.sh | sudo bash` installs Node.js and ffmpeg, puts PrintDock into `/opt/printdock`, data into `/var/lib/printdock` and creates the `printdock` systemd service. Run it again to update.
-
-**Home Assistant add-on:** add `https://github.com/Codegulasch/printdock` as an add-on repository, install **PrintDock**, start it and enable *Show in sidebar*.
-
-**Node.js:** `git clone`, `npm install`, `npm start`. Install ffmpeg for Bambu RTSP cameras.
-
-Environment variables: `PORT`, `DATA_DIR`, `PRINTDOCK_LANG` (`de`/`en`, first start only), `TZ`, `FFMPEG_PATH`. Back up the data folder.
+Back up the data folder (`./data`, `/var/lib/printdock`, or the add-on backup). It contains settings, printers, history, spools and uploaded files. You can also download a backup file in PrintDock under *Settings → System → Backup*.

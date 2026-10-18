@@ -1,33 +1,37 @@
-# PrintDock Status-Server
+# PrintDock status server
 
-Öffentliche Statusseiten für Kunden – ohne das Heimnetz zu öffnen. Zwei gleichwertige Varianten mit derselben Schnittstelle: **PHP** für normales Webhosting (`relay/php`) und **Node.js/Docker** für eigene Server (`relay/server.js`).
+*English · [Deutsch](README.de.md)*
 
-PrintDock läuft meist im Heimnetz (`192.168.x.x`). Ein Kunden-Link dorthin funktioniert für Kunden nicht. Der Status-Server läuft auf einem eigenen Server im Internet: PrintDock **schickt** bei jeder Änderung eines freigegebenen Auftrags die Statusdaten (Fortschritt, Termin, voraussichtliches Ende, Nachbearbeitung – **ohne Kosten**) und die Fotos der fertigen Teile dorthin. Der Kunde ruft `https://status.example.com/s/<code>` auf. Verbindungen gehen nur von PrintDock nach außen.
+> PrintDock is in **public beta** – please report problems via [GitHub issues](https://github.com/Codegulasch/printdock/issues/new/choose).
 
-- Node.js 18+, keine Abhängigkeiten, keine Datenbank (Dateien im Ordner `data/`)
-- mehrere PrintDock-Installationen möglich – je eine mit eigenem Schlüssel
-- Seiten nach Abschluss des Auftrags automatisch gelöscht (in PrintDock einstellbar, Standard 30 Tage)
-- Link abschalten oder Auftrag löschen in PrintDock löscht die Seite auch hier
+Public status pages for your customers – without opening your home network. Two equivalent variants with the same interface: **PHP** for regular web hosting (`relay/php`) and **Node.js/Docker** for your own server (`relay/server.js`).
 
-## Einrichten auf einem Webhosting-Paket (PHP) – der einfachste Weg
+PrintDock usually runs on your home network (`192.168.x.x`). A customer link pointing there does not work for customers. The status server runs on a separate server on the internet: whenever a shared order changes, PrintDock **pushes** the status data (progress, due date, estimated finish, post-processing – **no costs**) and the photos of the finished parts to it. The customer opens `https://status.example.com/s/<code>`. Connections only go out from PrintDock.
 
-Für normales Webhosting (PHP 7.4 oder neuer, FTP-Zugang) – kein eigener Server, kein Node, keine Datenbank nötig.
+- Node.js 18+, no dependencies, no database (files in the `data/` folder)
+- several PrintDock installations possible – each with its own key
+- pages are deleted automatically after the order is completed (configurable in PrintDock, default 30 days)
+- turning a link off or deleting the order in PrintDock deletes the page here too
 
-1. Den Ordner **`relay/php`** per FTP auf den Webspace laden, z. B. als **`/status`** (dann lautet die Adresse `https://eure-domain.de/status`). Oder eine Subdomain wie `status.eure-domain.de` darauf zeigen lassen.
-2. Dort **`config.sample.php`** nach **`config.php`** kopieren und einen langen, zufälligen Schlüssel eintragen (z. B. mit einem Passwort-Generator, 40+ Zeichen).
-3. Prüfen: `https://eure-domain.de/status/health` zeigt `{"ok":true,…}`.
-4. In PrintDock: *Einstellungen → Fernzugriff → Kunden-Links* → Adresse `https://eure-domain.de/status`, Schlüssel eintragen, einschalten, *Verbindung testen*.
+## Setup on a web hosting package (PHP) – the easiest way
 
-Klappt `…/status/health` nicht (Fehler 404), ist beim Hoster keine URL-Umschreibung (`mod_rewrite`) aktiv. Dann in PrintDock als Adresse **`https://eure-domain.de/status/index.php`** eintragen – Kunden-Links sehen dann so aus: `…/status/index.php/s/<code>`. Geht auch das nicht: **`https://eure-domain.de/status/index.php?r=`**.
+For regular web hosting (PHP 7.4 or newer, FTP access) – no own server, no Node, no database needed.
 
-Hinweise:
-- Die Daten liegen in `status/data/` und sind per `.htaccess` gesperrt. Bei Hostern ohne `.htaccess`-Unterstützung (nginx) in `config.php` unter `data` einen Ordner **außerhalb** des Web-Verzeichnisses angeben.
-- PrintDock schickt Änderungen als `POST` mit `X-HTTP-Method-Override` und den Schlüssel zusätzlich als `X-Relay-Key` – so funktioniert es auch bei Hostern, die `PUT`/`DELETE` oder die `Authorization`-Kopfzeile nicht durchlassen.
-- Fotos bis 3 MB; bei sehr kleinen Upload-Grenzen des Hosters (`post_max_size`) ggf. anheben.
+1. Upload the folder **`relay/php`** to your web space via FTP, e.g. as **`/status`** (the address is then `https://your-domain.com/status`). Or point a subdomain like `status.your-domain.com` at it.
+2. There, copy **`config.sample.php`** to **`config.php`** and enter a long, random key (e.g. from a password generator, 40+ characters).
+3. Check: `https://your-domain.com/status/health` shows `{"ok":true,…}`.
+4. In PrintDock: *Settings → Remote access → Customer links* → address `https://your-domain.com/status`, enter the key, switch it on, *Test connection*.
 
-## Einrichten mit Docker (eigener Server)
+If `…/status/health` does not work (error 404), your host has no URL rewriting (`mod_rewrite`) enabled. Then enter **`https://your-domain.com/status/index.php`** as the address in PrintDock – customer links then look like this: `…/status/index.php/s/<code>`. If that does not work either: **`https://your-domain.com/status/index.php?r=`**.
 
-Im PrintDock-Ordner (dort liegt auch der gemeinsame Seiten-Baustein `lib/statusrender.js`):
+Notes:
+- The data is stored in `status/data/` and blocked via `.htaccess`. On hosts without `.htaccess` support (nginx), set `data` in `config.php` to a folder **outside** the web directory.
+- PrintDock sends changes as `POST` with `X-HTTP-Method-Override` and additionally sends the key as `X-Relay-Key` – so it also works with hosts that block `PUT`/`DELETE` or the `Authorization` header.
+- Photos up to 3 MB; if your host has a very small upload limit (`post_max_size`), raise it if needed.
+
+## Setup with Docker (own server)
+
+In the PrintDock folder (the status server also needs the file `lib/statusrender.js` from the PrintDock repository):
 
 ```bash
 cd relay
@@ -37,7 +41,9 @@ docker compose up -d --build
 curl http://127.0.0.1:8080/health
 ```
 
-Der Container lauscht nur auf `127.0.0.1:8080`. Davor gehört ein Reverse-Proxy mit HTTPS.
+`RELAY_KEYS` has the form `name:key` (several PrintDock installations: separate with commas) – note down the key, you will enter it in PrintDock.
+
+The container only listens on `127.0.0.1:8080`. Put a reverse proxy with HTTPS in front of it.
 
 **Caddy** (`/etc/caddy/Caddyfile`):
 
@@ -58,7 +64,7 @@ server {
 }
 ```
 
-## Ohne Docker (systemd)
+## Without Docker (systemd)
 
 ```bash
 sudo mkdir -p /opt/printdock-relay && sudo cp relay/server.js /opt/printdock-relay/ && sudo cp lib/statusrender.js /opt/printdock-relay/render.js
@@ -78,19 +84,21 @@ EOF
 sudo systemctl enable --now printdock-relay
 ```
 
+Replace `HIER-SCHLUESSEL` with your own long, random key.
+
 ## In PrintDock
 
-*Einstellungen → Fernzugriff → Kunden-Links*: Adresse (`https://status.example.com`) und Schlüssel eintragen, einschalten, *Verbindung testen*. Ab dann zeigen Kunden-Links, QR-Codes und Etiketten auf den Status-Server. Optional: Firmenname und Website für den Seitenfuß.
+*Settings → Remote access → Customer links*: enter the *Status server address* (`https://status.example.com`) and the key, switch it on, *Test connection*. From then on, customer links, QR codes and labels point to the status server. Optional: *Company name on the page* and website for the page footer.
 
-## Schnittstelle
+## Interface
 
-`Authorization: Bearer <Schlüssel>`
+`Authorization: Bearer <key>`
 
-| Methode | Pfad | Inhalt |
+| Method | Path | Content |
 |---|---|---|
 | GET | `/api/v1/ping` | `{ ok, name, version }` |
-| PUT | `/api/v1/orders/<code>` | JSON `{ lang, data, brand, expiresAt }` → `{ missing: [Foto-IDs] }` |
+| PUT | `/api/v1/orders/<code>` | JSON `{ lang, data, brand, expiresAt }` → `{ missing: [photo IDs] }` |
 | PUT | `/api/v1/orders/<code>/photos/<id>` | JPEG, max. 3 MB |
-| DELETE | `/api/v1/orders/<code>` | Seite löschen |
+| DELETE | `/api/v1/orders/<code>` | delete the page |
 
-Öffentlich: `GET /s/<code>`, `GET /s/<code>/p/<id>.jpg`, `GET /health`. Der Code ist 24 Zeichen zufällig (96 Bit) und nicht erratbar; Seiten tragen `noindex`.
+Public: `GET /s/<code>`, `GET /s/<code>/p/<id>.jpg`, `GET /health`. The code is 24 random characters (96 bits) and cannot be guessed; pages carry `noindex`.

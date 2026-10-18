@@ -198,7 +198,7 @@ function vReslice() {
   const known = (model) => {
     if (!h?.models?.length || !model) return '';
     const m = normModel(model);
-    return h.models.some((x) => normModel(x).includes(m) || m.includes(normModel(x))) ? `<span class="pill run" title="${esc(t('Orca kennt diesen Drucker'))}">Orca ✓</span>` : `<span class="pill pause" title="${esc(t('Orca kennt dieses Druckermodell nicht – nur mit gelerntem Profil'))}">Orca ?</span>`;
+    return h.models.some((x) => normModel(x).includes(m) || m.includes(normModel(x))) ? `<i class="pill run" title="${esc(t('Orca kennt diesen Drucker'))}">Orca ✓</i>` : `<i class="pill pause" title="${esc(t('Orca kennt dieses Druckermodell nicht – nur mit gelerntem Profil'))}">Orca ?</i>`;
   };
   const dl = [['Windows', 'printdock-slicer-win-x64.exe'], ['macOS (Apple)', 'printdock-slicer-macos-arm64'], ['macOS (Intel)', 'printdock-slicer-macos-x64'], ['Linux', 'printdock-slicer-linux-x64']];
   const code = R.token ? `<span class="code">${esc(R.token)}</span><button class="b b-sm" data-act="copy" data-text="${esc(R.token)}">${t('Kopieren')}</button><button class="b b-sm" data-rs="token">${t('Neu erzeugen')}</button>` : '–';

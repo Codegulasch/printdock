@@ -1,7 +1,7 @@
 name: PrintDock
-version: "0.21.1"
+version: "0.21.2"
 slug: printdock
-description: Manage and monitor all your 3D printers – Bambu Lab, Snapmaker, Anycubic, Klipper, OctoPrint
+description: "Public beta – manage and monitor all your 3D printers: Bambu Lab, Snapmaker, Anycubic, Klipper, OctoPrint"
 url: https://github.com/Codegulasch/printdock
 # Fertiges Image aus der GitHub-Action (ghcr.io). Zeile entfernen, um das Add-on lokal zu bauen
 # (dann vorher "npm run ha-addon" ausführen und ha-addon/app einchecken).

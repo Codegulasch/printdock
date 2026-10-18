@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.21.2
+- **Public beta:** README, guides and add-on documentation rewritten for users – in English and German as separate pages (installation, getting started, remote access, status server). A small *Beta* badge in the sidebar leads to the bug report
+- New section on **reslicing** in the README; developer topics (project layout, printer drivers, API, translations) moved to *docs/development*
+- Add-on documentation: login protection is under *Settings → System*, port 3080 is also needed by the station and the reslicing helper
+
 ## 0.21.1
 - Fix: after switching on *Reslicing*, *Settings → Reslicing* stayed on "Loading …" (and *slice* was missing under *Parts*) until the page was reloaded. If the data can't be loaded, the page now says why and offers *Try again*
 

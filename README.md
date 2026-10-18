@@ -9,6 +9,10 @@ Bambu Lab, Snapmaker U1, Anycubic (with ACE), Voron and any Klipper/Moonraker or
 
 Fully local – no cloud, no account, no database. Runs as a **Home Assistant add-on**, in **Docker** (NAS, server, Raspberry Pi), as a **service on the Pi** or with **Node.js on Windows, macOS and Linux** – with the same features everywhere.
 
+> **Public beta** – PrintDock is used daily in a real workshop, but it is still under development: the interface and workflows may change, and not every printer and firmware combination has been tested. Please keep backups switched on (*Settings → System → Backup*, runs daily by itself) and report bugs or wishes via the [issues](https://github.com/Codegulasch/printdock/issues/new/choose) – ideally with version and platform check. Thanks for testing!
+
+**Contents:** [Features](#what-printdock-does) · [Installation](#installation) · [Supported printers](#supported-printers) · [How a print flows](#how-a-print-flows-through-printdock) · [Archive](#archive) · [Filament](#filament) · [Home Assistant](#home-assistant) · [Slicer](#slicer) · [Reslicing](#reslicing) · [Remote access](#remote-access-users-and-security) · [Updates and backup](#updates-backup-platforms) · [Report a bug](#report-bugs-and-contribute)
+
 ## What PrintDock does
 
 ### Printers at a glance
@@ -45,7 +49,7 @@ Fully local – no cloud, no account, no database. Runs as a **Home Assistant ad
 - **Spool inventory** with AMS, ACE and toolhead slots, automatic deduction after every print, costs and low-stock warnings
 - **Reservation** for all open prints, **shopping list** with shop link, "ordered" and "arrived"
 - **Humidity**: monitoring of AMS/ACE, Home Assistant sensors and stations; **humidity check before starting** ("dry first, then start automatically"); **drying at the push of a button**
-- **PrintDock Station** (ESP32 with NFC, scale, humidity sensor) as a **workbench**: place a spool → recognised, weighed, loaded into a free slot with one button; create or assign new tags, history, notice from anywhere and **stocktake**
+- **PrintDock Station** (ESP32 with NFC, scale, humidity sensor – DIY, printable case still in the works) as a **workbench**: place a spool → recognised, weighed, loaded into a free slot with one button; create or assign new tags, history, notice from anywhere and **stocktake**
 - **Read and write RFID/NFC tags with the phone** (Chrome on Android); spool labels with QR code
 - **Spoolman** optional – import inventory and report usage back
 
@@ -81,29 +85,31 @@ Fully local – no cloud, no account, no database. Runs as a **Home Assistant ad
 | **Parts** | **Setup wizard** |
 | ![Parts](docs/screenshots/parts.png) | ![Setup](docs/screenshots/setup.png) |
 
-**New here?** → [Getting started](docs/getting-started.md#getting-started): from first start to first print in ten minutes.
+**New here?** → [Getting started](docs/getting-started.md): from first start to first print in ten minutes.
 
 ## Installation
 
-Details in [docs/installation.md](docs/installation.md).
+All options in detail: [docs/installation.md](docs/installation.md). In short:
+
+**Home Assistant (recommended if you have it):** *Settings → Add-ons → Add-on store → ⋮ → Repositories* → add `https://github.com/Codegulasch/printdock` → install **PrintDock**, start it and enable *Show in sidebar*.
+
+**Docker** (NAS, Raspberry Pi, server):
 
 ```bash
-# Docker (NAS, Raspberry Pi, server)
+mkdir printdock && cd printdock
 curl -O https://raw.githubusercontent.com/Codegulasch/printdock/main/docker-compose.yml
 docker compose up -d
-
-# Raspberry Pi / Debian without Docker (systemd service)
-curl -fsSL https://raw.githubusercontent.com/Codegulasch/printdock/main/scripts/install.sh | sudo bash
-
-# Node.js 18+ (Windows, macOS, Linux)
-npm install && npm start
 ```
 
-**Home Assistant:** *Settings → Add-ons → Add-on store → ⋮ → Repositories* → `https://github.com/Codegulasch/printdock` → install **PrintDock**.
+**Raspberry Pi / Debian without Docker** (as a service):
 
-**Windows:** run `scripts\start-windows.cmd` instead of `npm start` – PrintDock then restarts by itself after an update or a restore.
+```bash
+curl -fsSL https://raw.githubusercontent.com/Codegulasch/printdock/main/scripts/install.sh | sudo bash
+```
 
-Then open `http://<ip>:3080`. The setup wizard asks for language, look, features and access and can load demo data. Everything can be changed later under **Settings → General**. **Settings → System → Platform check** shows what works on this installation (restart, update, ffmpeg, remote access, Home Assistant, inbox, backup, time zone).
+**Windows, macOS, Linux PC:** install [Node.js](https://nodejs.org) (LTS), [download PrintDock as a zip](https://github.com/Codegulasch/printdock/archive/refs/heads/main.zip) and unpack it. On Windows double-click `scripts\start-windows.cmd` – it starts PrintDock and restarts it by itself after updates or a restore. On macOS/Linux run `npm install && npm start` in the folder.
+
+Then open `http://<ip>:3080` (as add-on: via the sidebar). The setup wizard asks for language, look, setup level and access and can load demo data. Everything can be changed later under **Settings → General**. **Settings → System → Platform check** shows what works on this installation (restart, update, ffmpeg, remote access, Home Assistant, inbox, backup, time zone).
 
 ## Supported printers
 
@@ -213,7 +219,7 @@ When PrintDock runs at home, such a link points to an address like `192.168.x.x`
 - **Node.js/Docker version** (`relay/server.js`) for your own server
 - several PrintDock installations with their own keys, company name and link in the footer, pages expire after the order is done (default 30 days), turning a link off deletes it on the server too
 
-Set it up under *Settings → Remote access → Customer links*; guide in [relay/README.md](relay/README.md) (German).
+Set it up under *Settings → Remote access → Customer links*; guide in [relay/README.md](relay/README.md).
 
 ## Filament
 
@@ -229,9 +235,9 @@ Set it up under *Settings → Remote access → Customer links*; guide in [relay
 
 **Drying at the push of a button:** Bambu AMS 2 Pro (45–65 °C) and AMS HT (45–85 °C) via MQTT (LAN + developer mode), Anycubic ACE Pro in LAN mode, Klipper/Moonraker via a G-code macro, everything else via Home Assistant (dry box on a plug or a dryer with its own integration). Temperature and time are suggested from the spools in the unit.
 
-**PrintDock Station:** an ESP32 with NFC reader (PN532), scale (HX711), optional humidity sensor and small display, with its own firmware: [printdock-station](https://github.com/Codegulasch/printdock-station). Put a spool on it → PrintDock recognises it (tag UID, spool link, OpenSpool or Anycubic data), books the remaining amount by weight and remembers it for 3 minutes: the next slot that reports a newly loaded spool gets it, and on Bambu material and colour go to the AMS. The page *Filament → Station* shows gross/net weight live, the tag data and the recognised spool – take over the weight, write the tag, tare. **Stocktake:** put spool after spool on the scale. Pair with a six-digit code under *Settings → PrintDock Station*; `node scripts/station-sim.js` simulates one.
+**PrintDock Station:** an ESP32 with NFC reader (PN532), scale (HX711), optional humidity sensor and small display, with its own firmware: [printdock-station](https://github.com/Codegulasch/printdock-station). Put a spool on it → PrintDock recognises it (tag UID, spool link, OpenSpool or Anycubic data), books the remaining amount by weight and remembers it for 3 minutes: the next slot that reports a newly loaded spool gets it, and on Bambu material and colour go to the AMS. The page *Filament → Station* is a workbench per station: on the left the scale plate with the live weight (empty, unknown tag, or spool with a remaining-amount ring), on the right what to do next. Known spool: remaining amount, last weighed, place and reservations, *Weight applied* with *undo*, **Load right away into …** with the free slots as buttons, write tag, label, to storage. Blank or unknown tag: create a new spool, assign an existing one or ignore it – with suggestions of untagged spools that match by weight. Below that, *Recently at the station*. When someone places something on it, PrintDock shows a notice with *View* (can be switched off per station). **Stocktake:** put spool after spool on the scale. Pair with a six-digit code under *Settings → PrintDock Station*. Build guide, wiring and firmware: [printdock-station](https://github.com/Codegulasch/printdock-station) – also in beta; a printable case with scale build is in the works.
 
-**RFID/NFC with the phone** (Chrome on Android, over HTTPS): *Read tag* opens known spools, turns OpenSpool tags into a new spool and lets you assign unknown tags. Blank tags can be written in four formats (PrintDock + OpenSpool, OpenSpool, link only, Anycubic ACE) – with the phone or at the station. iPhones do not allow NFC in web pages (QR labels work); original Bambu tags are encrypted, only their ID is readable. ESPHome readers use `POST /api/rfid` with `{"tag": "…", "printer": "…", "slot": "…"}`.
+**RFID/NFC with the phone** (Chrome on Android, over HTTPS): *Read tag* opens known spools, turns OpenSpool tags into a new spool and lets you assign unknown tags. Blank tags can be written in four formats (PrintDock + OpenSpool, OpenSpool, link only, Anycubic ACE) – with the phone or at the station. iPhones do not allow NFC in web pages (QR labels work); original Bambu tags are encrypted, only their ID is readable. Your own ESPHome readers can be connected via the [API](docs/development.md#api).
 
 **Spool labels** with QR code in 62 × 29 mm (Brother QL), 50 × 30, 40 × 30, 57 × 25 mm or as an A4 sheet. **Spoolman (optional)** under *Settings → Printers & filament → Filament*: imports the inventory and reports usage, weights and the current slot back.
 
@@ -303,6 +309,21 @@ PrintDock presents itself to slicers as an OctoPrint server. In OrcaSlicer, Prus
 
 **Bambu Studio:** use the **inbox folder** – *Export plate sliced file* (Ctrl+G) into `\\homeassistant\share\printdock` (add-on, Samba add-on required); the subfolder `warteschlange` puts the file straight into the queue. Paths are shown under *Settings → Slicer*. **Open in slicer** works via `orcaslicer://`, `bambustudio://`, `prusaslicer://`.
 
+## Reslicing
+
+Optional (*Settings → General → Features → Reslicing*; already on in the Workshop setup level). If a part lacks the variant for a printer, a small **helper on your PC** creates it with [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer/releases) – no need to open the slicer yourself.
+
+1. Install **OrcaSlicer** and start it once (this sets up the printer profiles).
+2. Download the **helper** under *Settings → Reslicing* (Windows, macOS, Linux or as a Node.js script) and start it. On first start it asks for the PrintDock address (IP with port 3080, also for the add-on) and the **pairing code** shown on that page.
+3. Under *Files → Parts* every missing printer gets a **⟳ slice** button. The result becomes a new variant for exactly that printer – queue and orders use it right away.
+
+- **Learned profiles:** when you upload a 3MF that belongs to a printer (from Bambu Studio, Snapmaker Orca, Anycubic Slicer Next or OrcaSlicer), PrintDock remembers its settings – printer, process and the filament per material. Taken from the source part: layer height, walls, infill, supports, brim and seam; everything else comes from the target printer's profile. Without a learned profile the helper uses OrcaSlicer's default profiles.
+- **Source** is a file of the part that contains the model: project 3MF, sliced 3MF with model, or STL/STEP/OBJ. Plain G-code files no longer contain the model.
+- **Multi-colour:** a dialog asks for the material per colour; which slot or tool is used is decided at print start as usual.
+- **Today** suggests creating a variant when a printer is free and a scheduled part has no variant for it.
+- If an attempt fails, the helper tries the learned profile with OrcaSlicer's printer profile, then default profiles only. Errors are explained (e.g. too big for the bed), and OrcaSlicer's output can be expanded.
+- While the PC is off, jobs wait. The helper has to run on the same network as PrintDock.
+
 ## Camera
 
 PrintDock fetches images on the server and passes them to the browser, so credentials stay on the server and cameras browsers cannot show directly still work. The camera only runs while someone watches (plus 30 seconds).
@@ -315,70 +336,23 @@ PrintDock fetches images on the server and passes them to the browser, so creden
 | Klipper / Moonraker | snapshot URL | Read from Moonraker, or enter it in the printer dialog. |
 | OctoPrint | snapshot URL | Default `/webcam/?action=snapshot`. |
 
-`ffmpeg` is included in the Docker image and the add-on; otherwise `winget install ffmpeg`, `brew install ffmpeg` or your package manager. Endpoints: `/api/printers/:id/camera.jpg` and `/api/printers/:id/camera.mjpg`.
+`ffmpeg` is included in the Docker image and the add-on; otherwise `winget install ffmpeg`, `brew install ffmpeg` or your package manager.
 
 ## Notifications
 
 Any number of channels (ntfy, Telegram, Discord, Gotify, webhook – all but Gotify with image), each with its own events: print finished, started, paused, cancelled, error, offline for 2 minutes, photo after the first layer, maintenance due, spool running low, filament too humid, drying finished, emergency stop, PrintDock update available. After a restart only real state changes are reported; the same event is sent at most once per minute per printer.
 
-## Writing a printer driver
+## Planned
 
-Every vendor is a driver in `drivers/`. A driver extends `BaseDriver` (`drivers/base.js`), describes its settings in `static meta` (the UI builds the form from it), reports state with `this.update({...})` in the shared status format, and optionally implements `command(cmd)` (pause, resume, cancel, light, speed), `startPrint(job)` and `cameraSource()`. Register it in `drivers/index.js`. `drivers/demo.js` is the shortest example.
+- Printable case with scale build for the PrintDock Station
+- Read ACE and U1 RFID data directly once the firmware provides it
+- Switch printers on automatically before a queued start (Home Assistant)
+- Quiet hours for notifications, e-mail
 
-## Translations
+## Report bugs and contribute
 
-German texts are the keys; `public/i18n-en.js` maps them to English. To add a language, copy that file (e.g. `i18n-fr.js`), translate it, load it in `index.html` and register it with `PD_I18N.register('fr', …)`. `npm run check` reports missing translations.
-
-## Project layout
-
-```
-server.js              HTTP server, REST API, live updates (SSE), history, running jobs
-launcher.js            Docker entry point (uses a newer version downloaded by the updater)
-camera.js              camera proxy: HTTP snapshots, RTSP via ffmpeg, Bambu JPEG stream
-notify.js              event detection and notification channels
-drivers/               moonraker.js, anycubic.js, bambu.js, octoprint.js, demo.js, base.js
-lib/
-  app.js               language, accent colour, features, menu, login, users
-  production.js        orders, queue, print start, print mode, maintenance
-  startrules.js        start windows, cheap power
-  failures.js          failed prints, requeue
-  filament.js          spools, slots, deduction, usage, RFID
-  reserve.js, shop.js  reservation, shopping list, orders
-  drying.js, humcheck.js  humidity, drying, humidity check before start
-  stations.js, tags.js PrintDock Station, tag formats
-  spoolman.js          Spoolman sync
-  homeassistant.js     plugs, MQTT discovery, cards, blueprints
-  emergency.js         emergency stop
-  energy.js, costs.js  electricity and costs
-  statuspage.js        customer status page (data)
-  statusrender.js      customer status page (HTML, shared with the status server)
-  relay.js             sync with the status server
-  storage.js           storage location (data folder, SMB, mounted folder) for print files, photos, backups
-  smb.js               SMB share directly via smbclient
-  archive.js           archive: detect outside prints, fetch the file from the printer, assign orders, search, CSV
-  remote.js            remote access: Tailscale, Cloudflare Tunnel
-  audit.js             log
-  platform.js, env.js, hostinfo.js  platform check, environment
-  updater.js           updates
-  backup.js, autobackup.js  backups
-  files.js, zip.js, inbox.js, slicer.js  file library, 3MF, inbox folder, slicer
-  stats.js, i18n.js, store.js, …
-public/                web interface without build step (app.js, board.js, today-ui.js, *-ui.js, i18n.js, i18n-en.js)
-dist/printdock-card.js Home Assistant cards
-blueprints/            Home Assistant automation blueprints
-relay/                 status server for customer links (php/, server.js, Docker)
-scripts/               install.sh, start-windows.cmd, station-sim.js, check.js, build-ha-addon.js
-ha-addon/              Home Assistant add-on (config.yaml, Dockerfile, CHANGELOG.md)
-docs/                  installation, getting started, remote access, screenshots
-.github/               issue templates
-data/                  JSON files, print files, photos (created on start)
-```
-
-The full API table is in the [German README](README.de.md#api).
-
-## Contributing
-
-New printers, translations and bug reports are welcome – please report bugs via the [issue template](https://github.com/Codegulasch/printdock/issues/new/choose) with version and platform check. Please run `npm run check` before opening a pull request.
+- **Bugs and wishes:** via the [issue templates](https://github.com/Codegulasch/printdock/issues/new/choose) – please include the PrintDock version, your printer(s) and the platform check (*Settings → System*). For printer problems, please attach the *Diagnostics* from the printer dialog.
+- **New printers, translations, your own scripts:** project layout, driver interface and API are in [docs/development.md](docs/development.md).
 
 ## License
 

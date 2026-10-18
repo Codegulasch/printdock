@@ -26,7 +26,7 @@ const crypto = require('crypto');
 const readline = require('readline');
 const { spawn, spawnSync } = require('child_process');
 
-const VERSION = '0.21.1';
+const VERSION = '0.21.2';
 const POLL_MS = 3000;
 const SLICE_TIMEOUT_MS = 20 * 60 * 1000;
 

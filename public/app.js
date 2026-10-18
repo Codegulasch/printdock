@@ -398,7 +398,7 @@ const GH_ICON = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"
 function creditHTML() {
   const v = S.app?.version;
   const off = typeof MODULE_INFO !== 'undefined' ? MODULE_INFO.filter(([k]) => S.app?.modules?.[k] === false && k !== 'demo').length : 0;
-  return `${off ? `<button class="side-disc" data-view="general" data-anchor-to="discover">✨ ${t('{n} weitere Funktionen entdecken', { n: off })}</button>` : ''}<div class="r"><b>PrintDock${v ? ` ${esc(v)}` : ''}</b>${S.app?.update ? `<button class="upd" data-view="system" title="${esc(t('Update verfügbar'))}">${t('neu: {v}', { v: esc(S.app.update) })}</button>` : ''}<a class="gh" href="https://github.com/Codegulasch/printdock" target="_blank" rel="noopener">${GH_ICON}GitHub</a></div>`;
+  return `${off ? `<button class="side-disc" data-view="general" data-anchor-to="discover">✨ ${t('{n} weitere Funktionen entdecken', { n: off })}</button>` : ''}<div class="r"><b>PrintDock${v ? ` ${esc(v)}` : ''}</b><a class="beta" href="https://github.com/Codegulasch/printdock/issues/new/choose" target="_blank" rel="noopener" title="${esc(t('Öffentliche Beta – Fehler oder Wünsche melden'))}">Beta</a>${S.app?.update ? `<button class="upd" data-view="system" title="${esc(t('Update verfügbar'))}">${t('neu: {v}', { v: esc(S.app.update) })}</button>` : ''}<a class="gh" href="https://github.com/Codegulasch/printdock" target="_blank" rel="noopener" title="GitHub" aria-label="GitHub">${GH_ICON}</a></div>`;
 }
 
 function renderHead() {
