@@ -15,6 +15,7 @@ const EVENTS = [
   { id: 'update', label: 'PrintDock-Update verfügbar', defaultOn: true },
   { id: 'firstLayer', label: 'Foto nach der ersten Schicht', defaultOn: false },
   { id: 'emergency', label: 'Notaus (Rauch, Hitze)', defaultOn: true },
+  { id: 'portalRequest', label: 'Neue Anfrage im Druckportal', defaultOn: true },
 ];
 
 const STYLE = {
@@ -31,6 +32,7 @@ const STYLE = {
   firstLayer: { emoji: '📷', tag: 'camera', priority: 2 },
   emergency: { emoji: '🚨', tag: 'rotating_light', priority: 5 },
   update: { emoji: '⬆️', tag: 'arrow_up', priority: 2 },
+  portalRequest: { emoji: '📨', tag: 'incoming_envelope', priority: 4 },
   test: { emoji: '🔔', tag: 'bell', priority: 3 },
 };
 
@@ -272,6 +274,17 @@ function buildMessage(event, printer, status, entry) {
       title = tr('PrintDock {v} ist verfügbar', { v: entry?.version || '' });
       lines.push(tr('Installieren unter Einstellungen → System → Updates.'));
       break;
+    case 'portalRequest': {
+      const list = entry?.orders || [];
+      title = list.length === 1 ? tr('Neue Anfrage im Druckportal: {nr}', { nr: list[0].number }) : tr('{n} neue Anfragen im Druckportal', { n: list.length });
+      for (const o of list.slice(0, 5)) {
+        const n = (o.items || []).reduce((a, it) => a + (Number(it.qty) || 1), 0);
+        const est = o.estimate ? `${Number(o.estimate.min).toFixed(2).replace('.', ',')}–${Number(o.estimate.max).toFixed(2).replace('.', ',')} €` : '';
+        lines.push(`• ${o.number} · ${o.customer?.name || '?'} · ${tr('{n} Teile', { n })}${est ? ` · ${est}` : ''}`);
+      }
+      lines.push(tr('Bearbeiten in PrintDock unter Druckportal.'));
+      break;
+    }
     case 'maintenance':
       title = tr('{p}: Wartung fällig', { p: name });
       for (const t of entry?.tasks || []) lines.push(`• ${tr(t)}`);
@@ -320,7 +333,7 @@ class Notifier {
 
     const msg = buildMessage(event, printer, status, entry);
     const wantsImage = channels.some((c) => c.attachImage && CHANNELS[c.type]?.image);
-    const image = wantsImage && status?.camera && !['maintenance', 'filamentLow', 'humidity', 'dryingDone', 'update'].includes(event) ? await this.getSnapshot(printer.id) : null;
+    const image = wantsImage && status?.camera && !['maintenance', 'filamentLow', 'humidity', 'dryingDone', 'update', 'portalRequest'].includes(event) ? await this.getSnapshot(printer.id) : null;
     await Promise.allSettled(channels.map((c) => this.sendTo(c, msg, c.attachImage ? image : null)));
   }
 

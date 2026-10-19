@@ -20,6 +20,7 @@ const stats = require('./lib/stats');
 const hms = require('./lib/hms');
 let ha = null; // wird nach Produktion/Filament angelegt
 let relay = null; // Status-Server für Kunden-Links
+let portal = null; // Druckportal: Aufträge abholen, Status zurückmelden, Werkstatt live
 let archive = null; // Archiv aller Drucke (auch am Drucker/im Slicer gestartete)
 
 const PORT = Number(process.env.PORT) || 3080;
@@ -57,6 +58,15 @@ const channelResults = new Map(); // id -> letztes Versandergebnis (nur im Speic
 const savePrinters = () => writeJson(PRINTERS_FILE, printerConfigs);
 const saveHistory = () => writeJson(HISTORY_FILE, history.slice(-HISTORY_MAX));
 const saveChannels = () => writeJson(CHANNELS_FILE, channels);
+// Neues Ereignis „Neue Anfrage im Druckportal“: in bestehenden Kanälen einmalig einschalten
+if (channels.some((c) => !c.knownEvents?.includes('portalRequest'))) {
+  for (const c of channels) {
+    if (c.knownEvents?.includes('portalRequest')) continue;
+    if (Array.isArray(c.events) && !c.events.includes('portalRequest')) c.events.push('portalRequest');
+    c.knownEvents = [...new Set([...(c.knownEvents || []), 'portalRequest'])];
+  }
+  saveChannels();
+}
 
 // ---------------------------------------------------------------- Felder (Formulare)
 
@@ -96,6 +106,7 @@ const cameras = new CameraManager();
 function broadcast(event, data) {
   const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   for (const res of clients) res.write(msg);
+  if (event === 'production') portal?.changed();
   if (!ha) return;
   if (event === 'printers') setTimeout(() => ha.publishDiscovery(), 500);
   if (['production', 'history'].includes(event)) relay?.changed();
@@ -435,6 +446,14 @@ archive = new Archive({
 const { Relay } = require('./lib/relay');
 relay = new Relay({ production, history: () => history, photoDir: PHOTO_DIR, photoPath, photoFile, lang: () => app.lang });
 production.ctx.onShareRemoved = (token) => relay.remove(token);
+// Druckportal (eigenes Portal mit PrintDock-Schnittstelle): bestätigte Aufträge abholen, Fortschritt zurückmelden, Werkstatt live
+const { Portal } = require('./lib/portal');
+portal = new Portal({
+  production, printers: () => printerConfigs, runtime, relay, costs,
+  // neue Anfragen im Portal → Benachrichtigung (ein Sammel-Hinweis je Abfrage)
+  notify: (orders) => notifier.dispatch('portalRequest', { id: 'druckportal', name: 'Druckportal' }, null, { orders }).catch((err) => console.warn(err.message)),
+  changed: () => broadcast('portal', null),
+});
 
 /** Nach dem Druck: Stromverbrauch und Foto des fertigen Teils an den Verlaufseintrag hängen */
 async function finishExtras(cfg, rt, job, entry) {
@@ -608,6 +627,7 @@ function validateChannel(body, existing) {
     attachImage: Boolean(body.attachImage) && type.image,
     events: (Array.isArray(body.events) ? body.events : []).filter((e) => validEvents.has(e)),
     config: validateFields(type.fields, body.config, prev),
+    knownEvents: EVENTS.map((e) => e.id), // alle Ereignisse, die beim Speichern zur Auswahl standen
   };
 }
 
@@ -692,6 +712,8 @@ const MIME = {
   '.json': 'application/json',
   '.webmanifest': 'application/manifest+json',
   '.png': 'image/png',
+  '.woff2': 'font/woff2',
+  '.txt': 'text/plain; charset=utf-8',
 };
 
 const APP_VERSION = require('./package.json').version;
@@ -751,7 +773,7 @@ async function handleApi(req, res, url) {
   const me = app.who(req);
   const sub = parts.slice(1).join('/');
   if (me.role === 'operator') {
-    const adminGet = /^(backup|autobackup|storage|remote|relay|users|audit|printers\/[^/]+\/diagnostics|update)/.test(sub);
+    const adminGet = /^(backup|autobackup|storage|remote|relay|portal|users|audit|printers\/[^/]+\/diagnostics|update)/.test(sub);
     if ((req.method === 'GET' && adminGet) || (req.method !== 'GET' && !OPERATOR_WRITES.some((re) => re.test(sub)))) throw httpError(403, 'Nur für Admins – als Bediener nicht erlaubt');
   }
   if (req.method !== 'GET') {
@@ -766,6 +788,80 @@ async function handleApi(req, res, url) {
     if (id === 'sync' && req.method === 'POST') {
       await relay.syncAll();
       return sendJson(res, 200, relay.view());
+    }
+  }
+
+  // ---- Eigenes Erscheinungsbild (Theme-Pakete)
+  if (resource === 'themes') {
+    const themes = require('./lib/themes');
+    if (!id && req.method === 'GET') return sendJson(res, 200, themes.list());
+    if (!id && req.method === 'POST') {
+      const buf = await new Promise((resolve, reject) => {
+        const chunks = [];
+        let size = 0;
+        req.on('data', (c) => { size += c.length; if (size > 8.5 * 1024 * 1024) { reject(httpError(413, 'Theme-Paket ist zu groß (höchstens 8 MB)')); req.destroy(); } else chunks.push(c); });
+        req.on('end', () => resolve(Buffer.concat(chunks)));
+        req.on('error', reject);
+      });
+      const th = themes.install(buf);
+      broadcast('app', null);
+      return sendJson(res, 200, th);
+    }
+    if (id && req.method === 'DELETE') {
+      themes.remove(id);
+      if (app.publicSettings(req).skin === id) app.save({ skin: 'printdock' });
+      broadcast('app', null);
+      return sendJson(res, 200, themes.list());
+    }
+  }
+
+  // ---- Druckportal (Aufträge, Status, Werkstatt live)
+  if (resource === 'portal') {
+    if (!id && req.method === 'GET') return sendJson(res, 200, portal.view());
+    if (!id && req.method === 'PUT') return sendJson(res, 200, await portal.save(await readBody(req)));
+    if (id === 'test' && req.method === 'POST') {
+      await portal.test();
+      return sendJson(res, 200, portal.view());
+    }
+    if (id === 'sync' && req.method === 'POST') return sendJson(res, 200, await portal.poll());
+    if (id === 'werkstatt' && req.method === 'POST') {
+      await portal.pushWerkstatt();
+      return sendJson(res, 200, portal.view());
+    }
+    if (id === 'werkstatt' && req.method === 'GET') return sendJson(res, 200, portal.werkstattData());
+
+    // Portal steuern: Anfragen, Angebote, Einstellungen, Materialien, Wartung
+    if (id === 'inbox' && req.method === 'GET') return sendJson(res, 200, await portal.list(url.searchParams.get('refresh') === '1'));
+    if (id === 'orders' && action) {
+      const act = parts[4] || '';
+      if (!act && req.method === 'GET') return sendJson(res, 200, await portal.order(action));
+      if (act === 'update' && req.method === 'POST') return sendJson(res, 200, await portal.orderUpdate(action, await readBody(req)));
+      if (act === 'paid' && req.method === 'POST') return sendJson(res, 200, await portal.orderPaid(action, (await readBody(req)).paid));
+      if (act === 'import' && req.method === 'POST') return sendJson(res, 200, await portal.takeOver(action));
+      if (!act && req.method === 'DELETE') return sendJson(res, 200, await portal.orderDelete(action));
+    }
+    if (id === 'items' && action && req.method === 'GET') {
+      const act = parts[4] || '';
+      if (act === 'mesh') {
+        const buf = await portal.mesh(action, url.searchParams.get('name') || '');
+        res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'private, max-age=600', 'Content-Length': buf.length });
+        return res.end(buf);
+      }
+      if (act === 'file') {
+        const f = await portal.file(action, url.searchParams.get('name') || '');
+        res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': f.buf.length, 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(f.name)}` });
+        return res.end(f.buf);
+      }
+    }
+    if (id === 'config' && req.method === 'GET') return sendJson(res, 200, await portal.config());
+    if (id === 'config' && req.method === 'PUT') return sendJson(res, 200, await portal.saveConfig(await readBody(req)));
+    if (id === 'materials' && !action && req.method === 'POST') return sendJson(res, 200, await portal.materialSave(await readBody(req)));
+    if (id === 'materials' && action && req.method === 'DELETE') return sendJson(res, 200, await portal.materialDelete(action));
+    if (id === 'testmail' && req.method === 'POST') return sendJson(res, 200, await portal.testmail());
+    if (id === 'wartung' && !action && req.method === 'GET') return sendJson(res, 200, await portal.wartung());
+    if (id === 'wartung' && action && req.method === 'PUT') {
+      const b = await readBody(req);
+      return sendJson(res, 200, await portal.setWartung(action, b.an, b.text));
     }
   }
 
@@ -1570,6 +1666,21 @@ const server = http.createServer(async (req, res) => {
       const r = sp.render(sctx, sm[1]);
       res.writeHead(r.status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' });
       return res.end(r.html);
+    }
+    // Theme-Pakete aus dem Datenordner: erzeugtes Stylesheet, Logo, Schriften
+    const tm = /^\/themes\/([a-z0-9-]{1,40})\/([\w.-]+)$/.exec(url.pathname);
+    if (tm && req.method === 'GET') {
+      const themes = require('./lib/themes');
+      if (tm[2] === 'theme.css') {
+        res.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'no-cache' });
+        return res.end(themes.css(tm[1]));
+      }
+      const f = themes.file(tm[1], tm[2]);
+      if (!f) throw httpError(404, 'Nicht gefunden');
+      const type = { '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.woff2': 'font/woff2', '.woff': 'font/woff', '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8' }[path.extname(f).toLowerCase()] || 'application/octet-stream';
+      // SVG aus fremden Paketen nie als Dokument mit Skripten ausführen
+      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'public, max-age=86400', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:", 'X-Content-Type-Options': 'nosniff' });
+      return fs.createReadStream(f).pipe(res);
     }
     if (url.pathname.startsWith('/api/')) await handleApi(req, res, url);
     else serveStatic(req, res);

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.23.0
+- **Run the print portal from PrintDock** (menu *Print portal*, once a portal is connected): requests with 3D preview of STL and 3MF files, quotes with status, price, shipping and a message to the customer, paid, tracking number, internal note, delete, take over into PrintDock with one click. Plus maintenance switches (as provided by the portal), materials, prices and quantity discounts, email texts and the portal's general settings. Needs a portal with the full interface – see *docs/portal-api.md*
+- **Price suggestion** per request: weight and print time from the portal with your own cost rates, plus the portal's base fee, colour surcharge and minimum order value
+- **Notification on new requests** (new event "New request in the print portal", switched on once for existing channels)
+- *Take over confirmed orders automatically* can now be switched off – then requests are taken over by button
+- **Themes** (*Settings → General → Appearance → Style*): upload your own look as a zip package – name, logo, colours for light and dark, fonts and a little CSS. Stored in the data folder, kept across updates and in backups. Structure and example: *docs/themes.md*
+- *Workshop live*: printers without a nickname now show their own name; default colours neutral
+
+## 0.22.0
+- **Print portal** (new, optional – *Settings → Remote access → Print portal*): PrintDock takes over confirmed orders from a print portal on regular web hosting. Model files go into the library, the order is created with items, material and colours as notes, and gets a status link. Progress goes back to the portal: *printing* as soon as a part runs, *shipped* when the post-processing step "Versendet" is done, *closed* when the order is closed. All connections go out from PrintDock; the home network stays closed
+  - Choose whether orders come in as soon as the customer confirms or only once marked as paid
+  - *Customer links via the portal*: the portal also acts as status server (same interface as `relay/`), so customers see progress and photos of finished parts on the portal's order page
+- **Workshop live**: every minute a snapshot of the printers goes to the portal for a public "What's printing?" page – nickname and colour per printer, status, progress, material and expected end. Choose which printers appear. Customer orders only show up as "Customer order", never with file names
+- Removed an accidental copy of the whole project in `state/` from the repository
+
 ## 0.21.2
 - **Public beta:** README, guides and add-on documentation rewritten for users – in English and German as separate pages (installation, getting started, remote access, status server). A small *Beta* badge in the sidebar leads to the bug report
 - New section on **reslicing** in the README; developer topics (project layout, printer drivers, API, translations) moved to *docs/development*

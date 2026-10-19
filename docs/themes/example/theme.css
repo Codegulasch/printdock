@@ -1,0 +1,4 @@
+/* Optional: Feinheiten, die theme.json nicht abdeckt. Immer mit :root[data-skin="custom"] beginnen,
+   damit nichts am Standard-Stil hängen bleibt. Dateien im Paket relativ ansprechen (url(meine-schrift.woff2)). */
+:root[data-skin="custom"] .side-brand{border-bottom:3px solid var(--accent)}
+:root[data-skin="custom"] .shead{color:var(--accent)}

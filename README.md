@@ -58,6 +58,7 @@ Fully local – no cloud, no account, no database. Runs as a **Home Assistant ad
 - **Status link per order**: progress, due date, expected finish, post-processing and photos of finished parts – no costs, no login
 - **Your own status server** (`relay/`): customer links work from anywhere without opening the home network – as **PHP for regular web hosting** or Node.js/Docker
 - **Labels** for finished parts with a QR code to the status link
+- **Print portal**: requests, quotes and settings of your own portal right in PrintDock, fetch confirmed orders, report progress back, and **workshop live** – a public "What's printing?" page with printer nicknames
 
 ### Home Assistant
 
@@ -74,7 +75,7 @@ Fully local – no cloud, no account, no database. Runs as a **Home Assistant ad
 - **Platform check** shows what works on the current installation
 - **Setup levels** Hobby, Maker, Workshop – PrintDock shows only what you need; switched-off features are listed under **"Discover more"**
 - **Setup wizard**, **every feature can be switched off**, **arrange the menu, "Today" and printer cards** and choose the start page
-- **German and English**, accent colour, light and dark mode, works on phones
+- **German and English**, accent colour, your own themes (logo, colours, fonts), light and dark mode, works on phones
 - **Demo data** with one click: 5 simulated printers, files, spools, orders and 30 days of history
 
 | Today | Archive |
@@ -220,6 +221,30 @@ When PrintDock runs at home, such a link points to an address like `192.168.x.x`
 - several PrintDock installations with their own keys, company name and link in the footer, pages expire after the order is done (default 30 days), turning a link off deletes it on the server too
 
 Set it up under *Settings → Remote access → Customer links*; guide in [relay/README.md](relay/README.md).
+
+### Print portal and workshop live
+
+If you take orders through your own **print portal** on regular web hosting (customers upload STL/3MF, get a price estimate and confirm a quote), connect it under *Settings → Remote access → Print portal*:
+
+- **Fetch orders:** confirmed (optionally only paid) orders come into PrintDock automatically – model files into the library, an order with items, material and colours as notes, plus a status link
+- **Status back:** *printing* as soon as a part runs, *shipped* when the post-processing step "Versendet" is done, *closed* with the order – the customer sees it in the portal and by email if wanted
+- **Customer links via the portal:** the portal is also the status server (same interface as `relay/`), so customers see progress and photos on their order page
+- **Workshop live:** every minute a snapshot of the printers for a public "What's printing?" page – nickname and colour per printer, status, progress, material and end time. Customer orders only appear as "Customer order"
+
+All connections go out from PrintDock; the home network stays closed.
+
+**Run the portal entirely from PrintDock** (menu item *Print portal*, appears once a portal with the full [print portal interface](docs/portal-api.md) is connected):
+
+- **Requests:** every request with status, customer, parts and price; per request a **3D preview** of each model file (STL and 3MF, rotate and zoom), download, the customer's message and history
+- **Edit:** status, quoted price, shipping, quote note, message to the customer (optionally by email with the portal's template), tracking number, internal note, *paid*, delete, *Take over into PrintDock* right away
+- **Price suggestion:** weight and print time from the portal × your cost rates (material, power, machine hour, markup) plus the portal's base fee, colour surcharge and minimum order value – one click to use it as the quote
+- **Notification** on new requests through your channels (event "New request in the print portal")
+- **Maintenance mode:** one switch each for the portal and the main sites, with a note
+- **Portal setup:** materials (colours, price per gram, density, on/off), prices and quantity discounts, email texts, general settings and test email. Password and API key stay with the portal admin
+
+### Your own look (themes)
+
+Under *Settings → General → Appearance → Style* you can upload a **theme package**: a zip file with name, logo, colours for light and dark mode, fonts and a little CSS. It lives in the data folder, survives updates and is part of every backup. Structure and example: [docs/themes.md](docs/themes.md).
 
 ## Filament
 

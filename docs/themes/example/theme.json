@@ -1,0 +1,27 @@
+{
+  "name": "Werkbank",
+  "version": "1.0",
+  "brand": {
+    "text": "Werk",
+    "accentText": "bank",
+    "sub": "printdock",
+    "title": "Werkbank",
+    "logo": "logo.svg"
+  },
+  "fontFamilies": { "body": "", "heading": "", "mono": "" },
+  "fonts": [],
+  "headings": { "weight": 800, "letterSpacing": "-0.02em" },
+  "radius": "0.625rem",
+  "light": {
+    "bg": "#EEF1EC", "panel": "#FFFFFF", "panel2": "#F4F6F2", "ink": "#1E2A22", "muted": "#58655B", "line": "#D3DAD1",
+    "accent": "#0E7C66", "accentBg": "#DDF1EB",
+    "run": "#1F7A3F", "runBg": "#E1F2E6", "warn": "#E0A100", "warnBg": "#FFF3D1", "warnInk": "#8A6300", "fault": "#B83224", "faultBg": "#F8E3E0",
+    "btn": "#1E2A22", "btnInk": "#FFFFFF"
+  },
+  "dark": {
+    "bg": "#141A16", "panel": "#1D251F", "panel2": "#253028", "ink": "#E8EFE9", "muted": "#9FB0A3", "line": "#344238",
+    "accent": "#4FD1B0", "accentBg": "#173A31", "accentInk": "#062019",
+    "run": "#5BD08A", "runBg": "#183323", "warn": "#F2C232", "warnBg": "#3A3115", "warnInk": "#F2C232", "fault": "#F0705F", "faultBg": "#3B1E1A",
+    "btn": "#E8EFE9", "btnInk": "#141A16"
+  }
+}

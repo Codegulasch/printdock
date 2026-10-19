@@ -58,6 +58,7 @@ Läuft komplett lokal – keine Cloud, kein Konto, keine Datenbank. Als **Home-A
 - **Statuslink je Auftrag**: Fortschritt, Termin, voraussichtliches Ende, Nachbearbeitung und Fotos der fertigen Teile – ohne Kosten, ohne Anmeldung
 - **Eigener Status-Server** (`relay/`): Kunden-Links funktionieren von überall, ohne das Heimnetz zu öffnen – als **PHP für normales Webhosting** oder als Node.js/Docker
 - **Etiketten** für fertige Teile mit QR-Code zum Statuslink
+- **Druckportal**: Anfragen, Angebote und Einstellungen des eigenen Portals direkt in PrintDock, bestätigte Aufträge abholen, Fortschritt zurückmelden und **Werkstatt live** – eine öffentliche Seite „Was druckt gerade?“ mit Spitznamen der Drucker
 
 ### Home Assistant
 
@@ -74,7 +75,7 @@ Läuft komplett lokal – keine Cloud, kein Konto, keine Datenbank. Als **Home-A
 - **Plattform-Check** zeigt, was auf der jeweiligen Installation funktioniert
 - **Ausbaustufen** Hobby, Maker, Werkstatt – PrintDock zeigt nur, was man braucht; abgeschaltete Funktionen stehen unter **„Mehr entdecken“**
 - **Einrichtungsassistent**, **jede Funktion abschaltbar**, **Menü, „Heute“ und Druckerkarten frei anordnen** und Startseite wählen
-- **Deutsch und Englisch**, Akzentfarbe, hell und dunkel, fürs Handy geeignet
+- **Deutsch und Englisch**, Akzentfarbe, eigene Themes (Logo, Farben, Schriften), hell und dunkel, fürs Handy geeignet
 - **Demo-Daten** mit einem Klick: 5 simulierte Drucker, Dateien, Spulen, Aufträge und 30 Tage Verlauf
 
 | Heute | Archiv |
@@ -232,6 +233,30 @@ Läuft PrintDock im Heimnetz, zeigt ein solcher Link auf eine Adresse wie `192.1
 - mehrere PrintDock-Installationen mit eigenen Schlüsseln, Firmenname und Link im Seitenfuß, Seiten verfallen nach Abschluss des Auftrags (Standard 30 Tage), Link abschalten löscht die Seite auch auf dem Server
 
 Einrichten unter *Einstellungen → Fernzugriff → Kunden-Links*, Anleitung in [relay/README.de.md](relay/README.de.md).
+
+### Druckportal und Werkstatt live
+
+Wer Aufträge über ein eigenes **Druckportal** auf normalem Webhosting annimmt (Kunden laden STL/3MF hoch, bekommen eine Preisschätzung und bestätigen ein Angebot), kann es unter *Einstellungen → Fernzugriff → Druckportal* mit PrintDock verbinden:
+
+- **Aufträge abholen:** Bestätigte (wahlweise erst bezahlte) Aufträge kommen automatisch in PrintDock – Modelldateien in die Bibliothek, Auftrag mit Positionen, Material und Farben als Notiz, dazu ein Statuslink
+- **Status zurück:** *im Druck*, sobald ein Teil läuft, *versendet*, wenn der Nachbearbeitungsschritt „Versendet“ erledigt ist, *abgeschlossen* mit dem Auftrag – der Kunde bekommt das im Portal und auf Wunsch per Mail
+- **Kunden-Links über das Portal:** Das Portal ist zugleich Status-Server (gleiche Schnittstelle wie `relay/`), der Kunde sieht Fortschritt und Fotos auf seiner Auftragsseite
+- **Werkstatt live:** jede Minute ein Schnappschuss der Drucker für eine öffentliche Seite „Was druckt gerade?“ – mit Spitznamen und Farbe je Drucker, Status, Fortschritt, Material und Endzeit. Kundenaufträge erscheinen nur als „Kundenauftrag“
+
+Alle Verbindungen gehen von PrintDock nach außen, das Heimnetz bleibt zu.
+
+**Portal komplett aus PrintDock steuern** (Menüpunkt *Druckportal*, erscheint, sobald ein Portal mit der vollständigen [Druckportal-Schnittstelle](docs/portal-api.de.md) verbunden ist):
+
+- **Anfragen:** alle Anfragen mit Status, Kunde, Teilen und Preis; je Anfrage eine **3D-Vorschau** jeder Modelldatei (STL und 3MF, drehen und zoomen), Download, Nachricht des Kunden und Verlauf
+- **Bearbeiten:** Status, Angebotspreis, Versand, Hinweis zum Angebot, Nachricht an den Kunden (auf Wunsch per Mail mit der Vorlage des Portals), Sendungsnummer, interne Notiz, *bezahlt*, löschen, sofort *In PrintDock übernehmen*
+- **Preisvorschlag:** Gewicht und Druckzeit aus dem Portal × deine Kostensätze (Material, Strom, Maschinenstunde, Aufschlag) plus Grundgebühr, Farbaufschlag und Mindestauftragswert des Portals – mit einem Klick als Angebot übernehmen
+- **Benachrichtigung** bei neuen Anfragen über die eingerichteten Kanäle (Ereignis „Neue Anfrage im Druckportal“)
+- **Wartungsmodus:** je ein Schalter für das Portal und die Hauptseiten, mit Hinweistext
+- **Portal einrichten:** Materialien (Farben, Preis je Gramm, Dichte, an/aus), Preise und Mengenrabatt, Mailtexte, allgemeine Einstellungen und Testmail. Passwort und API-Schlüssel bleiben dem Admin im Portal vorbehalten
+
+### Eigenes Erscheinungsbild (Themes)
+
+Unter *Einstellungen → Allgemein → Darstellung → Stil* lässt sich ein **Theme-Paket** hochladen: eine Zip-Datei mit Name, Logo, Farben für hell und dunkel, Schriften und etwas CSS. Es liegt im Datenordner, übersteht Updates und kommt in jede Sicherung. Aufbau und Beispiel: [docs/themes.de.md](docs/themes.de.md).
 
 ## Filament
 

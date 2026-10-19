@@ -13,6 +13,7 @@ const REMOTE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
 
 loaders.remote = async () => (S.remote = await api('remote'));
 loaders.relay = async () => (S.relay = S.app?.me?.role === 'operator' ? null : await api('relay'));
+loaders.portal = async () => (S.portal = S.app?.me?.role === 'operator' ? null : await api('portal'));
 
 const RS = {
   off: ['aus', ''],
@@ -79,6 +80,7 @@ function vRemote() {
     <h3 class="shead">Tailscale</h3>${tsBox}
     <h3 class="shead">Cloudflare</h3>${cfBox}
     ${relayHTML()}
+    ${portalHTML()}
     ${ha}${sec}`;
 }
 
@@ -143,7 +145,7 @@ function relayHTML() {
       ${R.enabled && st.ok ? `<div class="rm-note ok">${t('Kunden-Links zeigen auf {u}', { u: `<b>${esc(R.url)}/s/…</b>` })}${st.name ? ` · ${t('Schlüssel „{n}“', { n: esc(st.name) })}` : ''}</div>` : ''}
       ${row(t('Adresse des Status-Servers'), t('z. B. https://eure-domain.de/status – den Ordner „relay/php“ per FTP auf euer Webhosting laden (Anleitung: relay/README.de.md). Eigener Server: relay/server.js oder Docker.'), `<input class="in" data-rl="url" value="${esc(R.url || '')}" placeholder="https://status.example.com" style="min-width:16rem">`)}
       ${row(t('Schlüssel'), t('Wie in RELAY_KEYS auf dem Server.'), `<input class="in" type="password" data-rl="key" value="${esc(R.key || '')}" autocomplete="off" style="max-width:16rem">`)}
-      ${row(t('Firmenname auf der Seite'), t('Steht unten auf jeder Statusseite, mit Link.'), `<div class="two"><input class="in" data-rl="bname" value="${esc(R.brand?.name || '')}" placeholder="schichtsalat3D"><input class="in" data-rl="burl" value="${esc(R.brand?.url || '')}" placeholder="https://…"></div>`)}
+      ${row(t('Firmenname auf der Seite'), t('Steht unten auf jeder Statusseite, mit Link.'), `<div class="two"><input class="in" data-rl="bname" value="${esc(R.brand?.name || '')}" placeholder="Meine Werkstatt"><input class="in" data-rl="burl" value="${esc(R.brand?.url || '')}" placeholder="https://…"></div>`)}
       ${row(t('Nach Abschluss erreichbar'), t('So lange bleibt die Seite nach Fertigstellung des Auftrags auf dem Server.'), `<span class="inu"><input class="in" type="number" min="1" max="365" data-rl="keep" value="${esc(R.keepDays)}" style="width:5rem"><span>${t('Tage')}</span></span>`)}
       <div class="st-foot"><button class="b b-sm" data-rlact="test">${t('Verbindung testen')}</button><button class="b b-sm" data-rlact="sync">${t('Alle Links jetzt senden')}</button><button class="b b-sm b-go" data-rlact="save">${t('Speichern')}</button></div>
     </div>`;
@@ -175,4 +177,84 @@ document.addEventListener('click', async (e) => {
 });
 document.addEventListener('change', (e) => {
   if (e.target.matches('[data-rl-on]')) relaySave({ enabled: e.target.checked });
+});
+
+// ---------------------------------------------------------------- Druckportal: Aufträge abholen, Status zurück, Werkstatt live
+
+function portalHTML() {
+  const P = S.portal;
+  if (!P) return '';
+  const st = P.state || {};
+  const L = P.last || {};
+  const W = P.werkstatt || {};
+  const row = (label, hint, control) => `<div class="lrow"><div class="lt"><b>${label}</b>${hint ? `<span>${hint}</span>` : ''}</div><div class="lc">${control}</div></div>`;
+  const tgl = (attr, onv) => `<label class="tgl"><input type="checkbox" ${attr} ${onv ? 'checked' : ''}><span class="sw"></span></label>`;
+  const pill = P.enabled ? (st.ok ? `<i class="pill run">${t('verbunden')}</i>` : st.ok === false ? `<i class="pill bad">${t('Fehler')}</i>` : '') : `<i class="pill">${t('aus')}</i>`;
+  const when = (iso) => iso ? new Date(iso).toLocaleString(S.app?.lang === 'en' ? 'en-GB' : 'de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '–';
+  const pRows = (W.printers || []).map((p) => `<div class="lrow" data-pw="${esc(p.id)}">
+      <div class="lt"><b>${esc(p.printer)}</b><span>${t('Spitzname und Farbe auf der Seite')}</span></div>
+      <div class="lc" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input class="in" data-pwf="name" value="${esc(p.nick)}" maxlength="40" aria-label="${esc(t('Spitzname'))}" style="width:9rem">
+        <input type="color" data-pwf="color" value="${esc(p.color)}" style="width:2.6rem;height:2.2rem;padding:2px;border-radius:8px">
+        ${tgl('data-pwf="show"', p.show)}
+      </div></div>`).join('');
+  return `<h3 class="shead">${t('Druckportal')}</h3>
+    <div class="sbox">
+      ${row(`${t('Druckportal')} ${pill}`, t('Bestätigte Aufträge aus deinem Druckportal (z. B. druck.example.com) automatisch übernehmen: Modelldateien in die Bibliothek, Auftrag mit Positionen und Statuslink. Der Fortschritt geht zurück ans Portal. PrintDock verbindet sich dabei nur nach draußen.'), tgl('data-pt-on', P.enabled))}
+      ${st.ok === false && P.enabled ? `<div class="rm-note bad">${esc(t(st.error || ''))}</div>` : ''}
+      ${P.enabled && st.ok ? `<div class="rm-note ok">${t('Übernommene Aufträge: {n} · zuletzt abgefragt {d}', { n: P.imported, d: when(L.importAt) })}</div>` : ''}
+      ${(L.errors || []).length ? `<div class="rm-note bad">${L.errors.map(esc).join('<br>')}</div>` : ''}
+      ${row(t('Adresse des Portals'), t('Die Adresse, unter der das Portal läuft – ohne /api.'), `<input class="in" data-pt="url" value="${esc(P.url || '')}" placeholder="https://druck.example.com" style="min-width:16rem">`)}
+      ${row(t('API-Schlüssel'), t('Im Portal unter Admin → Einstellungen → Schnittstelle für PrintDock erzeugen.'), `<input class="in" type="password" data-pt="key" value="${esc(P.key || '')}" autocomplete="off" style="max-width:16rem">`)}
+      ${row(t('Aufträge übernehmen'), t('Wann ein Auftrag nach PrintDock kommt.'), `<select class="in" data-pt="importWhen"><option value="bestaetigt" ${P.importWhen !== 'bezahlt' ? 'selected' : ''}>${t('sobald der Kunde bestätigt hat')}</option><option value="bezahlt" ${P.importWhen === 'bezahlt' ? 'selected' : ''}>${t('erst wenn als bezahlt markiert')}</option></select>`)}
+      ${row(t('Abfragen alle'), t('So oft schaut PrintDock nach neuen Aufträgen.'), `<span class="inu"><input class="in" type="number" min="1" max="60" data-pt="pollMin" value="${esc(P.pollMin)}" style="width:5rem"><span>${t('Minuten')}</span></span>`)}
+      ${row(t('Kunden-Links über das Portal'), t('Statusseiten der Aufträge liegen im Portal – der Kunde sieht dort den Fortschritt und Fotos der fertigen Teile. Stellt die Kunden-Links oben auf dieselbe Adresse.'), tgl('data-pt="useRelay"', P.useRelay))}
+      <div class="st-foot"><button class="b b-sm" data-ptact="test">${t('Verbindung testen')}</button><button class="b b-sm" data-ptact="sync">${t('Jetzt abholen')}</button><button class="b b-sm b-go" data-ptact="save">${t('Speichern')}</button></div>
+    </div>
+    <h3 class="shead">${t('Werkstatt live')}</h3>
+    <div class="sbox">
+      ${row(`${t('Werkstatt live')} ${W.enabled ? (L.werkstattError ? `<i class="pill bad">${t('Fehler')}</i>` : `<i class="pill run">${t('an')}</i>`) : `<i class="pill">${t('aus')}</i>`}`, t('Jede Minute geht ein Schnappschuss der Drucker ans Portal: Spitzname, Status, Fortschritt, Material und Endzeit. Keine Kunden, keine Dateinamen von Kundenaufträgen.'), tgl('data-pw-on', W.enabled))}
+      ${L.werkstattError && W.enabled ? `<div class="rm-note bad">${esc(t(L.werkstattError))}</div>` : ''}
+      ${W.enabled && L.werkstattAt ? `<div class="rm-note ok">${t('Zuletzt gesendet {d}', { d: when(L.werkstattAt) })}${P.url ? ` · <a href="${esc(P.url.replace(/\/+$/, ''))}/werkstatt.php" target="_blank" rel="noopener">${t('Seite ansehen')}</a>` : ''}</div>` : ''}
+      ${row(t('Hinweis über den Druckern'), t('Ein Satz für die Besucher, leer = keiner.'), `<input class="in" data-pw="hinweis" value="${esc(W.hinweis || '')}" maxlength="200" placeholder="${esc(t('Heute laufen vor allem Teile für Balkonkraftwerke.'))}" style="min-width:16rem">`)}
+      ${row(t('Namen eigener Teile zeigen'), t('Bei eigenen Teilen den Teil- bzw. Dateinamen zeigen. Kundenaufträge erscheinen immer nur als „Kundenauftrag“.'), tgl('data-pw="ownNames"', W.ownNames))}
+      ${pRows}
+      <div class="st-foot"><button class="b b-sm" data-ptact="werkstatt">${t('Jetzt senden')}</button><button class="b b-sm b-go" data-ptact="wsave">${t('Speichern')}</button></div>
+    </div>`;
+}
+
+const ptVal = (k) => { const el = $(`[data-pt="${k}"]`); return el?.type === 'checkbox' ? el.checked : el?.value; };
+function pwBody(extra = {}) {
+  const printers = {};
+  for (const r of document.querySelectorAll('[data-pw]')) {
+    if (!r.matches('.lrow')) continue;
+    const f = (k) => r.querySelector(`[data-pwf="${k}"]`);
+    printers[r.dataset.pw] = { name: f('name').value, color: f('color').value, show: f('show').checked };
+  }
+  const el = (k) => $(`[data-pw="${k}"]`);
+  return { werkstatt: { hinweis: el('hinweis')?.value, ownNames: el('ownNames')?.checked, printers, ...extra } };
+}
+async function portalSave(body) {
+  const r = await run(() => api('portal', { method: 'PUT', body }), t('Gespeichert'));
+  if (r) S.portal = r;
+  reload('relay', 'orders', 'portal');
+  render();
+}
+const portalBody = (extra = {}) => ({ url: ptVal('url'), key: ptVal('key'), importWhen: ptVal('importWhen'), pollMin: ptVal('pollMin'), useRelay: ptVal('useRelay'), ...extra });
+
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-ptact]');
+  if (!b) return;
+  const act = b.dataset.ptact;
+  if (act === 'save') return portalSave(portalBody());
+  if (act === 'wsave') return portalSave(pwBody());
+  const ok = { test: t('Druckportal erreichbar'), sync: t('Abgefragt'), werkstatt: t('Gesendet') }[act];
+  const r = await run(() => api(`portal/${act}`, { method: 'POST' }), ok);
+  if (r) S.portal = r;
+  reload('orders');
+  render();
+});
+document.addEventListener('change', (e) => {
+  if (e.target.matches('[data-pt-on]')) portalSave(portalBody({ enabled: e.target.checked }));
+  if (e.target.matches('[data-pw-on]')) portalSave(pwBody({ enabled: e.target.checked }));
 });
