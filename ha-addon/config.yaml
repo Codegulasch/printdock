@@ -1,5 +1,5 @@
 name: PrintDock
-version: "0.24.0"
+version: "0.24.1"
 slug: printdock
 description: "Public beta – manage and monitor all your 3D printers: Bambu Lab, Snapmaker, Anycubic, Klipper, OctoPrint"
 url: https://github.com/Codegulasch/printdock

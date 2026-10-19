@@ -1093,6 +1093,16 @@ a.b{text-decoration:none}
 .pill.pt-st.angebot{background:var(--accent-bg);color:var(--accent)}
 .pill.pt-st.ok{background:var(--run-bg);color:var(--run)}
 .pill.pt-st.storno{background:transparent;color:var(--muted);text-decoration:line-through;padding-left:0}
+.pt-row.pt-unseen{box-shadow:inset 0.25rem 0 0 var(--warn);background:var(--warn-bg)}
+.pt-row.pt-unseen.pt-ev-ok{box-shadow:inset 0.25rem 0 0 var(--run);background:var(--run-bg)}
+.pt-row.pt-unseen.pt-ev-storno{box-shadow:inset 0.25rem 0 0 var(--fault);background:var(--fault-bg)}
+.pt-row.pt-unseen .vl{font-weight:700}
+.pt-evtag{display:inline-block;font-size:0.75rem;font-weight:700;letter-spacing:.01em;color:var(--ink);white-space:nowrap}
+.pt-evtag.ok{color:var(--run)}.pt-evtag.storno{color:var(--fault)}
+.strip .pt-hot{box-shadow:inset 0 -0.1875rem 0 var(--warn)}
+@keyframes ptPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+.pt-badge{animation:ptPulse 1.6s ease-in-out 3}
+@media (prefers-reduced-motion:reduce){.pt-badge{animation:none}}
 .pt-foot{margin-top:0.75rem}
 .pt-ohead h2{display:flex;align-items:center;gap:0.625rem;flex-wrap:wrap}
 .pt-oacts{display:flex;gap:0.375rem;flex-wrap:wrap;align-items:center}
@@ -1169,6 +1179,18 @@ a.b{text-decoration:none}
 .pt-xyz{display:flex;align-items:center;gap:0.25rem;color:var(--muted)}
 .pt-chk{display:inline-flex;align-items:center;gap:0.375rem;margin-right:0.75rem;font-weight:600}
 @media (max-width:600px){.pt-two{grid-template-columns:1fr}}
+.pg-row{grid-template-columns:3.75rem minmax(12rem,1.8fr) minmax(8rem,1fr) 6rem minmax(13rem,auto)}
+.pg-ord{display:flex;flex-direction:column;gap:0.125rem}
+.pg-ord .x{width:2rem;height:1.5rem}
+.pg-ord .x[disabled]{opacity:.25;cursor:default}
+.x-gap{display:inline-block;width:2rem}
+.pg-params{list-style:none;margin:0.5rem 0 0;padding:0;display:grid;gap:0.375rem;max-height:16rem;overflow:auto}
+.pg-params li{display:flex;flex-direction:column;padding:0.375rem 0.625rem;border:1px solid var(--line);border-radius:0.375rem;background:var(--panel2)}
+.pg-params .meta{font-size:0.8125rem}
+.pl-txthead{display:flex;align-items:center;gap:0.625rem;flex-wrap:wrap;margin-bottom:0.5rem}
+.pl-pre{white-space:pre-wrap;font-family:var(--mono,ui-monospace,Menlo,Consolas,monospace);font-size:0.8125rem;line-height:1.5;max-height:24rem;overflow:auto;background:var(--panel2);border:1px solid var(--line);border-radius:0.375rem;padding:0.75rem;margin:0.5rem 0 0}
+.pl-warn{margin:0 0 0.875rem}
+.sbox+.sbox.pt-pad{margin-top:0.75rem}
 
 /* ---------- Eigenes Erscheinungsbild (Theme-Paket aus data/themes, siehe docs/themes.md) */
 :root[data-skin="custom"] .bar-row h2,:root[data-skin="custom"] .page-head h1,:root[data-skin="custom"] .empty h3,:root[data-skin="custom"] .pt-big b{font-stretch:var(--th-head-stretch,normal);font-weight:var(--th-head-weight,700);letter-spacing:var(--th-head-ls,normal)}
@@ -1233,6 +1255,7 @@ a.b{text-decoration:none}
 <script src="reslice-ui.js"></script>
 <script src="remote-ui.js"></script>
 <script src="portal-ui.js"></script>
+<script src="portal-gen-ui.js"></script>
 <script src="nav-ui.js"></script>
 <script src="users-ui.js"></script>
 <script src="platform-ui.js"></script>

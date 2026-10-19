@@ -29,8 +29,9 @@ loaders.pInbox = async () => {
   const base = badges;
   badges = function () {
     const b = base();
-    const n = S.pInbox?.counts?.neu ?? S.portal?.counts?.neu ?? 0;
-    if (n) b.pinbox = `<span class="badge">${n}</span>`;
+    const c = S.pInbox?.counts || S.portal?.counts || {};
+    const n = c.unseen ?? c.neu ?? 0;
+    if (n) b.pinbox = `<span class="badge pt-badge">${n}</span>`;
     return b;
   };
 }
@@ -41,7 +42,8 @@ const PT_STATUS = {
 };
 const ptPill = (s) => { const [l, c] = PT_STATUS[s] || [s, '']; return `<span class="pill pt-st ${c}">${esc(t(l))}</span>`; };
 const PT_FILTER = [
-  ['offen', 'Offen', (o) => ['angefragt', 'angebot', 'bestaetigt'].includes(o.status)],
+  ['offen', 'Offen', (o) => o.unseen || ['angefragt', 'angebot', 'bestaetigt'].includes(o.status)],
+  ['ungesehen', 'Ungesehen', (o) => o.unseen],
   ['angefragt', 'Neu', (o) => o.status === 'angefragt'],
   ['angebot', 'Angebot', (o) => o.status === 'angebot'],
   ['bestaetigt', 'Bestätigt', (o) => o.status === 'bestaetigt'],
@@ -49,6 +51,9 @@ const PT_FILTER = [
   ['ende', 'Erledigt', (o) => ['abgeschlossen', 'storniert'].includes(o.status)],
   ['alle', 'Alle', () => true],
 ];
+// Kunden-Ereignisse: neue Anfrage, Angebot angenommen/abgelehnt, Nachricht von der Statusseite
+const PT_EVENT = { neu: ['Neue Anfrage', 'neu', '📨'], angenommen: ['Angebot angenommen', 'ok', '🤝'], abgelehnt: ['Angebot abgelehnt', 'storno', '✕'], nachricht: ['Nachricht vom Kunden', 'neu', '✉'] };
+const ptEvent = (o) => (o.unseen ? PT_EVENT[o.kunde?.event || 'neu'] || PT_EVENT.neu : null);
 const ptMoney = (n) => (n === null || n === undefined || n === '' ? '–' : money(n));
 const ptAdmin = () => `${String(S.portal?.url || '').replace(/\/+$/, '')}/admin/`;
 
@@ -84,8 +89,9 @@ function vPInbox() {
     const pcs = (o.items || []).reduce((a, it) => a + (Number(it.qty) || 1), 0);
     const mats = [...new Set((o.items || []).map((it) => it.material).filter(Boolean))].join(', ');
     const price = o.offer?.price != null ? `<b class="vl">${money(o.offer.price)}</b><div class="meta">${t('Angebot')}</div>` : `<span class="num">${money(o.estimate?.min)} – ${money(o.estimate?.max)}</span><div class="meta">${t('Schätzung')}</div>`;
-    return `<div class="row pt-row ${['abgeschlossen', 'storniert'].includes(o.status) ? 'dim' : ''}" data-pt-open="${o.id}" tabindex="0" role="button">
-      <div><span class="lbl">${t('Nr')}</span><b class="vl">${esc(o.number)}</b><div class="meta">${tfmt(o.created_at)}</div></div>
+    const ev = ptEvent(o);
+    return `<div class="row pt-row ${['abgeschlossen', 'storniert'].includes(o.status) && !ev ? 'dim' : ''} ${ev ? `pt-unseen pt-ev-${ev[1]}` : ''}" data-pt-open="${o.id}" tabindex="0" role="button">
+      <div><span class="lbl">${t('Nr')}</span><b class="vl">${esc(o.number)}</b><div class="meta">${ev ? `<span class="pt-evtag ${ev[1]}">${ev[2]} ${esc(t(ev[0]))}</span>` : tfmt(o.created_at)}</div></div>
       <div class="c-main"><b>${esc(o.customer?.name || '–')}</b><div class="meta">${esc([o.customer?.company, o.customer?.email].filter(Boolean).join(' · '))}</div></div>
       <div><span class="lbl">${t('Teile')}</span>${t('{n} Stück', { n: pcs })}<div class="meta">${esc(mats)}</div></div>
       <div><span class="lbl">${t('Preis')}</span>${price}</div>
@@ -93,13 +99,14 @@ function vPInbox() {
       <div class="pt-flags">${o.paid_at ? `<span class="pt-flag ok" title="${esc(t('bezahlt'))}">€ ✓</span>` : ''}${o.pd ? `<span class="pt-flag" title="${esc(t('In PrintDock übernommen'))}">${esc(o.pd.number || 'PD')}</span>` : ''}${o.note ? `<span class="pt-flag" title="${esc(o.note)}">✉</span>` : ''}</div>
     </div>`;
   }).join('');
+  const unseen = c.unseen || 0;
   const summary = `<div class="strip pt-strip">
+      <div class="${unseen ? 'warn pt-hot' : ''}"><b class="num">${unseen}</b><span>${t('ungesehen')}</span></div>
       <div class="${c.neu ? 'warn' : ''}"><b class="num">${c.neu || 0}</b><span>${t('neue Anfragen')}</span></div>
       <div><b class="num">${c.angebot || 0}</b><span>${t('Angebote offen')}</span></div>
       <div class="${c.bereit ? 'warn' : ''}"><b class="num">${c.bereit || 0}</b><span>${t('bestätigt, noch nicht übernommen')}</span></div>
-      <div><b class="num">${all.length}</b><span>${t('insgesamt')}</span></div>
     </div>`;
-  return `${ptHead(t('Anfragen'), `<button class="b b-sm" data-pt-act="refresh">${t('Aktualisieren')}</button>`)}${summary}
+  return `${ptHead(t('Anfragen'), `${unseen ? `<button class="b b-sm" data-pt-act="seenAll">${ICON.check}${t('Alle als gesehen markieren')}</button>` : ''}<button class="b b-sm" data-pt-act="refresh">${t('Aktualisieren')}</button>`)}${summary}
     <div class="chips pt-chips">${chips}</div>
     <div class="list">${list.length ? `<div class="row pt-row head"><div>${t('Nr')}</div><div>${t('Kunde')}</div><div>${t('Teile')}</div><div>${t('Preis')}</div><div>${t('Status')}</div><div></div></div>${rows}`
       : `<div class="empty"><h3>${t('Keine Anfragen')}</h3><p>${S.pFilter === 'offen' ? t('Gerade ist nichts offen. Neue Anfragen meldet PrintDock über deine Benachrichtigungen.') : t('In dieser Auswahl gibt es nichts.')}</p></div>`}</div>
@@ -107,6 +114,11 @@ function vPInbox() {
 }
 
 async function ptOpen(id) {
+  const row = (S.pInbox?.orders || []).find((x) => x.id === Number(id));
+  if (row?.unseen) {
+    row.unseen = false;
+    api(`portal/orders/${id}/seen`, { method: 'POST' }).then((c) => { if (S.pInbox) S.pInbox.counts = c; renderHead?.(); render(); }).catch(() => {});
+  }
   S.pOrderId = Number(id);
   S.pOrder = null;
   S.pDraft = {};
@@ -426,7 +438,7 @@ const pcSaveBar = () => `<div class="pt-savebar ${pcDirty() ? 'on' : ''}"><span>
 function pcRow(key, label, hint, kind = 'text', opts = {}) {
   const v = pcVal(key);
   let ctl;
-  if (kind === 'bool') ctl = `<span class="tgl"><input type="checkbox" data-pc="${key}" data-pck="bool" ${v ? 'checked' : ''}><span class="sw"></span></span>`;
+  if (kind === 'bool') ctl = `<label class="tgl"><input type="checkbox" data-pc="${key}" data-pck="bool" ${v ? 'checked' : ''}><span class="sw"></span></label>`;
   else if (kind === 'area') ctl = `<textarea class="in" rows="${opts.rows || 2}" data-pc="${key}" style="width:100%">${esc(v ?? '')}</textarea>`;
   else if (kind === 'num') ctl = `<span class="pt-unit"><input class="in num" data-pc="${key}" data-pck="num" inputmode="decimal" value="${esc(ptNum(opts.scale ? (v === '' || v == null ? '' : Math.round(Number(v) * opts.scale * 1000) / 1000) : v))}" ${opts.scale ? `data-pcs="${opts.scale}"` : ''} style="width:7rem">${opts.unit ? `<span>${esc(opts.unit)}</span>` : ''}</span>`;
   else ctl = `<input class="in" data-pc="${key}" value="${esc(v ?? '')}" placeholder="${esc(opts.ph || '')}" style="min-width:${opts.w || '16rem'}">`;
@@ -547,11 +559,12 @@ function vPSet() {
   if (wait) return wait;
   const P = S.portal || {};
   const fm = pcVal('formats') || [];
-  const pdTgl = (attr, on, label, hint) => `<div class="lrow"><div class="lt"><b>${label}</b><span>${hint}</span></div><div class="lc"><span class="tgl"><input type="checkbox" ${attr} ${on ? 'checked' : ''}><span class="sw"></span></span></div></div>`;
+  const pdTgl = (attr, on, label, hint) => `<div class="lrow"><div class="lt"><b>${label}</b><span>${hint}</span></div><div class="lc"><label class="tgl"><input type="checkbox" ${attr} ${on ? 'checked' : ''}><span class="sw"></span></label></div></div>`;
   return `${ptHead(t('Portal-Einstellungen'))}${pcSaveBar()}
     <h3 class="shead">${t('PrintDock und Portal')}</h3><div class="sbox">
       ${pdTgl('data-ptp="autoImport"', P.autoImport !== false, t('Bestätigte Aufträge automatisch übernehmen'), t('Sonst übernimmst du sie in der Anfrage per Knopf.'))}
       ${pdTgl('data-ptp="notifyNew"', P.notifyNew !== false, t('Bei neuen Anfragen benachrichtigen'), t('Über deine Kanäle unter Einstellungen → Benachrichtigungen (Ereignis „Neue Anfrage im Druckportal“).'))}
+      ${pdTgl('data-ptp="notifyAnswer"', P.notifyAnswer !== false, t('Benachrichtigen, wenn ein Kunde antwortet'), t('Angebot angenommen oder abgelehnt, Nachricht von der Statusseite (Ereignis „Kunde antwortet im Druckportal“).'))}
       <div class="lrow"><div class="lt"><b>${t('Verbindung')}</b><span>${esc(P.url || '')} · ${P.state?.ok ? t('verbunden') : esc(P.state?.error || t('nicht geprüft'))}</span></div><div class="lc"><button class="b b-sm" data-view="remote">${t('Ändern …')}</button></div></div>
     </div>
     <h3 class="shead">${t('Allgemein')}</h3><div class="sbox">
@@ -636,6 +649,7 @@ document.addEventListener('click', async (e) => {
   if (act) {
     const o = S.pOrder;
     if (act === 'back') { S.pOrderId = null; S.pOrder = null; S.pDraft = {}; return render(); }
+    if (act === 'seenAll') { const c = await run(() => api('portal/seen', { method: 'POST' }), t('Alles gesehen')); if (c) { (S.pInbox?.orders || []).forEach((x) => (x.unseen = false)); S.pInbox.counts = c; render(); } return; }
     if (act === 'refresh') { const r = await run(() => api('portal/inbox?refresh=1'), t('Aktualisiert')); if (r) { S.pInbox = r; render(); } return; }
     if (act === 'discard') { S.pDraft = {}; return render(); }
     if (act === 'usePrice' && o?.price) {
@@ -834,3 +848,36 @@ function ptDirtyHint() {
 function onPortalLive() {
   reload('portal', 'pInbox');
 }
+
+/** Live: neue Kunden-Ereignisse → Einblendung */
+function onPortalEvent(list) {
+  for (const ev of (list || []).slice(0, 3)) {
+    const [l, , ic] = PT_EVENT[ev.event] || PT_EVENT.neu;
+    toast(`${ic} ${t('Druckportal')}: ${t(l)} – ${ev.number}${ev.name ? ` · ${ev.name}` : ''}`, ev.event === 'abgelehnt');
+  }
+  if ((list || []).length > 3) toast(t('… und {n} weitere', { n: list.length - 3 }));
+  reload('portal', 'pInbox');
+}
+
+/** „Heute“: ungesehene Ereignisse aus dem Druckportal */
+function portalTodoHTML() {
+  if (!ptOn() || S.app?.me?.role === 'operator') return '';
+  const c = S.pInbox?.counts || S.portal?.counts || {};
+  const evs = c.events || [];
+  if (!evs.length) return '';
+  const acc = evs.filter((x) => x.event === 'angenommen').length;
+  const neu = evs.filter((x) => x.event === 'neu').length;
+  const title = evs.length === 1 ? `${esc(t((PT_EVENT[evs[0].event] || PT_EVENT.neu)[0]))}: ${esc(evs[0].number)}` : t('{n} Neuigkeiten im Druckportal', { n: evs.length });
+  const msg = evs.filter((x) => x.event === 'nachricht').length;
+  const abg = evs.filter((x) => x.event === 'abgelehnt').length;
+  const sub = evs.length === 1 ? esc(evs[0].name) : [neu ? t('{n} neue Anfragen', { n: neu }) : '', acc ? t('{n} Angebote angenommen', { n: acc }) : '', abg ? t('{n} abgelehnt', { n: abg }) : '', msg ? t('{n} Nachrichten', { n: msg }) : ''].filter(Boolean).join(' · ');
+  const btn = evs.length === 1 ? `<button class="b b-sm b-go" data-view="pinbox" data-pt-goto="${evs[0].id}">${t('Öffnen')}</button>` : `<button class="b b-sm b-go" data-view="pinbox" data-pt-goto="ungesehen">${t('Ansehen')}</button>`;
+  return todo(acc ? 'warn td-wide' : 'info td-wide', acc ? '🤝' : '📨', title, sub, btn);
+}
+document.addEventListener('click', (e) => {
+  const g = e.target.closest('[data-pt-goto]');
+  if (!g) return;
+  const v = g.dataset.ptGoto;
+  if (v === 'ungesehen') { S.pFilter = 'ungesehen'; S.pOrderId = null; }
+  else setTimeout(() => ptOpen(v), 0);
+}, true);

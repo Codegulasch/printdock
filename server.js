@@ -58,12 +58,13 @@ const channelResults = new Map(); // id -> letztes Versandergebnis (nur im Speic
 const savePrinters = () => writeJson(PRINTERS_FILE, printerConfigs);
 const saveHistory = () => writeJson(HISTORY_FILE, history.slice(-HISTORY_MAX));
 const saveChannels = () => writeJson(CHANNELS_FILE, channels);
-// Neues Ereignis „Neue Anfrage im Druckportal“: in bestehenden Kanälen einmalig einschalten
-if (channels.some((c) => !c.knownEvents?.includes('portalRequest'))) {
+// Neue Ereignisse fürs Druckportal: in bestehenden Kanälen einmalig einschalten
+for (const ev of ['portalRequest', 'portalAnswer']) {
+  if (!channels.some((c) => !c.knownEvents?.includes(ev))) continue;
   for (const c of channels) {
-    if (c.knownEvents?.includes('portalRequest')) continue;
-    if (Array.isArray(c.events) && !c.events.includes('portalRequest')) c.events.push('portalRequest');
-    c.knownEvents = [...new Set([...(c.knownEvents || []), 'portalRequest'])];
+    if (c.knownEvents?.includes(ev)) continue;
+    if (Array.isArray(c.events) && !c.events.includes(ev)) c.events.push(ev);
+    c.knownEvents = [...new Set([...(c.knownEvents || []), ev])];
   }
   saveChannels();
 }
@@ -455,6 +456,10 @@ portal = new Portal({
   production, printers: () => printerConfigs, runtime, relay, costs,
   // neue Anfragen im Portal → Benachrichtigung (ein Sammel-Hinweis je Abfrage)
   notify: (orders) => notifier.dispatch('portalRequest', { id: 'druckportal', name: 'Druckportal' }, null, { orders }).catch((err) => console.warn(err.message)),
+  // Kunde hat ein Angebot angenommen oder abgelehnt
+  notifyAnswer: (orders) => notifier.dispatch('portalAnswer', { id: 'druckportal', name: 'Druckportal' }, null, { orders }).catch((err) => console.warn(err.message)),
+  // neue Ereignisse → Einblendung in der Oberfläche
+  events: (list) => broadcast('portalEvent', list),
   changed: () => broadcast('portal', null),
 });
 
@@ -852,12 +857,14 @@ async function handleApi(req, res, url) {
 
     // Portal steuern: Anfragen, Angebote, Einstellungen, Materialien, Wartung
     if (id === 'inbox' && req.method === 'GET') return sendJson(res, 200, await portal.list(url.searchParams.get('refresh') === '1'));
+    if (id === 'seen' && req.method === 'POST') return sendJson(res, 200, await portal.markSeen(null));
     if (id === 'orders' && action) {
       const act = parts[4] || '';
       if (!act && req.method === 'GET') return sendJson(res, 200, await portal.order(action));
       if (act === 'update' && req.method === 'POST') return sendJson(res, 200, await portal.orderUpdate(action, await readBody(req)));
       if (act === 'paid' && req.method === 'POST') return sendJson(res, 200, await portal.orderPaid(action, (await readBody(req)).paid));
       if (act === 'import' && req.method === 'POST') return sendJson(res, 200, await portal.takeOver(action));
+      if (act === 'seen' && req.method === 'POST') return sendJson(res, 200, await portal.markSeen(action));
       if (!act && req.method === 'DELETE') return sendJson(res, 200, await portal.orderDelete(action));
     }
     if (id === 'items' && action && req.method === 'GET') {
@@ -878,6 +885,14 @@ async function handleApi(req, res, url) {
     if (id === 'materials' && !action && req.method === 'POST') return sendJson(res, 200, await portal.materialSave(await readBody(req)));
     if (id === 'materials' && action && req.method === 'DELETE') return sendJson(res, 200, await portal.materialDelete(action));
     if (id === 'testmail' && req.method === 'POST') return sendJson(res, 200, await portal.testmail());
+    if (id === 'generator') {
+      const act = parts[4] || '';
+      if (!action && req.method === 'GET') return sendJson(res, 200, await portal.generator());
+      if (!action && req.method === 'PUT') return sendJson(res, 200, await portal.generatorSave((await readBody(req)).teile));
+      if (action === 'upload' && req.method === 'POST') return sendJson(res, 200, await portal.generatorUpload(await readBody(req)));
+      if (action && act === 'scad' && req.method === 'GET') return sendJson(res, 200, await portal.generatorScad(action));
+      if (action && !act && req.method === 'DELETE') return sendJson(res, 200, await portal.generatorDelete(action));
+    }
     if (id === 'wartung' && !action && req.method === 'GET') return sendJson(res, 200, await portal.wartung());
     if (id === 'wartung' && action && req.method === 'PUT') {
       const b = await readBody(req);
@@ -1110,6 +1125,16 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, r);
     }
     if (id === 'install' && req.method === 'POST') return sendJson(res, 200, await updater.install(restartSelf));
+    if (id === 'file' && req.method === 'POST') {
+      const buf = await new Promise((resolve, reject) => {
+        const chunks = [];
+        let size = 0;
+        req.on('data', (c) => { size += c.length; if (size > 60 * 1024 * 1024) { reject(httpError(413, 'Datei ist zu groß (höchstens 60 MB)')); req.destroy(); } else chunks.push(c); });
+        req.on('end', () => resolve(Buffer.concat(chunks)));
+        req.on('error', reject);
+      });
+      return sendJson(res, 200, await updater.installFile(buf, restartSelf, { force: /[?&]force=1/.test(req.url) }));
+    }
   }
 
   // ---- Datensicherung

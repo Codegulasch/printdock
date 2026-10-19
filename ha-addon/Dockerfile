@@ -12,4 +12,5 @@ RUN npm ci --omit=dev && npm cache clean --force
 # landeten die Daten im Container und wären nach jedem Update weg.
 ENV NODE_ENV=production DATA_DIR=/data PORT=3080 S6_KEEP_ENV=1
 LABEL io.hass.type="addon" io.hass.name="PrintDock"
-CMD ["node", "server.js"]
+# launcher.js: startet eine aus Datei eingespielte neuere Version aus /data/app, sonst die des Images
+CMD ["node", "launcher.js"]

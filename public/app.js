@@ -1762,6 +1762,7 @@ function connect() {
   es.addEventListener('app', () => reload('app'));
   es.addEventListener('remote', () => reload('remote'));
   es.addEventListener('portal', () => typeof onPortalLive === 'function' && onPortalLive());
+  es.addEventListener('portalEvent', (e) => typeof onPortalEvent === 'function' && onPortalEvent(JSON.parse(e.data)));
   es.addEventListener('storage', () => reload('storage', 'autobackup'));
   es.addEventListener('firstLayer', () => reload('printers'));
   es.addEventListener('station', (e) => typeof onStationLive === 'function' && onStationLive(JSON.parse(e.data)));

@@ -250,7 +250,10 @@ Alle Verbindungen gehen von PrintDock nach außen, das Heimnetz bleibt zu.
 - **Anfragen:** alle Anfragen mit Status, Kunde, Teilen und Preis; je Anfrage eine **3D-Vorschau** jeder Modelldatei (STL und 3MF, drehen und zoomen), Download, Nachricht des Kunden und Verlauf
 - **Bearbeiten:** Status, Angebotspreis, Versand, Hinweis zum Angebot, Nachricht an den Kunden (auf Wunsch per Mail mit der Vorlage des Portals), Sendungsnummer, interne Notiz, *bezahlt*, löschen, sofort *In PrintDock übernehmen*
 - **Preisvorschlag:** Gewicht und Druckzeit aus dem Portal × deine Kostensätze (Material, Strom, Maschinenstunde, Aufschlag) plus Grundgebühr, Farbaufschlag und Mindestauftragswert des Portals – mit einem Klick als Angebot übernehmen
-- **Benachrichtigung** bei neuen Anfragen über die eingerichteten Kanäle (Ereignis „Neue Anfrage im Druckportal“)
+- **Nichts verpassen:** neue Anfragen, angenommene oder abgelehnte Angebote und Nachrichten von Kunden bleiben markiert, bis du sie öffnest – Zahl am Menüpunkt, farbige Zeilen, Filter *Ungesehen*, Einblendung beim Eingang und Hinweis auf *Heute*. Im Portal-Admin genauso; gesehen ist gesehen, egal wo
+- **Benachrichtigung** über die eingerichteten Kanäle (Ereignisse „Neue Anfrage im Druckportal“ und „Kunde antwortet im Druckportal“)
+- **Generator:** eigene OpenSCAD-Teile hochladen, Teile ein- und ausblenden, sortieren, Texte und empfohlenes Material ändern, erkannte Regler ansehen und im Portal testen
+- **Rechtliches:** eingebaute AGB und Widerrufsbelehrung, aus deinen Angaben erzeugt oder als eigene Fassung; Kunden bestätigen sie vor dem Annehmen und bekommen sie mit der Auftragsbestätigung
 - **Wartungsmodus:** je ein Schalter für das Portal und die Hauptseiten, mit Hinweistext
 - **Portal einrichten:** Materialien (Farben, Preis je Gramm, Dichte, an/aus), Preise und Mengenrabatt, Mailtexte, allgemeine Einstellungen und Testmail. Passwort und API-Schlüssel bleiben dem Admin im Portal vorbehalten
 
@@ -349,6 +352,8 @@ Passwörter werden mit scrypt gespeichert, Sitzungen per HttpOnly-Cookie, nach 5
 ## Updates, Sicherung, Plattformen
 
 **Updates:** *Einstellungen → System → Updates* sieht auf GitHub nach einer neuen Version (auch automatisch alle 6 Stunden, auf Wunsch mit Benachrichtigung) und installiert sie per Klick: als Add-on baut Home Assistant PrintDock neu, auf PC und Raspberry Pi ersetzt PrintDock seine Dateien und startet neu, **in Docker** liegt die neue Version im Datenordner (ein neueres Image per `docker compose pull` hat wieder Vorrang). Für ein privates Repository unter „Update-Quelle“ einen GitHub-Token mit Leserecht eintragen.
+
+**Update aus Datei:** Unter *Einstellungen → System → Updates → Update aus Datei* lässt sich eine PrintDock-Zip direkt einspielen – ohne GitHub, z. B. für eine Testversion. Daten und Einstellungen bleiben erhalten. Als Add-on und in Docker liegt die Version dann im Datenordner; kommt später eine neuere Version über Home Assistant bzw. das Image, hat die wieder Vorrang. Das Add-on kann das ab Version 0.24.1 (einmal regulär über Home Assistant aktualisieren).
 
 **Sicherung:** PrintDock sichert sich täglich selbst – als Add-on nach `/share/printdock/sicherungen` (per Samba `\\homeassistant\share\printdock\sicherungen`), sonst in den Datenordner; die letzten 7 bleiben (einstellbar), mit oder ohne Druckdateien. *Einstellungen → System → Datensicherung* lädt eine `.zip` mit allem herunter. Einspielen lässt sie sich dort oder im Einrichtungsassistenten einer neuen Installation. Als Add-on, Docker-Container, systemd-Dienst oder mit `start-windows.cmd` startet PrintDock danach von selbst neu. Der vorherige Stand bleibt im Datenordner unter `before-restore-…` erhalten.
 

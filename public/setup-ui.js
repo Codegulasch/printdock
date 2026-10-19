@@ -337,6 +337,7 @@ function vSystem() {
     <div class="sbox">
       ${srow(t('Version'), modeTxt, `<b>PrintDock ${esc(a.version)}</b>${newer ? ` <span class="vl warn">${t('{v} verfügbar', { v: esc(String(L.latest).replace(/^v/, '')) })}</span>` : L ? ` <span class="vl ok">${t('aktuell')}</span>` : ''}`)}
       ${srow(t('Nach Updates suchen'), U.checkError ? `<span class="warn-txt">${t('Letzte Prüfung fehlgeschlagen: {e}', { e: esc(U.checkError.msg) })}</span>` : L?.at ? t('Zuletzt geprüft: {d} · automatisch alle 6 Stunden', { d: new Date(L.at).toLocaleString() }) : t('PrintDock sieht außerdem alle 6 Stunden nach.'), `<button class="b b-sm" data-gact="updCheck">${t('Jetzt prüfen')}</button>${newer ? `<button class="b b-sm b-go" data-gact="updInstall">${t('Auf {v} aktualisieren', { v: esc(String(L.latest).replace(/^v/, '')) })}</button>` : ''}`)}
+      ${srow(t('Update aus Datei'), `${t('PrintDock-Zip hochladen (z. B. eine Testversion) – ohne GitHub. Daten und Einstellungen bleiben erhalten.')}${U.overlay ? ` ${t('Läuft gerade aus einer eingespielten Datei; eine neuere Version aus {src} hat wieder Vorrang.', { src: U.mode === 'addon' ? 'Home Assistant' : t('dem Image') })}` : ''}`, `<label class="b b-sm">${t('Zip wählen …')}<input type="file" accept=".zip,application/zip" hidden data-upd-file></label>`)}
       ${newer && L.notes ? `<div class="srow"><div class="sl"><b>${t('Neu in dieser Version')}</b></div><div class="sc"><pre class="notes">${esc(L.notes)}</pre></div></div>` : ''}
       ${newer && U.mode === 'docker' ? srow(t('Docker'), t('Das Update landet im Datenordner und bleibt beim Neuanlegen des Containers erhalten. Alternativ das Image aktualisieren:'), '<span class="code">docker compose pull &amp;&amp; docker compose up -d</span>') : ''}
       <details class="adv srow-adv"><summary>${t('Update-Quelle')}</summary>
@@ -397,6 +398,56 @@ async function saveApp(body, okText = t('Gespeichert')) {
   return r;
 }
 
+/** Nach dem Einspielen warten, bis die neue Version antwortet; beim Add-on den Stand des Supervisor-Updates zeigen */
+async function updWait(r, msg) {
+  if (r.restart === 'manual') return msg(t('Installiert. Bitte PrintDock jetzt neu starten.'));
+  msg(r.restart === 'supervisor' ? t('Home Assistant baut PrintDock {v} – die Seite lädt sich danach selbst neu.', { v: r.version }) : t('PrintDock startet neu …'));
+    // Warten, bis die neue Version antwortet; solange PrintDock noch läuft, den Stand des Supervisor-Updates zeigen
+    for (let i = 0; i < 300; i++) {
+      await new Promise((res) => setTimeout(res, 3000));
+      try {
+        const x = await fetch('api/app', { cache: 'no-store' });
+        if (x.ok && (await x.json()).version === r.version) return location.reload();
+        if (r.restart === 'supervisor') {
+          const u = await fetch('api/update', { cache: 'no-store' }).then((y) => (y.ok ? y.json() : null)).catch(() => null);
+          const st = u?.installing;
+          if (st?.version === r.version && st.state === 'failed') return msg(t(st.error));
+          if (st?.version === r.version && st.state === 'waiting') msg(t('Home Assistant liest die neue Version ein …'));
+          if (st?.version === r.version && st.state === 'updating') msg(t('Home Assistant baut PrintDock {v} – die Seite lädt sich danach selbst neu.', { v: r.version }));
+        }
+      } catch {}
+    }
+    return msg(t('Das dauert ungewöhnlich lange. Bitte im Add-on-Protokoll nachsehen.'));
+}
+
+document.addEventListener('change', async (e) => {
+  const inp = e.target.closest('[data-upd-file]');
+  if (!inp || !inp.files?.[0]) return;
+  const f = inp.files[0];
+  inp.value = '';
+  const ask = (txt) => confirmBox(t('Update aus Datei einspielen'), txt, t('Einspielen'));
+  if (!(await ask(t('„{n}“ wird eingespielt, danach startet PrintDock neu. Deine Daten bleiben erhalten.', { n: f.name })))) return;
+  overlay(`<div class="wizard" style="max-width:480px"><h2>${t('Update aus Datei …')}</h2><p class="intro" data-rs>${t('Wird hochgeladen und entpackt …')}</p></div>`);
+  const msg = (txt) => { const x = document.querySelector('#overlay [data-rs]'); if (x) x.textContent = txt; };
+  const send = (force) => api(`update/file${force ? '?force=1' : ''}`, { method: 'POST', raw: true, headers: { 'Content-Type': 'application/zip' }, body: f });
+  let r;
+  try {
+    r = await send(false);
+  } catch (err) {
+    // gleiche oder ältere Version: nachfragen
+    if (/installiert ist|is installed/.test(err.message)) {
+      closeOverlay();
+      if (!(await ask(`${err.message}. ${t('Trotzdem einspielen?')}`))) return;
+      overlay(`<div class="wizard" style="max-width:480px"><h2>${t('Update aus Datei …')}</h2><p class="intro" data-rs>${t('Wird hochgeladen und entpackt …')}</p></div>`);
+      try { r = await send(true); } catch (e2) { closeOverlay(); return toast(e2.message, true); }
+    } else {
+      closeOverlay();
+      return toast(err.message, true);
+    }
+  }
+  return updWait(r, msg);
+});
+
 document.addEventListener('click', async (e) => {
   const th = e.target.closest('[data-g-theme]')?.dataset.gTheme;
   if (th) {
@@ -432,24 +483,7 @@ document.addEventListener('click', async (e) => {
       closeOverlay();
       return toast(t(err.message), true);
     }
-    if (r.restart === 'manual') return msg(t('Installiert. Bitte PrintDock jetzt neu starten.'));
-    msg(r.restart === 'supervisor' ? t('Home Assistant baut PrintDock {v} – die Seite lädt sich danach selbst neu.', { v: r.version }) : t('PrintDock startet neu …'));
-    // Warten, bis die neue Version antwortet; solange PrintDock noch läuft, den Stand des Supervisor-Updates zeigen
-    for (let i = 0; i < 300; i++) {
-      await new Promise((res) => setTimeout(res, 3000));
-      try {
-        const x = await fetch('api/app', { cache: 'no-store' });
-        if (x.ok && (await x.json()).version === r.version) return location.reload();
-        if (r.restart === 'supervisor') {
-          const u = await fetch('api/update', { cache: 'no-store' }).then((y) => (y.ok ? y.json() : null)).catch(() => null);
-          const st = u?.installing;
-          if (st?.version === r.version && st.state === 'failed') return msg(t(st.error));
-          if (st?.version === r.version && st.state === 'waiting') msg(t('Home Assistant liest die neue Version ein …'));
-          if (st?.version === r.version && st.state === 'updating') msg(t('Home Assistant baut PrintDock {v} – die Seite lädt sich danach selbst neu.', { v: r.version }));
-        }
-      } catch {}
-    }
-    return msg(t('Das dauert ungewöhnlich lange. Bitte im Add-on-Protokoll nachsehen.'));
+    return updWait(r, msg);
   }
   if (act === 'lang') {
     try { localStorage.removeItem('pd-lang'); } catch {}

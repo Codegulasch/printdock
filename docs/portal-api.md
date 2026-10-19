@@ -22,7 +22,7 @@ Any portal that implements the interface below can be connected under *Settings 
 
 | Route | Method | Purpose |
 |---|---|---|
-| `ping` | GET | Connection test → `{ app, version, statuses, admin, shop }`. `admin: true` enables the menu item *Print portal* |
+| `ping` | GET | Connection test → `{ app, version, statuses, admin, shop, unseen, features }`. `admin: true` enables the menu item *Print portal* |
 | `orders` | GET | List. Optional `status=a,b`, `since=<ISO>`, `items=1` (with items) |
 | `order&id=42` | GET | One order with `items` and `log` (history) |
 | `file&item=7` | GET | Model file of an item (binary) |
@@ -31,6 +31,7 @@ Any portal that implements the interface below can be connected under *Settings 
 | `order_update` | POST | `{ id, status, offer_price, offer_shipping, offer_note, message, notify, tracking, admin_note }` – missing fields stay unchanged. Status `angebot` needs a price |
 | `order_paid` | POST | `{ id, paid: true|false }` |
 | `order_delete` | POST | `{ id }` – deletes the order including files |
+| `seen` | POST | `{ id }` or `{ all: true }` – mark customer events as seen → `{ marked, unseen }` |
 
 Order object (abridged):
 
@@ -50,6 +51,8 @@ Order object (abridged):
 
 `weight_g` and `hours` per piece are used for PrintDock's price suggestion.
 
+**Customer events** (portal 1.6+): every order has `kunde: { event, at }` with the customer's latest event – `neu` (request received), `angenommen` / `abgelehnt` (quote accepted / declined) or `nachricht` (message from the status page) – and `unseen: true|false`. `unseen` stays set until the order is opened in the admin or in PrintDock, or marked via `seen`. PrintDock reports each event once per `kunde.at`. `terms_at` is when the customer accepted the terms.
+
 ## Settings, materials, maintenance
 
 | Route | Method | Purpose |
@@ -61,9 +64,14 @@ Order object (abridged):
 | `testmail` | POST | Send a test email to the shop address |
 | `wartung` | GET | Maintenance switches → `{ an, ziele: { <key>: { an, text, ok, name, domain, farbe } } }` |
 | `wartung&ziel=<key>` | POST | `{ an: true|false, text }` – one target; `ziel=alle` switches all |
+| `generator` | GET | Generator parts → `{ teile: [{ id, name, kurz, material, quelle: mit|eigen, aktiv, vorschau, url }], materials, page }`. `vorschau` opens the generator even for hidden parts |
+| `generator_scad&id=<id>` | GET | OpenSCAD source → `{ scad }` |
+| `generator_save` | POST | `{ teile: [{ id, name?, kurz?, material?, aktiv? }] }` – list order = order in the generator |
+| `generator_upload` | POST | `{ id?, name, kurz, material, aktiv, scad }` – new own part or new version (max. 300 KB, no include/use/import, at least one parameter) |
+| `generator_delete` | POST | `{ id }` – own parts only; deleting your version of a built-in part brings back the original |
 | `werkstatt` | POST | Workshop-live snapshot `{ hinweis, drucker: [{ name, farbe, status, was, material, fortschritt, fertig_um }] }` |
 
-Config keys PrintDock edits: `shop_name`, `tagline_de`, `site_url`, `base_url`, `order_prefix`, `build_x|y|z`, `formats`, `max_file_mb`, `max_files`, `max_qty`, `max_colors`, `base_fee`, `fill_factor`, `machine_rate`, `throughput`, `color_surcharge`, `min_price`, `spread_pct`, `discounts` (`[{from, pct}]`), `shipping`, `free_shipping_from`, `price_note_de`, `mail_enabled`, `mail_from`, `mail_from_name`, `mail_shop`, `mail_templates` (`{key: {de: {subject, body}}}`, `null` = defaults), `impressum_url`, `privacy_url`, `agb_url`, `schichtsalat_url` (game on the status page), `werkstatt_origins`, `rate_limit_hour`.
+Config keys PrintDock edits: `shop_name`, `tagline_de`, `site_url`, `base_url`, `order_prefix`, `build_x|y|z`, `formats`, `max_file_mb`, `max_files`, `max_qty`, `max_colors`, `base_fee`, `fill_factor`, `machine_rate`, `throughput`, `color_surcharge`, `min_price`, `spread_pct`, `discounts` (`[{from, pct}]`), `shipping`, `free_shipping_from`, `price_note_de`, `mail_enabled`, `mail_from`, `mail_from_name`, `mail_shop`, `mail_templates` (`{key: {de: {subject, body}}}`, `null` = defaults), `impressum_url`, `privacy_url`, `agb_url`, `schichtsalat_url` (game on the status page), `werkstatt_origins`, `rate_limit_hour`, and from portal 1.6 the legal keys `agb_on`, `anbieter_name`, `anbieter_strasse`, `anbieter_ort`, `anbieter_telefon`, `kleinunternehmer`, `kunden` (`privat`|`beide`), `zahlarten` (`ueberweisung`, `paypal`, `bar`), `lieferarten` (`versand`, `abholung`), `lieferlaender`, `angebot_tage`, `agb_stand`, `agb_text`, `widerruf_text` (empty = generated template). `config` GET then also returns `legal: { agb_vorlage, widerruf_vorlage, fehlt, aktiv, seiten }`.
 
 The maintenance targets are defined by the portal – PrintDock shows whatever `wartung` returns, with name, domain and colour.
 

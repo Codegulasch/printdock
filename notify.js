@@ -16,6 +16,7 @@ const EVENTS = [
   { id: 'firstLayer', label: 'Foto nach der ersten Schicht', defaultOn: false },
   { id: 'emergency', label: 'Notaus (Rauch, Hitze)', defaultOn: true },
   { id: 'portalRequest', label: 'Neue Anfrage im Druckportal', defaultOn: true },
+  { id: 'portalAnswer', label: 'Kunde antwortet im Druckportal', defaultOn: true },
 ];
 
 const STYLE = {
@@ -33,6 +34,7 @@ const STYLE = {
   emergency: { emoji: '🚨', tag: 'rotating_light', priority: 5 },
   update: { emoji: '⬆️', tag: 'arrow_up', priority: 2 },
   portalRequest: { emoji: '📨', tag: 'incoming_envelope', priority: 4 },
+  portalAnswer: { emoji: '🤝', tag: 'handshake', priority: 4 },
   test: { emoji: '🔔', tag: 'bell', priority: 3 },
 };
 
@@ -285,6 +287,20 @@ function buildMessage(event, printer, status, entry) {
       lines.push(tr('Bearbeiten in PrintDock unter Druckportal.'));
       break;
     }
+    case 'portalAnswer': {
+      const list = entry?.orders || [];
+      const ev = (o) => o.kunde?.event;
+      const what = (o) => (ev(o) === 'abgelehnt' ? tr('Angebot abgelehnt') : ev(o) === 'nachricht' ? tr('Nachricht') : tr('Angebot angenommen'));
+      title = list.length === 1
+        ? (ev(list[0]) === 'nachricht' ? tr('Nachricht zu {nr}', { nr: list[0].number }) : tr('Angebot {nr} {w}', { nr: list[0].number, w: ev(list[0]) === 'abgelehnt' ? tr('abgelehnt') : tr('angenommen') }))
+        : tr('{n} Antworten im Druckportal', { n: list.length });
+      for (const o of list.slice(0, 5)) {
+        const price = o.offer?.price != null ? `${Number(o.offer.price).toFixed(2).replace('.', ',')} €` : '';
+        lines.push(`• ${o.number} · ${o.customer?.name || '?'} · ${what(o)}${price ? ` · ${price}` : ''}`);
+      }
+      lines.push(tr('Bearbeiten in PrintDock unter Druckportal.'));
+      break;
+    }
     case 'maintenance':
       title = tr('{p}: Wartung fällig', { p: name });
       for (const t of entry?.tasks || []) lines.push(`• ${tr(t)}`);
@@ -333,7 +349,7 @@ class Notifier {
 
     const msg = buildMessage(event, printer, status, entry);
     const wantsImage = channels.some((c) => c.attachImage && CHANNELS[c.type]?.image);
-    const image = wantsImage && status?.camera && !['maintenance', 'filamentLow', 'humidity', 'dryingDone', 'update', 'portalRequest'].includes(event) ? await this.getSnapshot(printer.id) : null;
+    const image = wantsImage && status?.camera && !['maintenance', 'filamentLow', 'humidity', 'dryingDone', 'update', 'portalRequest', 'portalAnswer'].includes(event) ? await this.getSnapshot(printer.id) : null;
     await Promise.allSettled(channels.map((c) => this.sendTo(c, msg, c.attachImage ? image : null)));
   }
 

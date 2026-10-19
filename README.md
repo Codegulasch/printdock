@@ -238,7 +238,10 @@ All connections go out from PrintDock; the home network stays closed.
 - **Requests:** every request with status, customer, parts and price; per request a **3D preview** of each model file (STL and 3MF, rotate and zoom), download, the customer's message and history
 - **Edit:** status, quoted price, shipping, quote note, message to the customer (optionally by email with the portal's template), tracking number, internal note, *paid*, delete, *Take over into PrintDock* right away
 - **Price suggestion:** weight and print time from the portal × your cost rates (material, power, machine hour, markup) plus the portal's base fee, colour surcharge and minimum order value – one click to use it as the quote
-- **Notification** on new requests through your channels (event "New request in the print portal")
+- **Nothing gets missed:** new requests, accepted or declined quotes and customer messages stay highlighted until you open them – count on the menu item, coloured rows, filter *Unseen*, a pop-up when they arrive and a hint on *Today*. The same in the portal admin; seen is seen, wherever you open it
+- **Notifications** through your channels (events "New request in the print portal" and "Customer responds in print portal")
+- **Generator:** upload your own OpenSCAD parts, show or hide parts, reorder, change texts and recommended material, view the detected parameters and test in the portal
+- **Legal:** built-in terms and withdrawal notice, generated from your details or as your own version; customers accept them before accepting a quote and get them with the order confirmation
 - **Maintenance mode:** one switch each for the portal and the main sites, with a note
 - **Portal setup:** materials (colours, price per gram, density, on/off), prices and quantity discounts, email texts, general settings and test email. Password and API key stay with the portal admin
 
@@ -305,6 +308,8 @@ Passwords are stored with scrypt, sessions use HttpOnly cookies, 5 wrong attempt
 ## Updates, backup, platforms
 
 **Updates:** *Settings → System → Updates* checks GitHub for a new version (also automatically every 6 hours, optionally with a notification) and installs it with one click: as an add-on Home Assistant rebuilds PrintDock, on PC and Raspberry Pi PrintDock replaces its files and restarts, **in Docker** the new version is kept in the data folder (a newer image via `docker compose pull` wins again). For a private repository enter a read-only GitHub token under "Update source".
+
+**Update from file:** *Settings → System → Updates → Update from file* installs a PrintDock zip directly – no GitHub needed, e.g. for a test version. Data and settings are kept. As an add-on and in Docker the version is kept in the data folder; a newer version from Home Assistant or the image takes over again later. The add-on can do this from version 0.24.1 on (update once the regular way through Home Assistant).
 
 **Backup:** PrintDock backs itself up daily – as add-on into `/share/printdock/sicherungen` (via Samba `\\homeassistant\share\printdock\sicherungen`), otherwise into the data folder; keeps the last 7 (adjustable), with or without print files. *Settings → System → Backup* downloads a single `.zip` with everything. Restore it there or in the setup wizard of a fresh installation. As add-on, Docker container, systemd service or with `start-windows.cmd` PrintDock restarts by itself. The previous state is kept in `before-restore-…` inside the data folder.
 

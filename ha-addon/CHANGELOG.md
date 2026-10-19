@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.24.1
+- **Print portal – nothing gets missed:** new requests, accepted or declined quotes and customer messages are highlighted until opened – in PrintDock (count on the menu item, coloured rows with a label, filter *Unseen*, *Mark all as seen*, a pop-up as soon as something comes in, a hint on *Today*) and the same way in the portal admin. Opening a request in one place marks it as seen in both. Notification event "Customer responds in print portal" (switched on once for existing channels). Needs print portal 1.6
+- **Generator** (menu *Print portal → Generator*): upload your own OpenSCAD parts, show or hide parts, change order, name, short text and recommended material, see the detected parameters and test a part in the portal – also hidden ones
+- **Legal** (menu *Print portal → Legal*): built-in terms and withdrawal notice in the portal, generated from your details (provider, small business, customers, payment, delivery) or as your own version. Customers tick a box before accepting a quote and get both with the order confirmation by email
+- **Update from file** (*Settings → System → Updates*): install a PrintDock zip without GitHub – data and settings are kept. Also for the Home Assistant add-on and Docker: the version lives in the data folder; a newer version from Home Assistant or the image takes over again. The add-on needs this release once via Home Assistant before it can do this
+- Fix: the switch *Clear plate automatically* for demo printers couldn't be clicked
+
 ## 0.24.0
 - **Simulated printers** (*Settings → System*, once there are demo printers): choose the simulation speed – real time, 10×, 60× (as before) or 300×. Applies right away, also to running prints
 - **Clear plate automatically** for demo printers, with a waiting time (immediately, 30 s, 2 min, 10 min) – with auto start the queue keeps running endlessly

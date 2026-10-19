@@ -71,6 +71,7 @@ function vToday() {
   }
   // Umslicen: freier Drucker, aber keine Variante für ein eingeplantes Teil
   if (typeof resliceTodoHTML === 'function') { const rs = resliceTodoHTML(); if (rs) items.push(rs); }
+  if (typeof portalTodoHTML === 'function') { const pt = portalTodoHTML(); if (pt) items.push(pt); }
   // Etiketten fertiger Teile
   if (S.labels?.length) items.push(todo('info', '🏷', S.labels.length === 1 ? t('1 Etikett drucken') : t('{n} Etiketten drucken', { n: S.labels.length }), esc([...new Set(S.labels.map((l) => l.nr))].join(', ')), `<button class="b b-sm b-go" data-plabels="pending">${t('Drucken …')}</button>`));
   // Filament
