@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.24.0
+- **Simulated printers** (*Settings → System*, once there are demo printers): choose the simulation speed – real time, 10×, 60× (as before) or 300×. Applies right away, also to running prints
+- **Clear plate automatically** for demo printers, with a waiting time (immediately, 30 s, 2 min, 10 min) – with auto start the queue keeps running endlessly
+- **Demo stays demo:** demo printers only take demo spools and never book real stock (real spools already in demo printers go back to storage on update). Demo prints don't reserve filament, don't appear on the shopping list and send no low-filament or humidity alerts. As soon as there are real printers, demo prints are left out of statistics and usage – they stay visible in the history
+
 ## 0.23.0
 - **Run the print portal from PrintDock** (menu *Print portal*, once a portal is connected): requests with 3D preview of STL and 3MF files, quotes with status, price, shipping and a message to the customer, paid, tracking number, internal note, delete, take over into PrintDock with one click. Plus maintenance switches (as provided by the portal), materials, prices and quantity discounts, email texts and the portal's general settings. Needs a portal with the full interface – see *docs/portal-api.md*
 - **Price suggestion** per request: weight and print time from the portal with your own cost rates, plus the portal's base fee, colour surcharge and minimum order value

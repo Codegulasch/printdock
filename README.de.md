@@ -76,7 +76,7 @@ Läuft komplett lokal – keine Cloud, kein Konto, keine Datenbank. Als **Home-A
 - **Ausbaustufen** Hobby, Maker, Werkstatt – PrintDock zeigt nur, was man braucht; abgeschaltete Funktionen stehen unter **„Mehr entdecken“**
 - **Einrichtungsassistent**, **jede Funktion abschaltbar**, **Menü, „Heute“ und Druckerkarten frei anordnen** und Startseite wählen
 - **Deutsch und Englisch**, Akzentfarbe, eigene Themes (Logo, Farben, Schriften), hell und dunkel, fürs Handy geeignet
-- **Demo-Daten** mit einem Klick: 5 simulierte Drucker, Dateien, Spulen, Aufträge und 30 Tage Verlauf
+- **Demo-Daten** mit einem Klick: 5 simulierte Drucker, Dateien, Spulen, Aufträge und 30 Tage Verlauf – Simulation in Echtzeit oder im Zeitraffer, Platte auf Wunsch automatisch räumen, echte Bestände bleiben unberührt
 
 | Heute | Archiv |
 |---|---|
@@ -445,6 +445,8 @@ Nach einem Neustart meldet PrintDock nur echte Zustandswechsel. Dasselbe Ereigni
 ## Demo-Daten
 
 **Einstellungen → System → Einrichtung → Demo-Daten einspielen** legt einen kompletten, laufenden Druckerpark an: Bambu X2D mit AMS (druckt), Snapmaker U1 mit 4 Werkzeugen (druckt), Anycubic Kobra S1 mit ACE (fertig), Voron 2.4 (bereit) und Bambu A1 (pausiert), dazu Dateien mit Vorschaubildern, 20 Spulen, Aufträge, Warteschlange, 30 Tage Verlauf und Wartungsaufgaben. Alles ist als Demo markiert und lässt sich mit einem Klick wieder entfernen – eigene Daten bleiben unberührt.
+
+**Simulierte Drucker** (*Einstellungen → System*, sobald es Demo-Drucker gibt): Tempo der Simulation (Echtzeit, 10×, 60×, 300×) und *Platte automatisch räumen* mit Wartezeit – so läuft eine Demo mit Auto-Start endlos. Demo-Drucker nutzen nur Demo-Spulen und buchen nie echte Bestände ab; sobald es echte Drucker gibt, zählen Demo-Drucke nicht in Statistik, Verbrauch, Reservierung und Einkaufsliste.
 
 ## Fehler melden und mitmachen
 

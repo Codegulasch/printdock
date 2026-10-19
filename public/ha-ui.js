@@ -180,6 +180,33 @@ function vDemo() {
     </div>`;
 }
 
+/** Einstellungen für alle simulierten Drucker: Tempo, Platte automatisch räumen */
+function demoSimHTML() {
+  const dm = S.app?.demo || {};
+  const seg = (attr, cur, list) => `<div class="seg">${list.map(([v, l]) => `<button type="button" ${attr}="${v}" aria-pressed="${String(cur) === String(v)}">${esc(t(l))}</button>`).join('')}</div>`;
+  const row = (label, hint, ctl) => `<div class="lrow"><div class="lt"><b>${label}</b>${hint ? `<span>${hint}</span>` : ''}</div><div class="lc">${ctl}</div></div>`;
+  return `<h3 class="shead">${t('Simulierte Drucker')}</h3>
+    <div class="sbox">
+      ${row(t('Tempo der Simulation'), t('Echtzeit: ein 2-Stunden-Druck dauert 2 Stunden. 60× war bisher fest eingestellt. Gilt sofort, auch für laufende Drucke.'),
+        seg('data-dm-speed', dm.speed || 'x60', [['real', 'Echtzeit'], ['x10', '10×'], ['x60', '60×'], ['x300', '300×']]))}
+      ${row(t('Platte automatisch räumen'), t('Nach einem Demo-Druck gilt die Platte nach der Wartezeit als geräumt – mit Auto-Start läuft die Warteschlange so endlos weiter.'),
+        `<span class="tgl"><input type="checkbox" data-dm-auto ${dm.autoClear ? 'checked' : ''}><span class="sw"></span></span>`)}
+      ${dm.autoClear ? row(t('Wartezeit'), '', seg('data-dm-sec', dm.autoClearSec ?? 30, [[0, 'sofort'], [30, '30 s'], [120, '2 min'], [600, '10 min']])) : ''}
+      <div class="lrow"><div class="lt"><span>${t('Demo-Drucker nutzen nur Demo-Spulen und buchen nie echte Bestände ab. Sobald es echte Drucker gibt, zählen Demo-Drucke nicht in Statistik, Verbrauch, Reservierung und Einkaufsliste – im Verlauf bleiben sie sichtbar.')}</span></div></div>
+    </div>`;
+}
+
+document.addEventListener('click', (e) => {
+  const sp = e.target.closest('[data-dm-speed]');
+  if (sp) return saveApp({ demo: { speed: sp.dataset.dmSpeed } });
+  const sc = e.target.closest('[data-dm-sec]');
+  if (sc) return saveApp({ demo: { autoClearSec: Number(sc.dataset.dmSec) } });
+});
+document.addEventListener('change', (e) => {
+  const a = e.target.closest('[data-dm-auto]');
+  if (a) saveApp({ demo: { autoClear: a.checked } });
+});
+
 Object.assign(VIEW_FN, { ha: vHa, demo: vDemo });
 
 // Beim Öffnen der HA-Seite Entitäten laden

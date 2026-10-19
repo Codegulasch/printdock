@@ -5,6 +5,7 @@
 // scenario: idle | printing | paused | finished | error   (Startzustand)
 
 const { BaseDriver, SPEED_LEVELS, temp } = require('./base');
+const { SPEEDS } = require('../lib/demo');
 
 const VARIANTS = {
   x2d: {
@@ -107,6 +108,9 @@ class DemoDriver extends BaseDriver {
     if (sc !== 'idle') {
       this.jobName = this.config.jobName || 'Demo_Teil.gcode';
       this.step = Number(this.config.step) || 0.05;
+      // echte Druckzeit des Demo-Auftrags (für Echtzeit/10×/300×); bei 60× bleibt das gewohnte Tempo der Demo
+      this.estSec = Number(this.config.estimatedSec) || 3 * 3600;
+      this.scenarioStep = this.step;
       this.progress = Number(this.config.progress) || 34;
       this.phase = sc === 'finished' ? 'finished' : sc === 'error' ? 'error' : 'printing';
       this.paused = sc === 'paused';
@@ -131,12 +135,23 @@ class DemoDriver extends BaseDriver {
     return Math.round(next * 10) / 10;
   }
 
+  /** Fortschritt je Takt (2 s) nach eingestelltem Tempo (Einstellungen → Demo-Daten) */
+  stepNow() {
+    let speed = 'x60';
+    try { speed = require('../lib/app').demo?.speed || 'x60'; } catch { /* Einstellungen noch nicht geladen */ }
+    if (speed === 'x60' && this.scenarioStep) return this.scenarioStep; // eingespielte Demo-Drucke wie bisher
+    const factor = SPEEDS[speed] || 60;
+    // mindestens 20 Takte (40 s), damit man den Druck auch im Zeitraffer sieht
+    const ticks = Math.max(20, (this.estSec || 2400) / factor / 2);
+    return 100 / ticks;
+  }
+
   tick() {
     this.t++;
     const v = this.v;
     const speedMul = (SPEED_LEVELS[this.speedLevel]?.pct || 100) / 100;
     if (this.phase === 'printing' && !this.paused) {
-      this.progress += (this.step || 0.8) * speedMul;
+      this.progress += this.stepNow() * speedMul;
       if (this.progress >= 100) {
         if (this.config.loop) this.progress = 3;
         else {
@@ -161,7 +176,7 @@ class DemoDriver extends BaseDriver {
     const state = this.phase === 'printing' ? (this.paused ? 'paused' : 'printing') : this.phase;
     const idle = state === 'idle';
     const totalLayers = 320;
-    const step = (this.step || 0.8) * speedMul;
+    const step = this.stepNow() * speedMul;
     const slots = v.slots.map((s) => ({ ...s }));
     let activeSlot = null;
     if (heating && slots.length) activeSlot = slots[Math.floor(this.progress / 30) % Math.min(2, slots.length)].key;
@@ -216,8 +231,10 @@ class DemoDriver extends BaseDriver {
     this.paused = false;
     this.progress = 0;
     this.jobName = job.name;
-    // Zeitraffer: geschätzte Zeit / 60, mindestens 40 s
-    this.step = 100 / Math.max(20, (job.meta?.estimatedSec || 2400) / 60 / 2);
+    this.estSec = job.meta?.estimatedSec || 2400;
+    this.scenarioStep = null;
+    // Tempo kommt aus den Einstellungen (stepNow), Standard 60× Zeitraffer, mindestens 40 s
+    this.step = 100 / Math.max(20, this.estSec / 60 / 2);
     this.tick();
   }
 

@@ -164,6 +164,7 @@ const filament = new Filament({
     notifier.dispatch(event, cfg, status || runtime.get(cfg.id)?.driver.status || null, extra).catch((err) => console.warn(err.message));
   },
 });
+filament.detachRealFromDemo(); // Demo-Drucker nur mit Demo-Spulen (ab 0.24)
 
 // Als Add-on: echte IP des Home-Assistant-Rechners für Slicer und Downloads ermitteln
 require('./lib/hostinfo').refresh(PORT).then((i) => i.ip && console.log(`Erreichbar im Heimnetz unter http://${i.ip}:${i.port || PORT}`));
@@ -333,6 +334,7 @@ function trackJob(cfg, rt, status) {
       filamentMm: rt.job.filamentMm || null,
       ...(rt.job.recovered ? { recovered: true } : {}),
       ...(rt.job.l1Photo ? { l1Photo: rt.job.l1Photo } : {}),
+      ...(require('./lib/demo').isDemo(cfg) ? { demo: true } : {}),
     };
     archive?.enrich(entry, rt.job);
     failures.onEnded(entry);
@@ -388,6 +390,7 @@ production.ctx.resolveLost = (q, result, { auto = false } = {}) => {
     durationSec: Math.round((endedAt - startedAt) / 1000),
     message: auto ? 'Druckende nachträglich erkannt' : 'Von Hand abgeschlossen',
     recovered: true,
+    ...(require('./lib/demo').isDemo(cfg) ? { demo: true } : {}),
   };
   if (result !== 'finished' && !auto) entry.failOpen = false;
   history.push(entry);
@@ -517,6 +520,22 @@ function firstLayerPhoto(cfg, rt, status) {
   })().catch((err) => console.warn(`[${cfg.name}] Erste Schicht: ${err.message}`));
 }
 
+// Demo-Drucker: Platte automatisch räumen (Einstellungen → Demo-Daten) – nach der eingestellten Wartezeit
+// seit Druckende; Drucker, die schon beim Einschalten der Option warten, werden gleich geräumt
+setInterval(() => {
+  if (!app.demo?.autoClear) return;
+  const { isDemo } = require('./lib/demo');
+  for (const cfg of printerConfigs.filter(isDemo)) {
+    const rt = runtime.get(cfg.id);
+    const state = rt?.driver.status?.state;
+    if (!rt || !['finished', 'cancelled', 'idle'].includes(state) || production.plateClear(cfg.id)) continue;
+    if (rt.lastEndAt && Date.now() - rt.lastEndAt < (Number(app.demo.autoClearSec) || 0) * 1000) continue;
+    production.setPlateClear(cfg.id, true);
+    console.log(`[${cfg.name}] Demo: Platte automatisch geräumt`);
+    broadcast('production', null);
+  }
+}, 3000).unref();
+
 async function startPrinter(cfg) {
   const Driver = byId[cfg.driver];
   if (!Driver) {
@@ -546,6 +565,7 @@ async function startPrinter(cfg) {
       archive?.afterEnd(entry, cfg, rt); // Fremddruck: Datei holen, eindeutigen Auftrag zuordnen
       saveHistory(); // Auftrag, Warteschlange und Filament nachgetragen
       ha.onJobEnd(cfg);
+      rt.lastEndAt = Date.now(); // für „Platte automatisch räumen“ bei Demo-Druckern
     }
     if (ACTIVE.has(status.state)) ha.cancelAutoOff(cfg.id);
     ha.publishState(cfg);
@@ -903,7 +923,15 @@ async function handleApi(req, res, url) {
 
   if (resource === 'stats' && req.method === 'GET') {
     const days = Math.max(0, Math.min(3650, Number(url.searchParams.get('days') ?? 30) || 0));
-    return sendJson(res, 200, stats.compute({ history, usage: filament.usageRecords(), printers: printerConfigs, days }));
+    // Demo-Drucke zählen nicht, sobald es echte Drucker gibt
+    const { isDemo, separate } = require('./lib/demo');
+    const sep = separate(printerConfigs);
+    const demoIds = new Set(printerConfigs.filter(isDemo).map((p) => p.id));
+    return sendJson(res, 200, stats.compute({
+      history: sep ? history.filter((h) => !h.demo && !demoIds.has(h.printerId)) : history,
+      usage: sep ? filament.usageRecords().filter((u) => !u.demo && !demoIds.has(u.printerId)) : filament.usageRecords(),
+      printers: sep ? printerConfigs.filter((p) => !isDemo(p)) : printerConfigs, days,
+    }));
   }
 
   if (resource === 'events' && req.method === 'GET') {

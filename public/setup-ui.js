@@ -370,7 +370,8 @@ function vSystem() {
       ${on('demo') ? srow(t('Demo-Daten'), t('5 simulierte Drucker mit Dateien, Spulen, Aufträgen und Verlauf – zum Ausprobieren. Eigene Daten bleiben unberührt.'), demoLoaded
         ? `<button class="b b-sm b-fault" data-hact="demoRemove">${t('Demo-Daten entfernen')}</button>`
         : `<button class="b b-sm" data-hact="demoLoad">${t('Demo-Daten einspielen')}</button>`) : ''}
-    </div>`;
+    </div>
+    ${typeof demoSimHTML === 'function' && S.printers.some((p) => p.demo || p.driver === 'demo') ? demoSimHTML() : ''}`;
 }
 
 VIEW_FN.system = vSystem;

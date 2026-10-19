@@ -76,7 +76,7 @@ Fully local – no cloud, no account, no database. Runs as a **Home Assistant ad
 - **Setup levels** Hobby, Maker, Workshop – PrintDock shows only what you need; switched-off features are listed under **"Discover more"**
 - **Setup wizard**, **every feature can be switched off**, **arrange the menu, "Today" and printer cards** and choose the start page
 - **German and English**, accent colour, your own themes (logo, colours, fonts), light and dark mode, works on phones
-- **Demo data** with one click: 5 simulated printers, files, spools, orders and 30 days of history
+- **Demo data** with one click: 5 simulated printers, files, spools, orders and 30 days of history – simulation in real time or time-lapse, optional automatic plate clearing, never touches real stock
 
 | Today | Archive |
 |---|---|

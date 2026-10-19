@@ -297,7 +297,10 @@ function pickSpoolDialog(printerId, key) {
   if (!sl) return;
   const cur = sl.spoolId ? spoolById(sl.spoolId) : null;
   const norm = (x) => String(x || '').toUpperCase().replace(/[^A-Z]/g, '');
-  const cands = F.spools.filter((s) => !s.archived && s.id !== cur?.id)
+  // Demo-Drucker: nur Demo-Spulen (echte Bestände bleiben unberührt)
+  const demoP = S.printers.find((x) => x.id === printerId);
+  const isDemoP = Boolean(demoP?.demo || demoP?.driver === 'demo');
+  const cands = F.spools.filter((s) => !s.archived && s.id !== cur?.id && (!isDemoP || s.demo))
     .map((s) => ({ s, score: (sl.material && norm(s.material).startsWith(norm(sl.material).slice(0, 3)) ? 2 : 0) + (sl.color && s.color === sl.color ? 1 : 0) + (s.slot ? -3 : 0) }))
     .sort((a, b) => b.score - a.score || a.s.remaining - b.s.remaining);
   const d = openDialog(`<div class="dlg"><h2>${esc(p.name)} · ${esc(t(sl.label))}</h2>

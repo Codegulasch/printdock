@@ -2657,6 +2657,16 @@
     'theme.json braucht einen Namen ("name")': 'theme.json needs a name ("name")',
     'Theme nicht gefunden': 'Theme not found',
     'Die Akzentfarbe kommt dann aus dem Theme.': 'The accent colour then comes from the theme.',
+    'Tempo der Simulation': 'Simulation speed',
+    'Echtzeit: ein 2-Stunden-Druck dauert 2 Stunden. 60× war bisher fest eingestellt. Gilt sofort, auch für laufende Drucke.': 'Real time: a 2-hour print takes 2 hours. 60× used to be fixed. Applies right away, also to running prints.',
+    'Nach einem Demo-Druck gilt die Platte nach der Wartezeit als geräumt – mit Auto-Start läuft die Warteschlange so endlos weiter.': 'After a demo print the plate counts as cleared after the waiting time – with auto start the queue keeps running endlessly.',
+    'Wartezeit': 'Waiting time',
+    'Demo-Drucker nutzen nur Demo-Spulen und buchen nie echte Bestände ab. Sobald es echte Drucker gibt, zählen Demo-Drucke nicht in Statistik, Verbrauch, Reservierung und Einkaufsliste – im Verlauf bleiben sie sichtbar.': "Demo printers only use demo spools and never book real stock. As soon as there are real printers, demo prints don't count in statistics, usage, reservations and the shopping list – they stay visible in the history.",
+    'Echtzeit': 'Real time',
+    'sofort': 'immediately',
+    'Simulierte Drucker': 'Simulated printers',
+    'Platte automatisch räumen': 'Clear plate automatically',
+    'Echte Spulen lassen sich Demo-Druckern nicht zuordnen': "Real spools can't be assigned to demo printers",
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = EN;
   else root.PD_DICT_EN = EN;
